@@ -72,29 +72,51 @@ This guide provides a step-by-step walkthrough for participating in the **IROS 2
 
 ## 🧩 Environment Setup
 
-
-### Pull our base Docker image (WIP)
+### Clone the InternNav repository to any desired location
 ```bash
-# Uploading Soon
+$ git clone git@github.com:InternRobotics/InternNav.git
 ```
 
-### Navigate to codebase
-All code development and configuration should happen inside the `grnavigation` directory:
-
+### Pull our base Docker image
 ```bash
-cd grnavigation
+$ docker pull crpi-mdum1jboc8276vb5.cn-beijing.personal.cr.aliyuncs.com/iros-challenge/internnav:v1.0
+```
+
+### Run the container
+```bash
+$ xhost +local:root # Allow the container to access the display
+
+$ cd PATH/TO/INTERNNAV
+
+$ docker run --name internnav -it --rm --gpus all --network host \
+  -e "ACCEPT_EULA=Y" \
+  -e "PRIVACY_CONSENT=Y" \
+  -e "DISPLAY=${DISPLAY}" \
+  -v /tmp/.X11-unix/:/tmp/.X11-unix \
+  -v ${PWD}:/root/grnavigation \
+  -v ${HOME}/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw \
+  -v ${HOME}/docker/isaac-sim/cache/ov:/root/.cache/ov:rw \
+  -v ${HOME}/docker/isaac-sim/cache/pip:/root/.cache/pip:rw \
+  -v ${HOME}/docker/isaac-sim/cache/glcache:/root/.cache/nvidia/GLCache:rw \
+  -v ${HOME}/docker/isaac-sim/cache/computecache:/root/.nv/ComputeCache:rw \
+  -v ${HOME}/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
+  -v ${HOME}/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
+  -v ${HOME}/docker/isaac-sim/documents:/root/Documents:rw \
+  crpi-mdum1jboc8276vb5.cn-beijing.personal.cr.aliyuncs.com/iros-challenge/internnav:v1.0
 ```
 
 ### Download the starter dataset (val_seen + val_unseen splits)
 ```bash
-git lfs install
-mkdir kujiale_data
+$ git lfs install
+
+$ mkdir kujiale_data
 # InteriorAgent scene usd
-git clone https://huggingface.co/datasets/spatialverse/InteriorAgent kujiale_data/scene_data
+$ git clone https://huggingface.co/datasets/spatialverse/InteriorAgent kujiale_data/scene_data
 # InteriorAgent train and val dataset
-git clone https://huggingface.co/datasets/spatialverse/InteriorAgent_Nav kujiale_data/raw_data
+$ git clone https://huggingface.co/datasets/spatialverse/InteriorAgent_Nav kujiale_data/raw_data
+
 # Latest InternData (required huggingface token to download, generate one from here https://huggingface.co/settings/tokens)
-git clone -b v0.1-full https://huggingface.co/datasets/InternRobotics/InternData-N1 data
+$ git clone -b v0.1-full https://huggingface.co/datasets/InternRobotics/InternData-N1 data
 ```
 
 ### Suggested Dataset Path
@@ -139,46 +161,50 @@ kujiale_data
 ### [Optional] Download the baseline model
 ```bash
 # ddppo-models
-mkdir -p checkpoints/ddppo-models
-wget -P checkpoints/ddppo-models https://dl.fbaipublicfiles.com/habitat/data/baselines/v1/ddppo/ddppo-models/gibson-4plus-mp3d-train-val-test-resnet50.pth
+$ mkdir -p checkpoints/ddppo-models
+$ wget -P checkpoints/ddppo-models https://dl.fbaipublicfiles.com/habitat/data/baselines/v1/ddppo/ddppo-models/gibson-4plus-mp3d-train-val-test-resnet50.pth
 # longclip-B
-huggingface-cli download --include 'longclip-B.pt' --local-dir-use-symlinks False --resume-download Beichenzhang/LongCLIP-B --local-dir checkpoints/clip-long
+$ huggingface-cli download --include 'longclip-B.pt' --local-dir-use-symlinks False --resume-download Beichenzhang/LongCLIP-B --local-dir checkpoints/clip-long
 # download r2r finetuned baseline checkpoints
-git clone https://huggingface.co/InternRobotics/VLN-PE && mv VLN-PE/r2r checkpoints/
+$ git clone https://huggingface.co/InternRobotics/VLN-PE && mv VLN-PE/r2r checkpoints/
 ```
 
 ## 🛠️ Local Development & Testing
 
-### Run the container
-```bash
-```
 ### Develop & test
 - Implement your policy under `internnav/model` and add to `internav/agent`.
 - We provide train and eval scripts to quick start.
 - Use our train script to train your model:
     ```bash
-    ./scripts/train/start_train.sh --name train_rdp --model rdp
+    $ ./scripts/train/start_train.sh --name train_rdp --model rdp
     ```
 - Use our evaluation script for quick checks:
     ```bash
-    ./scripts/eval/start_eval.sh --config scripts/eval/configs/challenge_cfg.py
+    $ ./scripts/eval/start_eval.sh --config scripts/eval/configs/challenge_cfg.py
     ```
 - **Example**: Try to train and evaluate the baseline models. 
 We provide default train and eval configs named as `challenge_xxx_cfg.py` under `scripts/.../configs`
 
 ## 📦 Packaging & Submission
-### Make sure your trained weights & model is in `challenge_cfg.py`
+
+### ✅ Ensure Trained Weights & Model Are Included
+
+Make sure your trained weights and model are correctly packaged in your submitted Docker image and that the evaluation configuration is properly set at: `scripts/eval/configs/challenge_cfg.py`
+
+To quickly verify that your setup works:
+
 ```bash
 # quick check 
-./scripts/eval/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py
+$ ./scripts/eval/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py
 ```
-### Build your submission image
+### Build Your Submission Docker Image
+Replace url with your actual image.
 ```bash
-docker build -t registry.cn-hangzhou.aliyuncs.com/yourteam/iros2025:dev .
+$ docker build -t registry.cn-hangzhou.aliyuncs.com/yourteam/iros2025:dev .
 ```
-### Push to the registry
+Push to the registry
 ```bash
-docker push registry.cn-hangzhou.aliyuncs.com/yourteam/iros2025:dev
+$ docker push registry.cn-hangzhou.aliyuncs.com/yourteam/iros2025:dev
 ```
 ### Submit your image URL on Eval.AI
 
@@ -235,3 +261,16 @@ For detailed submission guidelines and troubleshooting, refer to the official Ev
 ### Results Collection
 - Upon completion, metrics for each split are parsed and pushed to the [EvalAI](https://eval.ai/web/challenges/challenge-page/2627/overview) leaderboard.
 - The released results are computed as a weighted sum of the test subsets from VLNPE-R2R (MP3D scenes) and Interior-Agent (Kujiale scenes), with a weighting ratio of 2:1.
+
+---
+## 📖 Citation
+For more details with in-depth physical analysis results on the VLN task, please refer to our **VLN-PE**:
+[Rethinking the Embodied Gap in Vision-and-Language Navigation: A Holistic Study of Physical and Visual Disparities](https://arxiv.org/pdf/2507.13019).
+```
+@inproceedings{vlnpe,
+  title={Rethinking the Embodied Gap in Vision-and-Language Navigation: A Holistic Study of Physical and Visual Disparities},
+  author={Wang, Liuyi and Xia, Xinyuan and Zhao, Hui and Wang, Hanqing and Wang, Tai and Chen, Yilun and Liu, Chengju and Chen, Qijun and Pang, Jiangmiao},
+  booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)},
+  year={2025}
+}
+```

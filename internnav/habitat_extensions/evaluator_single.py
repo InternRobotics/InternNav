@@ -11,6 +11,7 @@ import quaternion
 import itertools
 import random
 import re
+import cv2
 import sys
 import time
 
@@ -38,17 +39,7 @@ from transformers import (
     Qwen2_5_VLForConditionalGeneration,
 )
 
-def my_log(*args, **kwargs):
-    time_str = time.time()
-    log_content = f"[{time_str}] "
-    print_args = []
-    for arg in args:
-        print_args.append(str(arg))
-    log_content += " ".join(print_args)
-    with open("single_eval.log", "a", encoding="utf-8") as f:
-        f.write(log_content + "\n")  
 
-print = my_log
 
 PROJECT_ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(PROJECT_ROOT_PATH)
@@ -57,9 +48,6 @@ from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCa
 from internnav.model.utils.vln_utils import rho_theta, image_resize, traj_to_actions, chunk_token, split_and_clean, open_image
 from internnav.habitat_extensions import measures
 from internnav.utils.dist import *
-
-
-
 
 
 DEFAULT_IMAGE_TOKEN = "<image>"
@@ -89,6 +77,14 @@ class VLNEvaluator:
         self.agent_config = get_agent_config(self.config.habitat.simulator)
         self.sim_sensors_config = self.config.habitat.simulator.agents.main_agent.sim_sensors
 
+        # for gradio evaluation
+        self.infer_data_ready = False
+        self.infer_scene_id = 0
+        self.infer_episode_id = 0
+        self.infer_success_cnt = -1
+        self.infer_instruction = ""
+        self.infer_success = False
+        self.env = None
         with habitat.config.read_write(self.config):
             # self.config.habitat.task.measurements.success.success_distance=3.0
             self.config.habitat.dataset.split = self.split
@@ -280,311 +276,320 @@ class VLNEvaluator:
         # env.episodes = env.episodes[0:1]
         return env
     
-    def eval_action(self, idx) -> None:
+    def run_single_eval(self):
+        
         self.model.eval()
-        env = self.config_env()
-        scene_episode_dict = {}
-        for episode in env.episodes:
-            if episode.scene_id not in scene_episode_dict:
-                scene_episode_dict[episode.scene_id] = []
-            scene_episode_dict[episode.scene_id].append(episode)
-
+        self.env = self.config_env()
+        self.scene_episode_dict = {}
+        for episode in self.env.episodes:
+            if episode.scene_id not in self.scene_episode_dict:
+                self.scene_episode_dict[episode.scene_id] = []
+            self.scene_episode_dict[episode.scene_id].append(episode)
         intrinsic_matrix = self.get_intrinsic_matrix(self.config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor)
         sucs, spls, oss, nes = [], [], [], []
         done_res = []
-        
-        if os.path.exists(os.path.join(self.output_path, f'result.json')):
-            with open(os.path.join(self.output_path, f'result.json'),'r') as f:
-                for line in f.readlines():
-                    res = json.loads(line)
-                    done_res.append([res["scene_id"], res["episode_id"], res["episode_instruction"]])
-                    sucs.append(res['success'])
-                    spls.append(res['spl'])
-                    oss.append(res['os'])
-                    nes.append(res['ne'])
-                    
-        episodes = next(iter(scene_episode_dict.values()))
-        # episode_id = 0
-        
-        episode = episodes[0]
+        if True: # fixme
+            scenes_keys = list(sorted(self.scene_episode_dict.keys()))
 
-        episode_instruction = episode.instruction.instruction_text if 'objectnav' not in self.config_path else episode.object_category
-        print("episode start", episode_instruction)
-
-        episode_id = int(episode.episode_id)
-
-        
-        env.current_episode = episode
-        observations = env.reset()
-        
-        agent_state = env.sim.get_agent_state()
-        rotation = agent_state.rotation
-        translation = agent_state.position
-        rotation_matrix = quaternion.as_rotation_matrix(rotation)
-        transformation_matrix = np.eye(4)
-        transformation_matrix[:3, :3] = rotation_matrix
-        transformation_matrix[:3, 3] = translation
+            self.infer_success = False
+            self.infer_data_ready = False
+            print('---------------current infer scence:', scenes_keys[self.infer_scene_id])
+            selected_scenes = ['17DRP5sb8fy', 'r1Q1Z4BcV1o', 'dhjEzFoUFzH']
+            key_name = 'data/scene_datasets/mp3d/' + selected_scenes[self.infer_scene_id] + '/' + selected_scenes[self.infer_scene_id] + '.glb'
+            episodes = self.scene_episode_dict[key_name]
+            step_size = len(episodes) // 6
+            # episode_id = 0
             
-        agent = ShortestPathFollower(
-                        env.sim, 0.25, False
-                    )
-        
-        os.makedirs(os.path.join(self.output_path, f'check_sim_{self.epoch}'), exist_ok=True)
-        Image.fromarray(observations['rgb']).save(os.path.join(self.output_path, f'check_sim_{self.epoch}', f'rgb_{idx}.jpg'))
-        
-        vis_frames = []
-        step_id = 0
-        
-        if self.save_video:
-            os.makedirs(self.output_path, exist_ok=True)
-        initial_height = env.sim.get_agent_state().position[1]
+            episode = episodes[self.infer_episode_id * step_size]
 
-        rgb_list = []
-        depth_list = []
-        action_seq = []
-        past_key_values = None
-        output_ids = None
-        
-        goal = None
-        action = None
-        look_down_observations = None
-        look_down_id_list = []
-        messages = []
-        last_action=None
-        local_actions = []
-        
-        # begin evaluation main loop
-        while not env.episode_over and step_id <=300:
-            rgb = observations["rgb"]
-            depth = observations["depth"]
-            x, y = observations["gps"]
-            camera_yaw = observations["compass"][0]
-            depth = filter_depth(depth.reshape(depth.shape[:2]), blur_type=None)
-            depth = depth * (self._max_depth - self._min_depth) + self._min_depth
-            depth = depth * 1000
+            episode_instruction = self.infer_instruction# episode.instruction.instruction_text if 'objectnav' not in self.config_path else episode.object_category
+            print("episode start", episode_instruction)
 
+            episode_id = int(episode.episode_id)
+            env = self.env
+            env.current_episode = episode
+            observations = env.reset()
+            
             agent_state = env.sim.get_agent_state()
-            height = agent_state.position[1] - initial_height # Habitat GPS makes west negative, so flip y
-            camera_position = np.array([x, -y, self._camera_height + height])
-            robot_xy = camera_position[:2]
-            # tf_camera_to_episodic = self.xyz_yaw_to_tf_matrix(camera_position, camera_yaw) @ self.get_axis_align_matrix()
-            tf_camera_to_episodic = self.xyz_yaw_pitch_to_tf_matrix(camera_position, camera_yaw, np.deg2rad(30)) @ self.get_axis_align_matrix()
+            rotation = agent_state.rotation
+            translation = agent_state.position
+            rotation_matrix = quaternion.as_rotation_matrix(rotation)
+            transformation_matrix = np.eye(4)
+            transformation_matrix[:3, :3] = rotation_matrix
+            transformation_matrix[:3, 3] = translation
+                
+            agent = ShortestPathFollower(
+                            env.sim, 0.25, False
+                        )
             
-            image = Image.fromarray(rgb).convert('RGB')  # raw observation image 
-            image_size = image.size  #640*480
-            save_raw_image = image.copy()
+            os.makedirs(os.path.join(self.output_path, f'check_sim_{self.epoch}'), exist_ok=True)
             
-            if action == 5:
-                look_down_image = image #Image.fromarray(look_down_observations['rgb']).convert('RGB')
-                save_raw_image = look_down_image.copy()
+            vis_frames = []
+            step_id = 0
+            
+            if self.save_video:
+                os.makedirs(self.output_path, exist_ok=True)
+            initial_height = env.sim.get_agent_state().position[1]
 
-                # rgb_list.append(look_down_image)
-                look_down_depth, resize_shape = self.preprocess_depth_image_v2(Image.fromarray(depth.astype(np.uint16), mode='I;16'), do_depth_scale=True, depth_scale=1000, target_height=224, target_width=224)
-                look_down_depth = torch.as_tensor(np.ascontiguousarray(look_down_depth)).float() # [H, W]
-                ### depth clip to 5m
-                look_down_depth[look_down_depth > 5.0] = 5.0
-            else:
-                image = image.resize((self.args.resize_w, self.args.resize_h))
-                rgb_list.append(image)
-
-                down_observations = env.step(5)
-                down_observations = env.step(5)
-
-                look_down_image = Image.fromarray(down_observations["rgb"]).convert('RGB')
-                depth = down_observations["depth"]
+            rgb_list = []
+            depth_list = []
+            action_seq = []
+            past_key_values = None
+            output_ids = None
+            
+            goal = None
+            action = None
+            look_down_observations = None
+            look_down_id_list = []
+            messages = []
+            last_action=None
+            local_actions = []
+            
+            # begin evaluation main loop
+            while not env.episode_over and step_id <=70:
+                rgb = observations["rgb"]
+                depth = observations["depth"]
+                x, y = observations["gps"]
+                camera_yaw = observations["compass"][0]
                 depth = filter_depth(depth.reshape(depth.shape[:2]), blur_type=None)
                 depth = depth * (self._max_depth - self._min_depth) + self._min_depth
                 depth = depth * 1000
-                look_down_depth, resize_shape = self.preprocess_depth_image_v2(Image.fromarray(depth.astype(np.uint16), mode='I;16'), do_depth_scale=True, depth_scale=1000, target_height=224, target_width=224)
-                look_down_depth = torch.as_tensor(np.ascontiguousarray(look_down_depth)).float() # [H, W]
-                ### depth clip to 5m
-                look_down_depth[look_down_depth > 5.0] = 5.0
 
-                env.step(4)
-                env.step(4)
-
-            
-            info = env.get_metrics()
-            
-            if len(action_seq) == 0 and goal is None:  # 只有执行完一次输出的所有 action_seq 才能继续做模型推理
-                if action != 5: 
-                    sources = copy.deepcopy(self.conversation)
-                    if 'objectnav' in self.config_path:
-                        sources[0]["value"] = sources[0]["value"].replace('<instruction>.', random.choice(self.objectnav_instructions).format(target_object=episode.object_category.replace('_', ' ')))
-                    else: 
-                        sources[0]["value"] = sources[0]["value"].replace('<instruction>.', episode.instruction.instruction_text[:-1])
-                    cur_images = rgb_list[-1:]   # current observation 
-                    if step_id == 0:
-                        history_id = []
-                    else:
-                        history_id = np.unique(np.linspace(0, step_id - 1, self.num_history, dtype=np.int32)).tolist()
-                        placeholder = (DEFAULT_IMAGE_TOKEN + '\n') * len(history_id)
-                        sources[0]["value"] += f' These are your historical observations: {placeholder}.'
-                    
-                    history_id = sorted(history_id)
-                    print('history_idddddddd', step_id, history_id)
-                    input_images = [rgb_list[i] for i in history_id] + cur_images
-                    input_img_id = 0
-                else: 
-                    assert action == 5 # last action is look down
-                    sources = [{"from": "human", "value": ""}, {"from": "gpt", "value": ""}]
-                    input_images += [look_down_image]
-                    messages.append({
-                                    'role': 'assistant',
-                                    'content': [
-                                        {
-                                            'type': 'text',
-                                            'text': llm_outputs
-                                        }
-                                    ]
-                                })
-                    input_img_id = -1
-                    
-                prompt = random.choice(self.conjunctions) + DEFAULT_IMAGE_TOKEN
-                sources[0]["value"] += f" {prompt}."
-                print('sources', step_id, sources)
-                prompt_instruction = copy.deepcopy(sources[0]["value"])
-                parts = split_and_clean(prompt_instruction)
+                agent_state = env.sim.get_agent_state()
+                height = agent_state.position[1] - initial_height # Habitat GPS makes west negative, so flip y
+                camera_position = np.array([x, -y, self._camera_height + height])
+                robot_xy = camera_position[:2]
+                # tf_camera_to_episodic = self.xyz_yaw_to_tf_matrix(camera_position, camera_yaw) @ self.get_axis_align_matrix()
+                tf_camera_to_episodic = self.xyz_yaw_pitch_to_tf_matrix(camera_position, camera_yaw, np.deg2rad(30)) @ self.get_axis_align_matrix()
                 
-                content = []
-                for i in range (len(parts)):
-                    if parts[i] == "<image>":
-                        content.append({"type": "image", "image": input_images[input_img_id]})
-                        input_img_id +=1
-                    else:
-                        content.append({"type": "text", "text": parts[i]}) 
+                image = Image.fromarray(rgb).convert('RGB')  # raw observation image 
+                image_size = image.size  #640*480
+                save_raw_image = image.copy()
                 
-                messages.append({
-                                    'role': 'user',
-                                    'content': content
-                                })
+                if action == 5:
+                    look_down_image = image #Image.fromarray(look_down_observations['rgb']).convert('RGB')
+                    save_raw_image = look_down_image.copy()
+
+                    # rgb_list.append(look_down_image)
+                    look_down_depth, resize_shape = self.preprocess_depth_image_v2(Image.fromarray(depth.astype(np.uint16), mode='I;16'), do_depth_scale=True, depth_scale=1000, target_height=224, target_width=224)
+                    look_down_depth = torch.as_tensor(np.ascontiguousarray(look_down_depth)).float() # [H, W]
+                    ### depth clip to 5m
+                    look_down_depth[look_down_depth > 5.0] = 5.0
+                else:
+                    image = image.resize((self.args.resize_w, self.args.resize_h))
+                    rgb_list.append(image)
+
+                    down_observations = env.step(5)
+                    down_observations = env.step(5)
+
+                    look_down_image = Image.fromarray(down_observations["rgb"]).convert('RGB')
+                    depth = down_observations["depth"]
+                    depth = filter_depth(depth.reshape(depth.shape[:2]), blur_type=None)
+                    depth = depth * (self._max_depth - self._min_depth) + self._min_depth
+                    depth = depth * 1000
+                    look_down_depth, resize_shape = self.preprocess_depth_image_v2(Image.fromarray(depth.astype(np.uint16), mode='I;16'), do_depth_scale=True, depth_scale=1000, target_height=224, target_width=224)
+                    look_down_depth = torch.as_tensor(np.ascontiguousarray(look_down_depth)).float() # [H, W]
+                    ### depth clip to 5m
+                    look_down_depth[look_down_depth > 5.0] = 5.0
+
+                    env.step(4)
+                    env.step(4)
+
                 
-                print('step_id', step_id, 'messages:', messages)
-            
-                text = self.processor.apply_chat_template(
-                    messages,tokenize=False, add_generation_prompt=True
-                )
-
-                inputs = self.processor(text=[text], images=input_images, return_tensors="pt").to(self.model.device)
-
-                with torch.no_grad():
-                    output_ids = self.model.generate(**inputs, max_new_tokens=128, do_sample=False)
-                    
-
-                llm_outputs = self.processor.tokenizer.decode(output_ids[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
-                print('step_id:', step_id, 'output text:', llm_outputs)
-                
-                if bool(re.search(r'\d', llm_outputs)): # output pixel goal 
-                    forward_action = 0
-                    coord = [int(c) for c in re.findall(r'\d+', llm_outputs)]
-                    pixel_goal = [int(coord[1]), int(coord[0])]  # switch the goal o
-                    
-                    goal = self.pixel_to_gps(pixel_goal, depth / 1000, intrinsic_matrix, tf_camera_to_episodic)
-                    print('before', goal, depth.shape)
-                    goal = (transformation_matrix @ np.array([-goal[1], 0, -goal[0], 1]))[:3] 
-                    
-                    if not env.sim.pathfinder.is_navigable(np.array(goal)):
-                        goal = np.array(env.sim.pathfinder.snap_point(np.array(goal)))
+                info = env.get_metrics()
+                current_frame_infer_pixel = False
+                if len(action_seq) == 0 and goal is None:  # 只有执行完一次输出的所有 action_seq 才能继续做模型推理
+                    if action != 5: 
+                        sources = copy.deepcopy(self.conversation)
+                        if 'objectnav' in self.config_path:
+                            sources[0]["value"] = sources[0]["value"].replace('<instruction>.', random.choice(self.objectnav_instructions).format(target_object=episode.object_category.replace('_', ' ')))
+                        else: 
+                            sources[0]["value"] = sources[0]["value"].replace('<instruction>.', episode_instruction[:-1])
+                        cur_images = rgb_list[-1:]   # current observation 
+                        if step_id == 0:
+                            history_id = []
+                        else:
+                            history_id = np.unique(np.linspace(0, step_id - 1, self.num_history, dtype=np.int32)).tolist()
+                            placeholder = (DEFAULT_IMAGE_TOKEN + '\n') * len(history_id)
+                            sources[0]["value"] += f' These are your historical observations: {placeholder}.'
                         
-                    # look down --> horizontal
-                    env.step(4)
-                    env.step(4)
+                        history_id = sorted(history_id)
+                        print('history_idddddddd', step_id, history_id)
+                        input_images = [rgb_list[i] for i in history_id] + cur_images
+                        input_img_id = 0
+                    else: 
+                        assert action == 5 # last action is look down
+                        sources = [{"from": "human", "value": ""}, {"from": "gpt", "value": ""}]
+                        input_images += [look_down_image]
+                        messages.append({
+                                        'role': 'assistant',
+                                        'content': [
+                                            {
+                                                'type': 'text',
+                                                'text': llm_outputs
+                                            }
+                                        ]
+                                    })
+                        input_img_id = -1
+                        
+                    prompt = random.choice(self.conjunctions) + DEFAULT_IMAGE_TOKEN
+                    sources[0]["value"] += f" {prompt}."
+                    print('sources', step_id, sources)
+                    prompt_instruction = copy.deepcopy(sources[0]["value"])
+                    parts = split_and_clean(prompt_instruction)
                     
-                    # action = agent.get_next_action(goal)
-                    local_actions = []
-                    pixel_values = inputs.pixel_values
-                    image_grid_thw = torch.cat(
-                        [thw.unsqueeze(0) for thw in inputs.image_grid_thw], dim=0
-                    )
+                    content = []
+                    for i in range (len(parts)):
+                        if parts[i] == "<image>":
+                            content.append({"type": "image", "image": input_images[input_img_id]})
+                            input_img_id +=1
+                        else:
+                            content.append({"type": "text", "text": parts[i]}) 
                     
-                    with torch.no_grad():
-                        traj_latents = self.model.generate_latents(output_ids, pixel_values, image_grid_thw)
+                    messages.append({
+                                        'role': 'user',
+                                        'content': content
+                                    })
                     
-                    image_dp = torch.tensor(np.array(look_down_image.resize((224, 224)))).to(torch.bfloat16)
-                    pix_goal_image = copy.copy(image_dp)
-                    images_dp = torch.stack([pix_goal_image, image_dp]).unsqueeze(0)
-                    depth_dp = look_down_depth.unsqueeze(-1).to(torch.bfloat16)
-                    pix_goal_depth = copy.copy(depth_dp)
-                    depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0)
-                    
-                    with torch.no_grad():
-                        dp_actions = self.model.generate_traj(traj_latents) 
+                    print('step_id', step_id, 'messages:', messages)
                 
-                    random_choice = np.random.choice(dp_actions.shape[0])
-                    if self.args.continuous_traj:
-                        action_list = traj_to_actions(dp_actions)
-                        if len(action_list) < 8:
-                            action_list += [0] * (8-len(action_list))
+                    text = self.processor.apply_chat_template(
+                        messages,tokenize=False, add_generation_prompt=True
+                    )
+
+                    inputs = self.processor(text=[text], images=input_images, return_tensors="pt").to(self.model.device)
+
+                    with torch.no_grad():
+                        output_ids = self.model.generate(**inputs, max_new_tokens=128, do_sample=False)
+                        
+
+                    llm_outputs = self.processor.tokenizer.decode(output_ids[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
+                    print('step_id:', step_id, 'output text:', llm_outputs)
+                    
+                    if bool(re.search(r'\d', llm_outputs)): # output pixel goal 
+                        current_frame_infer_pixel = True
+                        forward_action = 0
+                        coord = [int(c) for c in re.findall(r'\d+', llm_outputs)]
+                        pixel_goal = [int(coord[1]), int(coord[0])]  # switch the goal o
+                        
+                        goal = self.pixel_to_gps(pixel_goal, depth / 1000, intrinsic_matrix, tf_camera_to_episodic)
+                        print('before', goal, depth.shape)
+                        goal = (transformation_matrix @ np.array([-goal[1], 0, -goal[0], 1]))[:3] 
+                        
+                        if not env.sim.pathfinder.is_navigable(np.array(goal)):
+                            goal = np.array(env.sim.pathfinder.snap_point(np.array(goal)))
+                            
+                        # look down --> horizontal
+                        env.step(4)
+                        env.step(4)
+                        
+                        # action = agent.get_next_action(goal)
+                        local_actions = []
+                        pixel_values = inputs.pixel_values
+                        image_grid_thw = torch.cat(
+                            [thw.unsqueeze(0) for thw in inputs.image_grid_thw], dim=0
+                        )
+                        
+                        with torch.no_grad():
+                            traj_latents = self.model.generate_latents(output_ids, pixel_values, image_grid_thw)
+                        
+                        image_dp = torch.tensor(np.array(look_down_image.resize((224, 224)))).to(torch.bfloat16)
+                        pix_goal_image = copy.copy(image_dp)
+                        images_dp = torch.stack([pix_goal_image, image_dp]).unsqueeze(0)
+                        depth_dp = look_down_depth.unsqueeze(-1).to(torch.bfloat16)
+                        pix_goal_depth = copy.copy(depth_dp)
+                        depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0)
+                        
+                        with torch.no_grad():
+                            dp_actions = self.model.generate_traj(traj_latents) 
+                    
+                        random_choice = np.random.choice(dp_actions.shape[0])
+                        if self.args.continuous_traj:
+                            action_list = traj_to_actions(dp_actions)
+                            if len(action_list) < 8:
+                                action_list += [0] * (8-len(action_list))
+                        else:
+                            action_list = chunk_token(dp_actions[random_choice])
+                        print("first action_list", action_list)
+                        local_actions = action_list                        
+                        action = local_actions[0]
+                        if action == 0:
+                            goal = None
+                            output_ids = None
+                            action = 2
+                            print('conduct a random action 2')
+                            observations = env.step(action)
+                            step_id += 1
+                            messages = []
+                            continue
+
+                        print('predicted goal', pixel_goal, goal, flush=True)
+                    else:                           
+                        action_seq = self.parse_actions(llm_outputs)
+                        print('actions', action_seq, flush=True)
+                                                
+                if len(action_seq) != 0:
+                    action = action_seq[0]
+                    action_seq.pop(0)
+                elif goal is not None:
+                    if len(local_actions) != 0:
+                        action = local_actions.pop(0)
                     else:
-                        action_list = chunk_token(dp_actions[random_choice])
-                    print("first action_list", action_list)
-                    local_actions = action_list                        
-                    action = local_actions[0]
+                        action = 0
+                    forward_action +=1
+                    print('forward_action', forward_action, flush=True)
+                    if forward_action > 8:
+                        goal =  None
+                        output_ids = None
+                        messages = []
+                        step_id += 1
+                        forward_action =0
+                        local_actions = []
+                        continue
                     if action == 0:
                         goal = None
                         output_ids = None
-                        action = 2
-                        print('conduct a random action 2')
-                        observations = env.step(action)
-                        step_id += 1
                         messages = []
+                        step_id += 1
+                        forward_action =0
+                        local_actions = []
                         continue
-
-                    print('predicted goal', pixel_goal, goal, flush=True)
-                else:                           
-                    action_seq = self.parse_actions(llm_outputs)
-                    print('actions', action_seq, flush=True)
-                                            
-            if len(action_seq) != 0:
-                action = action_seq[0]
-                action_seq.pop(0)
-            elif goal is not None:
-                if len(local_actions) != 0:
-                    action = local_actions.pop(0)
                 else:
                     action = 0
-                forward_action +=1
-                print('forward_action', forward_action, flush=True)
-                if forward_action > 8:
-                    goal =  None
-                    output_ids = None
-                    messages = []
-                    step_id += 1
-                    forward_action =0
-                    local_actions = []
-                    continue
-                if action == 0:
-                    goal = None
-                    output_ids = None
-                    messages = []
-                    step_id += 1
-                    forward_action =0
-                    local_actions = []
-                    continue
-            else:
-                action = 0
+                    
+                if info['top_down_map'] is not None:
+                    frame = observations_to_image({'rgb': np.asarray(save_raw_image)}, info)
+                    if current_frame_infer_pixel:
+                        frame = cv2.putText(frame, f"{pixel_goal[1], pixel_goal[0]}", (50, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+                        frame = cv2.circle(frame, (pixel_goal[1], pixel_goal[0]), 5, (255, 0, 0), -1)
+                    else:
+                        output_str = str(action)
+                        output_str = output_str.replace('1', "Go forward").replace('2', 'Turn left').replace('3', 'Turn right')
+                        output_str = output_str.replace('5', 'Look down').replace('0', 'Stop!')
+                        frame = cv2.putText(frame, output_str, (50, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+                    vis_frames.append(frame)
+                    if action == 5:
+                        vis_frames.append(frame)
+                    
+                print("step_id", step_id, "action", action)
                 
-            if info['top_down_map'] is not None:
-                frame = observations_to_image({'rgb': np.asarray(save_raw_image)}, info)
-                vis_frames.append(frame)
-                
-            print("step_id", step_id, "action", action)
+                if action == 5:
+                    env.step(action)
+                    observations = env.step(action)
+                else:
+                    observations = env.step(action)
+                    step_id += 1
+                    messages = []
             
-            if action == 5:
-                env.step(action)
-                observations = env.step(action)
-            else:
-                observations = env.step(action)
-                step_id += 1
-                messages = []
-        
-        
-        metrics = env.get_metrics()
-        if self.save_video :
-            images_to_video(
-                vis_frames, self.output_path, "res",fps=6, quality=9
-            )
-        vis_frames.clear()
+            self.infer_success_cnt += 1
+            
+            metrics = env.get_metrics()
+            if self.save_video :
+                images_to_video(
+                    vis_frames, self.output_path, f"res_{self.infer_success_cnt}",fps=6, quality=9
+                )
+            self.infer_success = True
+            vis_frames.clear()
 
         env.close()
         return torch.tensor(sucs).to(self.device), torch.tensor(spls).to(self.device), torch.tensor(oss).to(self.device), torch.tensor(nes).to(self.device), torch.tensor(len(sucs)).to(self.device)
@@ -641,9 +646,7 @@ def eval():
     local_rank = args.local_rank
     np.random.seed(local_rank)
     # 载入模型和 tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path, use_fast=True)
     processor = AutoProcessor.from_pretrained(args.model_path)
-    processor.tokenizer = tokenizer
     processor.tokenizer.padding_side = 'left'
 
     device = torch.device(f"cuda:{local_rank}")

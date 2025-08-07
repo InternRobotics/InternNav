@@ -1,30 +1,67 @@
-import gradio as gr
-import requests
+import base64
 import json
+import logging
 import os
-import uuid
-import time
 import subprocess
-from typing import Optional, List
-from datetime import datetime,timedelta
-import cv2
+import sys
+import threading
+import time
+import uuid
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+
+import gradio as gr
 import numpy as np
+import open3d as o3d
+import plotly.graph_objects as go
+import requests
+from fastapi import APIRouter, FastAPI, HTTPException, status, BackgroundTasks, Response
+from pydantic import BaseModel
+
+import asyncio
+import uvicorn
 from collections import defaultdict
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://0.0.0.0:8001") # fastapi server
+BACKEND_URL = os.getenv("BACKEND_URL", "http://10.140.66.17:8001") # fastapi server
 API_ENDPOINTS = {
     "submit_task": f"{BACKEND_URL}/predict/video",
     "query_status": f"{BACKEND_URL}/predict/task",
-    "get_result": f"{BACKEND_URL}//predict"
+    "get_result": f"{BACKEND_URL}/predict"
 }
 
 
 SCENE_CONFIGS = {
-     "scene_1": {
-        "description": "scene_1",
-        "objects": ["bedroom", "kitchen", "living room", ""],
-        "preview_image": "scene_1.png"},
+    "scene_1": {
+        "description": "Modern Apartment",
+        "name": "17DRP5sb8fy",
+        "glb_path": "scene_assets/scene1_no_ceiling.glb"  # PLY文件路径
+    },
+    "scene_2": {
+        "description": "Office Building",
+        "name": "r1Q1Z4BcV1o",
+        "glb_path": "scene_assets/scene2_no_ceiling.glb"
+    },
+    "scene_3": {
+        "description": "University Campus",
+        "name": "dhjEzFoUFzH",
+        "glb_path": "scene_assets/scene3_no_ceiling.glb"
+    },
+}
+
+EPISODE_CONFIGS = {
+    "episode_1": {
+        "description": "1",
+    },
+    "episode_2": {
+        "description": "2",
+    },
+    "episode_3": {
+        "description": "3",
+    },
+    "episode_4": {
+        "description": "4",
     }
+}
 
 MODEL_CHOICES = [] 
 
@@ -134,14 +171,19 @@ def format_logs_for_display(logs: list) -> str:
 def submit_to_backend(
     scene: str,
     prompt: str,
-    start_position: str,
+    episode: str,
     user: str = "Gradio-user",
 ) -> dict:
     job_id = str(uuid.uuid4())
 
+    scene_index = scene.split("_")[-1]
+    episode_index = episode.split("_")[-1]
+
     data = {
         "task_type": "vln_eval",  # 标识任务类型
         "instruction": prompt,
+        "scene_index": scene_index,
+        "episode_index": episode_index,
     }
     
     payload = {
@@ -188,11 +230,11 @@ def get_task_result(task_id: str) -> Optional[dict]:
 def run_simulation(
     scene: str,
     prompt: str,
-    start_position: str,
+    episode: str,
     history: list,
     request: gr.Request
 ) -> dict:
-    model = "rdp"
+    model = "InternNav-VLA"
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     scene_desc = SCENE_CONFIGS.get(scene, {}).get("description", scene)
@@ -204,7 +246,7 @@ def run_simulation(
         log_submission(scene, prompt, model, user_ip, "IP blocked temporarily")
         raise gr.Error("Too many requests from this IP. Please wait and try again one minute later.")
     
-    submission_result = submit_to_backend(scene, prompt,start_position)
+    submission_result = submit_to_backend(scene, prompt, episode)
     print("submission_result: ", submission_result)
 
     if submission_result.get("status") != "pending":
@@ -235,15 +277,15 @@ def run_simulation(
     if status.get("status") == "completed":
         import base64
         video_bytes = base64.b64decode(status.get("video"))
-        with open("received_video.mp4", "wb") as f:
+        receive_time = time.time()
+        with open(f"received_video_{receive_time}.mp4", "wb") as f:
             f.write(video_bytes)
-        video_path = "received_video.mp4"
+        video_path = f"received_video_{receive_time}.mp4"
         new_entry = {
             "timestamp": timestamp,
             "scene": scene,
             "model": model,
             "prompt": prompt,
-            "start_pos": start_position,
             "video_path": video_path
         }
         
@@ -284,7 +326,7 @@ def update_history_display(history: list) -> list:
             entry = history[i]
             updates.extend([
                 gr.update(visible=True),
-                gr.update(visible=True, label=f"Simulation {i+1}  scene: {entry['scene']}, start: {entry['start_pos']}, prompt: {entry['prompt']}", open=False),
+                gr.update(visible=True, label=f"Simulation {i+1}  scene: {entry['scene']}, prompt: {entry['prompt']}", open=False),
                 gr.update(value=entry['video_path'], visible=True),
                 gr.update(value=f"{entry['timestamp']}")
             ])
@@ -301,14 +343,28 @@ def update_history_display(history: list) -> list:
     return updates
 
 def update_scene_display(scene: str):
+    print(f"update_scene_display {scene}")
     config = SCENE_CONFIGS.get(scene, {})
-    desc = config.get("description", "No Description")
-    objects = "、".join(config.get("objects", []))
-    image = config.get("preview_image", None)
-    
-    markdown = f"**{desc}**  \nPlaces Included: {objects}"
-    return markdown, image
+    glb_path = config.get("glb_path", "")
 
+    # 验证文件是否存在
+    if not os.path.exists(glb_path):
+        return None, None
+
+    return None, glb_path
+
+def update_episode_display(scene: str, episode: str):
+    print(f"update_episode_display {scene} {episode}")
+    config = SCENE_CONFIGS.get(scene, {})
+    scene_name = config.get("name", "")
+    episode_id = int(episode[-1])
+    image_path = os.path.join("scene_assets", f"{scene_name}_{episode_id-1}.jpg")
+    print(f"image_path {image_path}")
+    # 验证文件是否存在
+    if not os.path.exists(image_path):
+        return None
+
+    return image_path
 def update_log_display():
     logs = read_logs()
     return format_logs_for_display(logs)
@@ -353,9 +409,16 @@ custom_css = """
 .history-accordion {
     margin-bottom: 10px;
 }
+
+.scene-preview {
+    height: 400px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+}
 """
 
-with gr.Blocks(title="Robot Navigation Training System", css=custom_css) as demo:
+with gr.Blocks(title="Robot Navigation Inference", css=custom_css) as demo:
     gr.Markdown("""
     # 🧭 Habitat Robot Navigation Demo
     ### Simulation Test Based on Habitat Framework
@@ -366,26 +429,28 @@ with gr.Blocks(title="Robot Navigation Training System", css=custom_css) as demo
     with gr.Row():
         with gr.Column(elem_id="simulation-panel"):
             gr.Markdown("### Simulation Task Configuration")
-            
-            scene_dropdown = gr.Dropdown(
-                label="Select Scene",
-                choices=list(SCENE_CONFIGS.keys()),
-                value="scene_1",
-                interactive=True
+            with gr.Row():
+                scene_dropdown = gr.Dropdown(
+                    label="Select Scene",
+                    choices=list(SCENE_CONFIGS.keys()),
+                    value="scene_1",
+                    interactive=True,
             )
+                episode_dropdown = gr.Dropdown(
+                    label="Select Start Position",
+                    choices=list(EPISODE_CONFIGS.keys()),
+                    value="episode_1",
+                    interactive=True,
+                )
+
+            with gr.Row():
+                scene_preview = gr.Model3D(elem_classes=["scene-preview"],
+                camera_position=(90.0, 120, 20000.0),
+                #display_mode="solid"
+                )
+                fps_preview = gr.Image(label="FPS Preview")
             
-            scene_description = gr.Markdown("")
-            scene_preview = gr.Image(
-                label="Scene Preview",
-                elem_classes=["scene-preview"],
-                interactive=False
-            )
-            
-            scene_dropdown.change(
-                update_scene_display,
-                inputs=scene_dropdown,
-                outputs=[scene_description, scene_preview]
-            )
+            scene_description = gr.Markdown("### Scene preview")
             
             prompt_input = gr.Textbox(
                 label="Navigation Instruction",
@@ -394,11 +459,21 @@ with gr.Blocks(title="Robot Navigation Training System", css=custom_css) as demo
                 lines=2,
                 max_lines=4
             )
+                        
+            scene_dropdown.change(
+                update_scene_display,
+                inputs=scene_dropdown,
+                outputs=[scene_description, scene_preview]
+            ).then(
+                update_episode_display,
+                inputs=[scene_dropdown, episode_dropdown],
+                outputs=[fps_preview]
+            )
             
-            start_pos_input = gr.Textbox(
-                label="Start Position (x, y, z)",
-                value="0.0, 0.0, 0.2",
-                placeholder="e.g.: 0.0, 0.0, 0.2"
+            episode_dropdown.change(
+                update_episode_display,
+                inputs=[scene_dropdown, episode_dropdown],
+                outputs=[fps_preview]
             )
             
             submit_btn = gr.Button("Start Navigation Simulation", variant="primary")
@@ -439,15 +514,18 @@ with gr.Blocks(title="Robot Navigation Training System", css=custom_css) as demo
 
     gr.Examples(
         examples=[
-            ["scene_1", "Exit the bedroom and turn left. Walk straight passing the gray couch and stop near the rug.", "0.0, 0.0, 0.2"]
+            ["scene_1", "Exit the bedroom and turn left. Walk straight passing the gray couch and stop near the rug.", "episode_0"],
+            ["scene_2", "Go from reception to conference room passing the water cooler.", "episode_1"],
+            ["scene_3", "From the classroom, go to the library via the main hall.", "episode_2"],
+            ["scene_4", "From emergency room to pharmacy passing nurse station.", "episode_3"]
         ],
-        inputs=[scene_dropdown, prompt_input, start_pos_input],
+        inputs=[scene_dropdown, prompt_input, episode_dropdown],
         label="Navigation Task Example"
     )
     
     submit_btn.click(
         fn=run_simulation,
-        inputs=[scene_dropdown, prompt_input, start_pos_input, history_state],
+        inputs=[scene_dropdown, prompt_input, episode_dropdown, history_state],
         outputs=[video_output, history_state],
         queue=True,
         api_name="run_simulation"
@@ -469,6 +547,10 @@ with gr.Blocks(title="Robot Navigation Training System", css=custom_css) as demo
         fn=update_log_display,
         outputs=logs_display
     )
+    demo.load(
+        fn=lambda: update_episode_display("scene_1", "episode_1"),
+        outputs=[fps_preview]
+    )
 
     def record_access(request: gr.Request):
         user_ip = request.client.host if request else "unknown"
@@ -488,4 +570,6 @@ with gr.Blocks(title="Robot Navigation Training System", css=custom_css) as demo
     demo.unload(fn=cleanup_session)
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=5700, debug=True, allowed_paths=["/mnt"])
+    demo.launch(server_name="0.0.0.0", server_port=5750, debug=True, share = True, allowed_paths=["/mnt"])
+
+    

@@ -129,6 +129,7 @@ docs/en/_build
 # default value for marcos.py
 internutopia/default_config.py
 data
+kujiale_data
 images/
 internutopia
 internutopia_extension
