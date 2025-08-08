@@ -110,7 +110,7 @@ $ docker run --name internnav -it --rm --gpus all --network host \
 ### Download the starter dataset (val_seen + val_unseen splits)
 ```bash
 $ git lfs install
-
+# At /root/InternNav/
 $ mkdir kujiale_data
 # InteriorAgent scene usd
 $ git clone https://huggingface.co/datasets/spatialverse/InteriorAgent kujiale_data/scene_data

@@ -34,7 +34,7 @@ SCENE_CONFIGS = {
     "scene_1": {
         "description": "Modern Apartment",
         "name": "17DRP5sb8fy",
-        "glb_path": "scene_assets/scene1_no_ceiling.glb"  # PLY文件路径
+        "glb_path": "scene_assets/scene1_no_ceiling.glb"  # PLY file path
     },
     "scene_2": {
         "description": "Office Building",
@@ -360,7 +360,7 @@ def update_episode_display(scene: str, episode: str):
     episode_id = int(episode[-1])
     image_path = os.path.join("scene_assets", f"{scene_name}_{episode_id-1}.jpg")
     print(f"image_path {image_path}")
-    # 验证文件是否存在
+    # vaild if file path exists
     if not os.path.exists(image_path):
         return None
 
