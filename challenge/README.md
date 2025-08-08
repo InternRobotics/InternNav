@@ -192,22 +192,35 @@ We provide default train and eval configs named as `challenge_xxx_cfg.py` under 
 ### ✅ Ensure Trained Weights & Model Are Included
 
 Make sure your trained weights and model are correctly packaged in your submitted Docker image at `/root/InternNav` and that the evaluation configuration is properly set at: `scripts/eval/configs/challenge_cfg.py`. No need to include the `data` directory in your submission. We will handle the test dataset.
-
-To quickly verify that your setup works:
-
 ```bash
-# quick check 
-$ ./scripts/eval/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py
+# quick check
+$ bash challenge/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py
 ```
+
 ### Build Your Submission Docker Image
-Replace url with your actual image name.
+
+Write a **Dockerfile** and follow the instructions below to build your submission image:
 ```bash
-$ docker build -t registry.cn-hangzhou.aliyuncs.com/yourteam/iros2025:dev .
+# Navigate to the directory
+$ cd PATH/TO/INTERNNAV/
+
+# Build the new image
+$ docker build -t my-internnav-custom:v1 .
 ```
-Push to the registry
+Or commit your container as new image: 
+
 ```bash
-$ docker push registry.cn-hangzhou.aliyuncs.com/yourteam/iros2025:dev
+$ docker commit [container_name] my-internnav-with-updates:v1
+# Easier to manage custom environment
+# May include all changes, making the docker image bloat
 ```
+
+Push to your public registry
+```bash
+$ docker tag my-internnav-custom:v1 your-registry/internnav-custom:v1
+$ docker push your-registry/internnav-custom:v1
+```
+
 ### Submit your image URL on Eval.AI
 
 #### Submission Format
@@ -257,7 +270,7 @@ For detailed submission guidelines and troubleshooting, refer to the official Ev
 - The system mounts the evaluation config + full dataset (val_seen, val_unseen, test).
 
 ### Evaluation Execution
-- Via SSH + `screen`, we launch `challenge/start_eval_iros.sh`.
+- Via SSH + `screen`, we launch `challenge/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py`.
 - A polling loop watches for result files.
 
 ### Results Collection
