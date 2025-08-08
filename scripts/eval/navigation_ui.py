@@ -22,7 +22,7 @@ import asyncio
 import uvicorn
 from collections import defaultdict
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http:/localhost:8001") # fastapi server
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8001") # fastapi server
 API_ENDPOINTS = {
     "submit_task": f"{BACKEND_URL}/predict/video",
     "query_status": f"{BACKEND_URL}/predict/task",
