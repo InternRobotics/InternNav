@@ -22,7 +22,7 @@ import asyncio
 import uvicorn
 from collections import defaultdict
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://10.140.66.17:8001") # fastapi server
+BACKEND_URL = os.getenv("BACKEND_URL", "http:/localhost:8001") # fastapi server
 API_ENDPOINTS = {
     "submit_task": f"{BACKEND_URL}/predict/video",
     "query_status": f"{BACKEND_URL}/predict/task",
@@ -83,7 +83,7 @@ def is_request_allowed(ip: str) -> bool:
 ###############################################################################
 
 
-# 日志文件路径
+# Log directory path
 LOG_DIR = "~/logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 ACCESS_LOG = os.path.join(LOG_DIR, "access.log")
@@ -136,7 +136,7 @@ def read_logs(log_type: str = "all", max_entries: int = 50) -> list:
         except FileNotFoundError:
             pass
     
-    # 按Time戳排序，最新的在前
+    # Sorted by timestemp
     logs.sort(key=lambda x: x["timestamp"], reverse=True)
     return logs[:max_entries]
 
@@ -180,7 +180,7 @@ def submit_to_backend(
     episode_index = episode.split("_")[-1]
 
     data = {
-        "task_type": "vln_eval",  # 标识任务类型
+        "task_type": "vln_eval",  # Identify task type
         "instruction": prompt,
         "scene_index": scene_index,
         "episode_index": episode_index,
@@ -259,7 +259,7 @@ def run_simulation(
 
         gr.Info(f"Simulation started, task_id: {task_id}")
         time.sleep(5)
-        # 获取任务状态
+        # Get Task Status
         status = get_task_status(task_id)
         print("first status: ", status)
         result_folder = status.get("result", "")
@@ -347,7 +347,7 @@ def update_scene_display(scene: str):
     config = SCENE_CONFIGS.get(scene, {})
     glb_path = config.get("glb_path", "")
 
-    # 验证文件是否存在
+    # Validate if file path exists
     if not os.path.exists(glb_path):
         return None, None
 
@@ -377,9 +377,9 @@ def cleanup_session(request: gr.Request):
     if task_id:
         try:
             requests.post(f"{BACKEND_URL}/predict/terminate/{task_id}", timeout=3)
-            print(f"已终止任务 {task_id}")
+            print(f"Task Terminated: {task_id}")
         except Exception as e:
-            print(f"终止任务失败 {task_id}: {e}")
+            print(f"Task Termination Failed: {task_id}: {e}")
 
 
 
@@ -482,7 +482,7 @@ with gr.Blocks(title="Robot Navigation Inference", css=custom_css) as demo:
         with gr.Column(elem_id="result-panel"):
             gr.Markdown("### Latest Simulation Result")
 
-            # 视频输出
+            # Video Output
             video_output = gr.Video(
                 label="Live",
                 interactive=False,
@@ -503,9 +503,9 @@ with gr.Blocks(title="Robot Navigation Inference", css=custom_css) as demo:
                             detail_md = gr.Markdown() 
                     history_slots.append((slot, accordion, video, detail_md))  
     
-    with gr.Accordion("查看系统访问日志(DEV ONLY)", open=False):
+    with gr.Accordion("View System Log (DEV ONLY)", open=False):
         logs_display = gr.Markdown()
-        refresh_logs_btn = gr.Button("刷新日志", variant="secondary")
+        refresh_logs_btn = gr.Button("Refresh Log", variant="secondary")
         
         refresh_logs_btn.click(
             update_log_display,
