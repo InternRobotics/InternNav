@@ -645,7 +645,7 @@ def eval():
     init_distributed_mode(args)
     local_rank = args.local_rank
     np.random.seed(local_rank)
-    # 载入模型和 tokenizer
+    # Load model and tokenizer
     processor = AutoProcessor.from_pretrained(args.model_path)
     processor.tokenizer.padding_side = 'left'
 
@@ -654,8 +654,8 @@ def eval():
         args.model_path, torch_dtype=torch.bfloat16,
         attn_implementation="flash_attention_2", device_map={"": device}
     )
-    # 执行评估
-
+    
+    # start the evaluation
     evaluate(model, processor, args)
 
 
