@@ -86,14 +86,16 @@ $ docker pull crpi-mdum1jboc8276vb5.cn-beijing.personal.cr.aliyuncs.com/iros-cha
 ```bash
 $ xhost +local:root # Allow the container to access the display
 
-$ cd PATH/TO/INTERNNAV
+$ cd PATH/TO/INTERNNAV/
 
 $ docker run --name internnav -it --rm --gpus all --network host \
   -e "ACCEPT_EULA=Y" \
   -e "PRIVACY_CONSENT=Y" \
   -e "DISPLAY=${DISPLAY}" \
+  --entrypoint /bin/bash \
+  -w /root/InternNav \
   -v /tmp/.X11-unix/:/tmp/.X11-unix \
-  -v ${PWD}:/root/grnavigation \
+  -v ${PWD}:/root/InternNav \
   -v ${HOME}/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw \
   -v ${HOME}/docker/isaac-sim/cache/ov:/root/.cache/ov:rw \
   -v ${HOME}/docker/isaac-sim/cache/pip:/root/.cache/pip:rw \
@@ -189,7 +191,7 @@ We provide default train and eval configs named as `challenge_xxx_cfg.py` under 
 
 ### ✅ Ensure Trained Weights & Model Are Included
 
-Make sure your trained weights and model are correctly packaged in your submitted Docker image and that the evaluation configuration is properly set at: `scripts/eval/configs/challenge_cfg.py`
+Make sure your trained weights and model are correctly packaged in your submitted Docker image at `/root/InternNav` and that the evaluation configuration is properly set at: `scripts/eval/configs/challenge_cfg.py`. No need to include the `data` directory in your submission. We will handle the test dataset.
 
 To quickly verify that your setup works:
 
@@ -198,7 +200,7 @@ To quickly verify that your setup works:
 $ ./scripts/eval/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py
 ```
 ### Build Your Submission Docker Image
-Replace url with your actual image.
+Replace url with your actual image name.
 ```bash
 $ docker build -t registry.cn-hangzhou.aliyuncs.com/yourteam/iros2025:dev .
 ```
