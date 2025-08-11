@@ -108,37 +108,55 @@ $ docker run --name internnav -it --rm --gpus all --network host \
 ```
 
 ### Download the starter dataset (val_seen + val_unseen splits)
+
+Download **InteriorAgent Dataset**
 ```bash
 $ git lfs install
 # At /root/InternNav/
 $ mkdir kujiale_data
+
 # InteriorAgent scene usd
 $ git clone https://huggingface.co/datasets/spatialverse/InteriorAgent kujiale_data/scene_data
+
 # InteriorAgent train and val dataset
 $ git clone https://huggingface.co/datasets/spatialverse/InteriorAgent_Nav kujiale_data/raw_data
+```
+Please refer to [document](https://internrobotics.github.io/user_guide/internnav/quick_start/installation.html#interndata-n1-dataset-preparation) for a full guide on InternData-N1 Dataset Preparation.
 
-# Latest InternData (required huggingface token to download, generate one from here https://huggingface.co/settings/tokens)
-$ git clone -b v0.1-full https://huggingface.co/datasets/InternRobotics/InternData-N1 data
+- Download the [InternData-N1](https://huggingface.co/datasets/InternRobotics/InternData-N1) for the `vln_pe/`, 
+- Download the [SceneData-N1](https://huggingface.co/datasets/InternRobotics/Scene-N1/tree/main) for the `scene_data/`, 
+- Download the [Embodiments](https://huggingface.co/datasets/InternRobotics/Embodiments) for the `Embodiments/`
+```bash
+# InternData-N1 with vln-pe data only
+GIT_LFS_SKIP_SMUDGE=1 git clone -b v0.1-full https://huggingface.co/datasets/InternRobotics/InternData-N1 data
+cd data
+git lfs pull --include="vln_pe/**"
+
+# Scene
+wget https://huggingface.co/datasets/InternRobotics/Scene-N1/resolve/main/mp3d_pe.tar.gz
+
+# Embodiments
+git clone https://huggingface.co/datasets/InternRobotics/Embodiments data/Embodiments
 ```
 
-### Suggested Dataset Path
+### Suggested Dataset Directory Structure
 #### InternData-N1
 ```
 data/ 
 ├── Embodiments/
 ├── scene_data/
-│   ├── mp3d/
-│   │   ├──17DRP5sb8fy/
-│   │   ├── 1LXtFkjw3qL/
-│   │   └── ...
-├── vln_pe/
-│   ├── raw_data/
-│   │   ├── train/
-│   │   ├── val_seen/
-│   │   │   └── val_seen.json.gz
-│   │   └── val_unseen/
-│   │       └── val_unseen.json.gz
-└── └── traj_data/
+│   └── mp3d_pe/
+│       ├──17DRP5sb8fy/
+│       ├── 1LXtFkjw3qL/
+│       └── ...
+└── vln_pe/
+    ├── raw_data/
+    │   ├── train/
+    │   ├── val_seen/
+    │   │   └── val_seen.json.gz
+    │   └── val_unseen/
+    │       └── val_unseen.json.gz
+    └── traj_data/
         ├── interior_agent/
         │   └── kujiale
         └── mp3d/
@@ -172,6 +190,10 @@ $ git clone https://huggingface.co/InternRobotics/VLN-PE && mv VLN-PE/r2r checkp
 ```
 
 ## 🛠️ Local Development & Testing
+
+Please refer to the [documentation](https://internrobotics.github.io/user_guide/internnav/quick_start/train_eval.html) for a quick-start guide to training or evaluating supported models in InternNav. 
+
+For advanced usage, including customizing datasets, models, and experimental settings, see the [tutorial](https://internrobotics.github.io/user_guide/internnav/tutorials/index.html).
 
 ### Develop & test
 - Implement your policy under `internnav/model` and add to `internav/agent`.
