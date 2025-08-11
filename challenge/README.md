@@ -10,53 +10,11 @@ The system should be capable of handling challenges such as camera shake, height
 
 ---
 
-### 🧠 Key Objectives
-
-- **Multimodal Perception & Understanding**: Combine egocentric RGB/depth vision with natural language instructions into a unified understanding framework.
-- **Physics-based Robustness**: Ensure stable and safe control on a humanoid robot within a physics simulator, handling:
-  - Camera shake and motion blur
-  - Dynamic height shifts during walking
-  - Close-range obstacle avoidance
-- **Human-like Navigation**: Demonstrate smooth and interpretable navigation behavior similar to how a human would follow instructions.
-
----
-
-### 🧪 Simulation Environment
-
-- **Platform**: Physics-driven simulation using [InternUtopia](https://github.com/InternRobotics/InternUtopia)
-- **Robot**: Unitree H1 humanoid robot model  
-- **Tasks**: Instruction-based navigation in richly furnished indoor scenes  
-- **Evaluation**: Based on success rate, path efficiency, and instruction compliance
-
----
-
-### 🔍 Evaluation Metrics
-
-- **Success Rate (SR)**: Proportion of episodes where the agent reaches the goal location within 3m  
-- **SPL**: Success weighted by Path Length
-- **Trajectory Length (TL)**: Total length of the trajectory (m)
-- **Navigation Error (NE)**: Euclidean distance between the agent's final position and the goal (m)
-- **OS Oracle Success Rate (OSR)**: Whether any point along the predicted trajectory reaches the goal within 3m
-- **Fall Rate (FR)**: Frequency of the agent falling during navigation
-- **Stuck Rate (StR)**: Frequency of the agent becoming stuck during navigation
-
----
-
-### 🚨 Challenges to Solve
-
-- ✅ Integrating vision, language, and control into a single inference pipeline  
-- ✅ Overcoming sensor instability and actuation delay from simulated humanoid locomotion  
-- ✅ Ensuring real-time, smooth, and goal-directed behavior under physics constraints
-
-This track pushes the boundary of embodied AI by combining **natural language understanding**, **3D vision**, and **realistic robot control**, fostering solutions ready for future real-world deployments.
-
----
-
 # 🚀 Get Started
 
 This guide provides a step-by-step walkthrough for participating in the **IROS 2025 Challenge on Multimodal Robot Learning**—from setting up your environment and developing your model, to evaluating and submitting your results.
 
----
+
 
 ## 🔗 Useful Links
 - 🔍 **Challenge Overview:**  
@@ -68,7 +26,7 @@ This guide provides a step-by-step walkthrough for participating in the **IROS 2
 - 🚀 **Interactive Demo:**  
  [InternNav Model Inference Demo](https://huggingface.co/spaces/InternRobotics/InternNav-Eval-Demo)
 
----
+
 
 ## 🧩 Environment Setup
 
@@ -189,13 +147,13 @@ $ huggingface-cli download --include 'longclip-B.pt' --local-dir-use-symlinks Fa
 $ git clone https://huggingface.co/InternRobotics/VLN-PE && mv VLN-PE/r2r checkpoints/
 ```
 
-## 🛠️ Local Development & Testing
+## 🛠️ Model Training & Testing
 
 Please refer to the [documentation](https://internrobotics.github.io/user_guide/internnav/quick_start/train_eval.html) for a quick-start guide to training or evaluating supported models in InternNav. 
 
 For advanced usage, including customizing datasets, models, and experimental settings, see the [tutorial](https://internrobotics.github.io/user_guide/internnav/tutorials/index.html).
 
-### Develop & test
+### Train and Evaluate the Baseline Model
 - Implement your policy under `internnav/model` and add to `internav/agent`.
 - We provide train and eval scripts to quick start.
 - Use our train script to train your model:
@@ -286,6 +244,7 @@ Create a JSON file with your Docker image URL and team information. The submissi
 
 For detailed submission guidelines and troubleshooting, refer to the official Eval.AI platform documentation.
 
+
 ## 📝 Official Evaluation Flow
 ### DSW Creation
 - We use the AliCloud API to instantiate an instance from your image link.
@@ -299,7 +258,49 @@ For detailed submission guidelines and troubleshooting, refer to the official Ev
 - Upon completion, metrics for each split are parsed and pushed to the [EvalAI](https://eval.ai/web/challenges/challenge-page/2627/overview) leaderboard.
 - The released results are computed as a weighted sum of the test subsets from VLNPE-R2R (MP3D scenes) and Interior-Agent (Kujiale scenes), with a weighting ratio of 2:1.
 
----
+## 📖 About the Challenge
+
+### 🧠 Key Objectives
+
+- **Multimodal Perception & Understanding**: Combine egocentric RGB/depth vision with natural language instructions into a unified understanding framework.
+- **Physics-based Robustness**: Ensure stable and safe control on a humanoid robot within a physics simulator, handling:
+  - Camera shake and motion blur
+  - Dynamic height shifts during walking
+  - Close-range obstacle avoidance
+- **Human-like Navigation**: Demonstrate smooth and interpretable navigation behavior similar to how a human would follow instructions.
+
+
+### 🧪 Simulation Environment
+
+- **Platform**: Physics-driven simulation using [InternUtopia](https://github.com/InternRobotics/InternUtopia)
+- **Robot**: Unitree H1 humanoid robot model  
+- **Tasks**: Instruction-based navigation in richly furnished indoor scenes  
+- **Evaluation**: Based on success rate, path efficiency, and instruction compliance
+
+
+
+### 🔍 Evaluation Metrics
+
+- **Success Rate (SR)**: Proportion of episodes where the agent reaches the goal location within 3m  
+- **SPL**: Success weighted by Path Length
+- **Trajectory Length (TL)**: Total length of the trajectory (m)
+- **Navigation Error (NE)**: Euclidean distance between the agent's final position and the goal (m)
+- **OS Oracle Success Rate (OSR)**: Whether any point along the predicted trajectory reaches the goal within 3m
+- **Fall Rate (FR)**: Frequency of the agent falling during navigation
+- **Stuck Rate (StR)**: Frequency of the agent becoming stuck during navigation
+
+
+
+### 🚨 Challenges to Solve
+
+- ✅ Integrating vision, language, and control into a single inference pipeline  
+- ✅ Overcoming sensor instability and actuation delay from simulated humanoid locomotion  
+- ✅ Ensuring real-time, smooth, and goal-directed behavior under physics constraints
+
+This track pushes the boundary of embodied AI by combining **natural language understanding**, **3D vision**, and **realistic robot control**, fostering solutions ready for future real-world deployments.
+
+
+
 ## 📖 Citation
 For more details with in-depth physical analysis results on the VLN task, please refer to our **VLN-PE**:
 [Rethinking the Embodied Gap in Vision-and-Language Navigation: A Holistic Study of Physical and Visual Disparities](https://arxiv.org/pdf/2507.13019).
