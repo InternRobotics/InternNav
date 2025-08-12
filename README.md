@@ -2,7 +2,7 @@
 
 [![demo](assets/InternNav.gif "demo")](https://www.youtube.com/watch?v=fD0F1jIax5Y)
 
-[![Gradio Demo](https://img.shields.io/badge/Gradio-Demo-orange?style=flat&logo=gradio)](http://123.57.187.96:55005/)
+[![Gradio Demo](https://img.shields.io/badge/Gradio-Demo-orange?style=flat&logo=gradio)](https://huggingface.co/spaces/InternRobotics/InternNav-Eval-Demo)
 [![doc](https://img.shields.io/badge/Document-FFA500?logo=readthedocs&logoColor=white)](https://internrobotics.github.io/user_guide/internnav/index.html)
 [![GitHub star chart](https://img.shields.io/github/stars/InternRobotics/InternNav?style=square)](https://github.com/InternRobotics/InternNav)
 [![GitHub Issues](https://img.shields.io/github/issues/InternRobotics/InternNav)](https://github.com/InternRobotics/InternNav/issues)
@@ -41,7 +41,7 @@ The toolbox supports the most advanced high-quality navigation dataset, InternDa
 - [🏠 Introduction](#-introduction)
 - [🔥 News](#-news)
 - [📚 Getting Started](#-getting-started)
-- [📦 Overview of Benchmark \& Model Zoo](#-benchmark-model-zoo)
+- [📦 Overview of Benchmark \& Model Zoo](#-overview-of-benchmark-and-model-zoo)
 - [🔧 Customization](#-customization)
 - [👥 Contribute](#-contribute)
 - [🔗 Citation](#-citation)

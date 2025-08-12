@@ -18,14 +18,14 @@ eval_cfg = EvalCfg(
         env_type='vln_pe',
         env_settings={
             'use_fabric': False,
-            'headless': True,
+            'headless': True,   # display option
         },
     ),
     task=TaskCfg(
         task_name='rdp_iros_test',
         task_settings={
             'env_num': 2,
-            'use_distributed': True,
+            'use_distributed': False,   # Ray distributed framework
             'proc_num': 8,
         },
         scene=SceneCfg(
