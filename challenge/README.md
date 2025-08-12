@@ -136,7 +136,7 @@ data/
                 └── videos/
 ```
 #### Interior_data/
-```
+```bash
 kujiale_data
 ├── scene_data      
 │   ├── kujiale_xxxx/
@@ -174,7 +174,7 @@ For fair comparison in this IROS challenge, the USD file, controller, and observ
 ### Development Overview
 The main architecture of the evaluation code adopts a client-server model. In the client, we specify the corresponding configuration (*.cfg), which includes settings such as the scenarios to be evaluated, robots, models, and parallelization parameters. The client sends requests to the server, which then make model to predict and response to the client.
 
-The GRNavigation project adopts a modular design, allowing developers to easily add new navigation algorithms.
+The InternNav project adopts a modular design, allowing developers to easily add new navigation algorithms.
 The main components include:
 
 - **Model**: Implements the specific neural network architecture and inference logic
@@ -294,7 +294,7 @@ Main fields:
     ```bash
     $ ./scripts/eval/start_eval.sh --config scripts/eval/configs/challenge_cfg.py
     ```
-- Currently supported baseline model: Sequence-to-Sequence (Seq2Seq), Cross-Modal Attention(CMA), Recurrent Diffusion Policy for VLN (RDP). Implementations can be found at:
+- Currently supported baseline model: Sequence-to-Sequence  (Seq2Seq), Cross-Modal Attention (CMA), Recurrent Diffusion Policy (RDP). Implementations can be found at:
     - `internnav/agent/`: model agent
     - `internnav/model/`: trained model
     - `scripts/train/configs`: training configs
@@ -438,7 +438,7 @@ This track pushes the boundary of embodied AI by combining **natural language un
 
 
 ## 🔗 Citation
-For more details with in-depth physical analysis results on the VLN task, please refer to our **VLN-PE**:
+For more details with in-depth physical analysis results on the VLN task, please refer to **VLN-PE**:
 [Rethinking the Embodied Gap in Vision-and-Language Navigation: A Holistic Study of Physical and Visual Disparities](https://arxiv.org/pdf/2507.13019).
 ```
 @inproceedings{vlnpe,
@@ -452,5 +452,5 @@ For more details with in-depth physical analysis results on the VLN task, please
 ## 👏 Contribution
 - **Organizer**: Shanghai AI Lab
 - **Co-organizers**: ManyCore Tech, University of Adelaide
-- **Data Contributions**: Online test data provided by Prof. Qi Wu's team; Kujiale scenes - provided by ManyCore Tech
+- **Data Contributions**: Online test data provided by Prof. Qi Wu's team; Kujiale scenes provided by ManyCore Tech
 - **Sponsors** (in no particular order): ByteDance, HUAWEI, ENGINEAI, HONOR, ModelScope, Alibaba Cloud, AGILEX, DOBOT
