@@ -71,14 +71,17 @@ cfg = EvalCfg(
         ),
     ),
     dataset=EvalDatasetCfg(
-        dataset_type='ResumablePathKeyDataloader',
+        dataset_type='mp3d',
         dataset_settings={
             'filter_same_trajectory': False,
             'run_type': 'eval',
             'retry_list': [],
         },
     ),
-    eval_settings={},
+    eval_settings={
+        'save_to_json': True,
+        'vis_output': True
+    },
 )
 
 
