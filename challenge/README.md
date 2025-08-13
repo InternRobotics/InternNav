@@ -328,16 +328,19 @@ Or commit your container as new image:
 ```bash
 $ docker commit internnav my-internnav-with-updates:v1
 # Easier to manage custom environment
-# May include all changes, making the docker image bloat
+# May include all changes, making the docker image bloat. Please delete cache and other operations to reduce the image size.
 ```
 
-Push to your public registry
+Push to your public registry. You can follow the following [aliyun document](https://help.aliyun.com/zh/acr/user-guide/create-a-repository-and-build-images?spm=a2c4g.11186623.help-menu-60716.d_2_15_4.75c362cbMywaYx&scm=20140722.H_60997._.OR_help-T_cn~zh-V_1) or [Quay document](https://quay.io/tutorial/) to create a free personal image registry. During the creation of the repository, please set it to public access.
+
 ```bash
 $ docker tag my-internnav-custom:v1 your-registry/internnav-custom:v1
 $ docker push your-registry/internnav-custom:v1
 ```
 
 ### Submit your image URL on Eval.AI
+
+After creating an account and team on [eval.ai](https://eval.ai/web/challenges/challenge-page/2627/overview), please submit your entry here. In the "Make Submission" column at the bottom, you can select phase. Please select Upload file as the submission type and upload the JSON file shown below. If you select private for your submission visibility, the results will not be published on the leaderboard. You can select public again on the subsequent result viewing page.
 
 #### Submission Format
 
