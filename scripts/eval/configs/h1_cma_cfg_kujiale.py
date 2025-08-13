@@ -42,7 +42,7 @@ eval_cfg = EvalCfg(
         dataset_settings={
             'base_data_dir': 'kujiale_data/raw_data/kujiale',
             'split_data_types': ['val_unseen', 'val_seen'],
-            'filter_stairs': True,
+            'filter_stairs': False,
         },
     ),
 )
