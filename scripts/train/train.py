@@ -13,7 +13,7 @@ from transformers import TrainerCallback, TrainingArguments
 
 from internnav.dataset.cma_lerobot_dataset import CMALerobotDataset, cma_collate_fn
 from internnav.dataset.rdp_lerobot_dataset import RDP_LerobotDataset, rdp_collate_fn
-from internnav.dataset.navdp_dataset import NavDP_Base_Datset, navdp_collate_fn
+from internnav.dataset.navdp_dataset_lerobot import NavDP_Base_Datset, navdp_collate_fn
 from internnav.model import (
     CMAModelConfig,
     CMANet,
@@ -180,7 +180,7 @@ def main(config, model_class, model_config_class):
 
         # ------------ load dataset ------------
         if config.model_name == "navdp":
-            train_dataset_data = NavDP_Base_Datset([],
+            train_dataset_data = NavDP_Base_Datset(config.il.root_dir,
                                     config.il.dataset_navdp,
                                     config.il.memory_size,
                                     config.il.predict_size,

@@ -402,7 +402,24 @@ class NavDP_Base_Datset(Dataset):
             self.batch_time_sum = 0.0
         return point_goal,image_goal,pixel_goal,memory_images,depth_image,pred_actions,augment_actions,pred_critic,augment_critic,float(pixel_flag)
     
+
+
+def navdp_collate_fn(batch):
     
+    collated = {
+        "batch_pg": torch.stack([item[0] for item in batch]),
+        "batch_ig": torch.stack([item[1] for item in batch]),
+        "batch_tg": torch.stack([item[2] for item in batch]),
+        "batch_rgb": torch.stack([item[3] for item in batch]),
+        "batch_depth": torch.stack([item[4] for item in batch]),
+        "batch_labels": torch.stack([item[5] for item in batch]),
+        "batch_augments": torch.stack([item[6] for item in batch]),
+        "batch_label_critic": torch.stack([item[7] for item in batch]),
+        "batch_augment_critic": torch.stack([item[8] for item in batch]),
+    }
+    return collated
+
+
     
 if __name__ == "__main__":
     # Debug
