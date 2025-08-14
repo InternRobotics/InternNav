@@ -299,7 +299,7 @@ Main fields:
     - `internnav/model/`: trained model
     - `scripts/train/configs`: training configs
     - `scripts/eval/configs`: evaluating configs
-- The evaluation process now can be viewed at `logs/`. 
+- The evaluation process now can be viewed at `logs/`. Update `challenge_cfg.py` to get visualization output:
     - Set `eval_settings['vis_output']=True` to see saved frames and video during the evaluation trajectory
     - Set `env_settings['headless']=False` to open isaac-sim interactive window
     ![output](output.gif)
