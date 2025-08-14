@@ -176,4 +176,5 @@ websockets==12.0
 wrapt==1.16.0
 yarl==1.9.4
 zipp==3.23.0
+gradio
 -e git+https://github.com/real-stanford/diffusion_policy.git@5ba07ac6661db573af695b419a7947ecb704690f#egg=diffusion_policy

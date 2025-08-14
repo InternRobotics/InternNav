@@ -226,15 +226,10 @@ class InternVLAN1Agent(Agent):
         raise ValueError("Invalid mode: {}".format(mode))
     
         
-    def step(self, step_request: StepRequest):
-        def transfer(obs):
-            obs = base64.b64decode(obs)
-            obs = pickle.loads(obs)
-            return obs
-        
+    def step(self, obs):
         mode = 'sync'  # 'sync', 'partial_async', 'full_async'
         
-        obs = transfer(step_request)[0]
+        obs = obs[0]    # do not support batch_env currently?
         rgb = obs['rgb']
         depth = obs['depth']
         instruction = obs['instruction']
