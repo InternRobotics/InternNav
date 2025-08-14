@@ -511,8 +511,8 @@ def obs_to_image(obs_lst, action, output_path: str, reference_path, normalize: b
     rgb_array = draw_action(rgb_array, action)
 
     # draw trajectory on depth
-    # topdown_array = crop(draw_trajectory(topdown_array, obs_lst, reference_path))
-    topdown_array = crop(draw_trajectory(depth, obs_lst, reference_path))
+    topdown_array = crop(draw_trajectory(topdown_array, obs_lst, reference_path))
+    # topdown_array = crop(draw_trajectory(depth, obs_lst, reference_path))
 
     # Combine horizontally (256x256 + 256x256 = 512x256)
     array = np.concatenate((rgb_array, topdown_array), axis=1)

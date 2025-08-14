@@ -25,7 +25,7 @@ eval_cfg = EvalCfg(
         task_name='cma_plus_eval',
         task_settings={
             'env_num': 2,
-            'use_distributed': True,
+            'use_distributed': False,
             'proc_num': 2,
         },
         scene=SceneCfg(
@@ -48,7 +48,7 @@ eval_cfg = EvalCfg(
         },
     ),
     eval_settings={
-        'save_to_json': True,
+        'save_to_json': False,
         'vis_output': True     
     }
 )

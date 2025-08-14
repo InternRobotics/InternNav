@@ -153,6 +153,8 @@ class VisualizeUtil:
         if assemble_video:
             self._save_video_fn(ti.frames_dir, ti.video_path, ti.fps)
             viz_logger.info(f"[video] saved {ti.video_path}")
+        
+        self._del_traj(trajectory_id)
 
     def report(self):
         """
@@ -182,5 +184,10 @@ class VisualizeUtil:
         if trajectory_id not in self.trajectories:
             raise KeyError(f"trajectory_id not started: {trajectory_id}")
         return self.trajectories[trajectory_id]
+    
+    def _del_traj(self, trajectory_id: str) -> None:
+        if trajectory_id not in self.trajectories:
+            raise KeyError(f"trajectory_id not started: {trajectory_id}")
+        del self.trajectories[trajectory_id]
 
    

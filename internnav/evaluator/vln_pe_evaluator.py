@@ -285,7 +285,7 @@ class VlnPeEvaluator(Evaluator):
             # save step obs
             if self.vis_output:
                 for ob, info, act in zip(obs, reset_info, action):
-                    if info is None:
+                    if info is None or not 'rgb' in ob or ob['fail_reason']:
                         continue
                     self.visualize_util.save_observation(
                         trajectory_id=self.now_path_key(info),

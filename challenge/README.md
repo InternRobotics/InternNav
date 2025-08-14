@@ -1,4 +1,4 @@
-![internnav](pic_06.gif)
+![internnav](demo.gif)
 
   # 🧭 IROS Challenge 2025 Nav Track: Vision-and-Language Navigation in Physical Environments
 
@@ -299,7 +299,10 @@ Main fields:
     - `internnav/model/`: trained model
     - `scripts/train/configs`: training configs
     - `scripts/eval/configs`: evaluating configs
-
+- The evaluation process now can be viewed at `logs/`. 
+    - Set `eval_settings['vis_output']=True` to see saved frames and video during the evaluation trajectory
+    - Set `env_settings['headless']=False` to open isaac-sim interactive window
+    ![output](output.gif)
 
 ## 📦 Packaging and Submission
 

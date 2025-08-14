@@ -97,7 +97,7 @@ class VLNEvalTask(BaseTask):
 
     def get_rgb_depth(self):
         obs = {}
-        if 'pano_camera_0' in self.sensors:
+        if 'pano_camera_0' in self.robot.sensors:
             camera = self.robot.sensors['pano_camera_0']
             import omni.replicator.core as rep
             if self.env_id == 0:
@@ -112,7 +112,7 @@ class VLNEvalTask(BaseTask):
             obs['depth'] = depth_info[..., np.newaxis]
             obs['rgb'] = rgb_info
 
-        if 'topdown_camera_500' in self.sensors:
+        if 'topdown_camera_500' in self.robot.sensors:
             topdown_global_map_camera = self.robot.sensors['topdown_camera_500']
             cur_obs = topdown_global_map_camera.get_data()
             obs['topdown_rgb'] = cur_obs['rgba'][..., :3]
