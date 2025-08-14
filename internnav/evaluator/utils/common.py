@@ -336,11 +336,11 @@ def norm_depth(depth_info, min_depth=0, max_depth=10):
     depth_info = (depth_info - min_depth) / (max_depth - min_depth)
     return depth_info
 
-def draw_trajectory(array, obs_lst):
+def draw_trajectory(array, obs_lst, reference_path):
     """
     Draw the globalgps path and orientation arrows onto the depth array.
     """
-    from grnavigation.evaluator.utils.path_plan import world_to_pixel
+    from internnav.evaluator.utils.path_plan import world_to_pixel
     from omni.isaac.core.utils.rotations import quat_to_euler_angles
     import numpy as np
     import matplotlib.pyplot as plt
@@ -349,6 +349,11 @@ def draw_trajectory(array, obs_lst):
     points = []
     arrows = []
     camera_pose = obs_lst[-1]["globalgps"]
+
+    ref_points = []
+    for position in reference_path:
+        px, py = world_to_pixel(position, camera_pose, 200, 500, 500)
+        ref_points.append((py, px))
 
     for obs in obs_lst:
         position = obs["globalgps"]
@@ -373,6 +378,13 @@ def draw_trajectory(array, obs_lst):
     ax.imshow(array, cmap="viridis", vmin=0, vmax=2)
 
     # Draw trajectory
+    if ref_points:
+        points_np = np.array(ref_points)
+        if len(points_np) >= 2:
+            ax.plot(points_np[:, 0], points_np[:, 1], 'g-', linewidth=2)
+        ax.scatter(points_np[:, 0], points_np[:, 1], c='green', s=1)
+
+    # Draw trajectory
     if points:
         points_np = np.array(points)
         if len(points_np) >= 2:
@@ -394,6 +406,7 @@ def draw_trajectory(array, obs_lst):
     return img
 
 from PIL import Image
+from internnav import PROJECT_ROOT_PATH
 def draw_action(array, action, arrow_color=(255, 0, 0)):  # Default to blue
     """
     Draw colored arrow on the bottom of the numpy array while:
@@ -424,7 +437,7 @@ def draw_action(array, action, arrow_color=(255, 0, 0)):  # Default to blue
         3: "right.png",
         0: "stop.png"
     }
-    icon_path = "/opt/nav_code/grnavigation/scripts/demo/images/"
+    icon_path = os.path.join(PROJECT_ROOT_PATH, "internnav/utils/images/")
     icon_path = os.path.join(icon_path, (action_icons.get(action, "stop.png")))
     
     # Convert array to PIL Image
@@ -477,7 +490,7 @@ def crop(array):
     start_y = (height - 256) // 2
     return array[start_y:start_y+256, start_x:start_x+256, :]
 
-def obs_to_image(obs_lst, action, output_path: str, normalize: bool = True):
+def obs_to_image(obs_lst, action, output_path: str, reference_path, normalize: bool = True):
     """
     Load .npy file and save as image
     
@@ -489,6 +502,7 @@ def obs_to_image(obs_lst, action, output_path: str, normalize: bool = True):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     first_obs = obs_lst[-1]
+    if 'rgb' not in first_obs: return
     rgb_array = first_obs['rgb']
     topdown_array = first_obs['topdown_rgb']
     depth = first_obs['topdown_depth']
@@ -497,8 +511,8 @@ def obs_to_image(obs_lst, action, output_path: str, normalize: bool = True):
     rgb_array = draw_action(rgb_array, action)
 
     # draw trajectory on depth
-    topdown_array = crop(draw_trajectory(topdown_array, obs_lst))
-    # topdown_array = crop(draw_trajectory(depth, obs_lst))
+    # topdown_array = crop(draw_trajectory(topdown_array, obs_lst, reference_path))
+    topdown_array = crop(draw_trajectory(depth, obs_lst, reference_path))
 
     # Combine horizontally (256x256 + 256x256 = 512x256)
     array = np.concatenate((rgb_array, topdown_array), axis=1)

@@ -60,7 +60,7 @@ class EvalCfg(BaseModel):
     env: EnvCfg
     task: TaskCfg
     dataset: EvalDatasetCfg
-    eval_settings: Optional[Dict[str, Any]] = None
+    eval_settings: Optional[Dict[str, Any]] = {}
 
 
 __all__ = [

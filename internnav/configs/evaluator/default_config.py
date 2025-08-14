@@ -224,6 +224,18 @@ def get_config(evaluator_cfg: EvalCfg):
                 controller_settings=vln_move_by_flash_cfg.model_dump())
         )
 
+    if evaluator_cfg.task.robot_flash or evaluator_cfg.eval_settings.get('vis_output', True):
+        topdown_camera = SensorCfg(
+            sensor_type='VLNCamera',
+            sensor_name='topdown_camera_500',
+            sensor_settings=VLNCameraCfg(
+                name='topdown_camera_500',
+                prim_path='topdown_camera_500',
+                enable=True,
+                resolution=[500, 500],
+            ).model_dump(),
+        )
+        robot.sensors.append(topdown_camera)
 
     if evaluator_cfg.task.robot_name == 'h1':
         tp_pointcloud = SensorCfg(

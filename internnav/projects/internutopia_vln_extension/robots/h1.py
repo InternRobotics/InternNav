@@ -21,9 +21,9 @@ class VLNH1Robot(H1Robot):
         self.current_action = action
         ret = super().apply_action(action)
         if 'topdown_camera_500' in self.sensors:
-            orientation_quat = rot_utils.euler_angles_to_quats(np.array([0, 90, 0]), degrees=True)
+            orientation_quat = np.array([-0.70710678, 0.0, 0.0, 0.70710678])
             robot_pos = self.articulation.get_world_pose()[0]
-            self.sensors['topdown_camera_500']._camera.set_pose(
+            self.sensors['topdown_camera_500'].set_world_pose(
                 [robot_pos[0], robot_pos[1], robot_pos[2] + 0.75],
                 orientation_quat,
             )

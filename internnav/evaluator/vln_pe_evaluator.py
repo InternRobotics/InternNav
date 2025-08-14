@@ -52,7 +52,7 @@ class VlnPeEvaluator(Evaluator):
             f'start eval dataset: {self.task_name}, total_path:{self.dataloader.size}'  # noqa: E501
         )
         self.vis_output = config.eval_settings['vis_output']
-        self.visualize_util = VisualizeUtil(self.task_name, fps=6, vis_output=self.vis_output)
+        self.visualize_util = VisualizeUtil(self.task_name, fps=6)
 
         # generate episode
         episodes = generate_episode(self.dataloader, config)
@@ -172,14 +172,6 @@ class VlnPeEvaluator(Evaluator):
         return obs, terminated
 
     def terminate_ops(self, obs_ls, reset_infos, terminated_ls):
-        # save step obs
-        for obs, info in zip(obs_ls, reset_infos):
-            if info is None:
-                continue
-            self.visualize_util.save_observation(
-                trajectory_id=self.now_path_key(reset_info),
-                image=obs
-            )
         finish_warmup_ls = (self.runner_status == runner_status_code.WARM_UP) & [ob['finish_action'] for ob in obs_ls]
         if np.logical_or.reduce(finish_warmup_ls):
             self.agent.reset(np.where(finish_warmup_ls)[0].tolist())
@@ -206,10 +198,11 @@ class VlnPeEvaluator(Evaluator):
                     step_count=obs['metrics'][list(obs['metrics'].keys())[0]][0]['steps'],
                     result=obs['metrics'][list(obs['metrics'].keys())[0]][0]['fail_reason'],
                 )
-                self.visualize_util.trace_end(
-                    trajectory_id=self.now_path_key(reset_info),
-                    result=obs['metrics'][list(obs['metrics'].keys())[0]][0]['fail_reason'],
-                )
+                if self.vis_output:
+                    self.visualize_util.trace_end(
+                        trajectory_id=self.now_path_key(reset_info),
+                        result=obs['metrics'][list(obs['metrics'].keys())[0]][0]['fail_reason'],
+                    )
                 if self.save_to_json:
                     self.result_logger.write_now_result_json()
                 self.result_logger.write_now_result()
@@ -246,7 +239,11 @@ class VlnPeEvaluator(Evaluator):
             progress_log_multi_util.trace_start(
                 trajectory_id=self.now_path_key(reset_info),
             )
-            self.visualize_util.trace_start(trajectory_id=self.now_path_key(reset_info))
+            if self.vis_output:
+                self.visualize_util.trace_start(
+                    trajectory_id=self.now_path_key(reset_info), 
+                    reference_path=reset_info.data['reference_path']
+                )
         return False, reset_infos
 
     def eval(self):
@@ -259,7 +256,11 @@ class VlnPeEvaluator(Evaluator):
             progress_log_multi_util.trace_start(
                 trajectory_id=self.now_path_key(info),
             )
-            self.visualize_util.trace_start(trajectory_id=self.now_path_key(reset_info))
+            if self.vis_output:
+                self.visualize_util.trace_start(
+                    trajectory_id=self.now_path_key(info), 
+                    reference_path=info.data['reference_path']
+                )
         log.info('start new episode!')
 
         obs = self.warm_up()
@@ -280,6 +281,17 @@ class VlnPeEvaluator(Evaluator):
             env_term, reset_info = self.terminate_ops(obs, reset_info, terminated)
             if env_term:
                 break
+            
+            # save step obs
+            if self.vis_output:
+                for ob, info, act in zip(obs, reset_info, action):
+                    if info is None:
+                        continue
+                    self.visualize_util.save_observation(
+                        trajectory_id=self.now_path_key(info),
+                        obs=ob,
+                        action=act[self.robot_name]
+                    )
         
         self.env.close()
         progress_log_multi_util.report()

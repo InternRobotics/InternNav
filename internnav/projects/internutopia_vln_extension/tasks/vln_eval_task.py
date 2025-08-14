@@ -97,19 +97,26 @@ class VLNEvalTask(BaseTask):
 
     def get_rgb_depth(self):
         obs = {}
-        camera = self.robot.sensors['pano_camera_0']
-        import omni.replicator.core as rep
-        if self.env_id == 0:
-            rep.orchestrator.step(rt_subframes=2, delta_time=0.0, pause_timeline=False)
-        cur_obs = camera.get_data()
-        rgb_info = cur_obs['rgba'][..., :3]
-        import numpy as np
+        if 'pano_camera_0' in self.sensors:
+            camera = self.robot.sensors['pano_camera_0']
+            import omni.replicator.core as rep
+            if self.env_id == 0:
+                rep.orchestrator.step(rt_subframes=2, delta_time=0.0, pause_timeline=False)
+            cur_obs = camera.get_data()
+            rgb_info = cur_obs['rgba'][..., :3]
 
-        from internnav.evaluator.utils.common import norm_depth
+            import numpy as np
+            from internnav.evaluator.utils.common import norm_depth
 
-        depth_info = norm_depth(cur_obs['depth'])
-        obs['depth'] = depth_info[..., np.newaxis]
-        obs['rgb'] = rgb_info
+            depth_info = norm_depth(cur_obs['depth'])
+            obs['depth'] = depth_info[..., np.newaxis]
+            obs['rgb'] = rgb_info
+
+        if 'topdown_camera_500' in self.sensors:
+            topdown_global_map_camera = self.robot.sensors['topdown_camera_500']
+            cur_obs = topdown_global_map_camera.get_data()
+            obs['topdown_rgb'] = cur_obs['rgba'][..., :3]
+            obs['topdown_depth'] = norm_depth(cur_obs['depth'])
         return obs
 
     def update_metrics(self, obs):
