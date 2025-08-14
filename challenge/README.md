@@ -10,7 +10,18 @@ The system should be capable of handling challenges such as camera shake, height
 
 ---
 
-# 🚀 Get Started
+## 📋 Table of Contents
+- [📚 Getting Started](#-get-started)
+- [🔗 Useful Links](#-useful-links)
+- [🧩 Environment Setup](#-environment-setup)
+- [🛠️ Model Training and Testing](#-model-training-and-testing)
+- [📦 Packaging and Submission](#-packaging-and-submission)
+- [📝 Official Evaluation Flow](#-official-evaluation-flow)
+- [📖 About the Challenge](#-about-the-challenge)
+- [🔗 Citation](#-citation)
+- [👏 Contribution](#-contribution)
+
+## 🚀 Get Started
 
 This guide provides a step-by-step walkthrough for participating in the **IROS 2025 Challenge on Multimodal Robot Learning**—from setting up your environment and developing your model, to evaluating and submitting your results.
 
@@ -66,6 +77,7 @@ $ docker run --name internnav -it --rm --gpus all --network host \
 ```
 
 ### Download the starter dataset (val_seen + val_unseen splits)
+All the datasets are in LeRobot format. Please refer to [Dataset Structure & Format Specification](https://internrobotics.github.io/user_guide/internnav/tutorials/dataset.html).
 
 Download **InteriorAgent Dataset**
 ```bash
@@ -124,7 +136,7 @@ data/
                 └── videos/
 ```
 #### Interior_data/
-```
+```bash
 kujiale_data
 ├── scene_data      
 │   ├── kujiale_xxxx/
@@ -147,14 +159,132 @@ $ huggingface-cli download --include 'longclip-B.pt' --local-dir-use-symlinks Fa
 $ git clone https://huggingface.co/InternRobotics/VLN-PE && mv VLN-PE/r2r checkpoints/
 ```
 
-## 🛠️ Model Training & Testing
+## 🛠️ Model Training and Testing
 
 Please refer to the [documentation](https://internrobotics.github.io/user_guide/internnav/quick_start/train_eval.html) for a quick-start guide to training or evaluating supported models in InternNav. 
 
 For advanced usage, including customizing datasets, models, and experimental settings, see the [tutorial](https://internrobotics.github.io/user_guide/internnav/tutorials/index.html).
 
-### Train and Evaluate the Baseline Model
-- Implement your policy under `internnav/model` and add to `internav/agent`.
+### Requirements
+For fair comparison in this IROS challenge, the USD file, controller, and observation space must remain consistent with the provided implementation.
+- **Robot USD file**: Includes the Unitree H1 assets and an RGB-D camera.
+- **Controller**: Supports four discrete actions: move forward 0.25 m, turn left 15°, turn right 15°, and stop.
+- **Observation space**: Ego-centric monocular RGB-D input.
+
+### Development Overview
+The main architecture of the evaluation code adopts a client-server model. In the client, we specify the corresponding configuration (*.cfg), which includes settings such as the scenarios to be evaluated, robots, models, and parallelization parameters. The client sends requests to the server, which then make model to predict and response to the client.
+
+The InternNav project adopts a modular design, allowing developers to easily add new navigation algorithms.
+The main components include:
+
+- **Model**: Implements the specific neural network architecture and inference logic
+
+- **Agent**: Serves as a wrapper for the Model, handling environment interaction and data preprocessing
+
+- **Config**: Defines configuration parameters for the model and training
+
+
+
+### Create Your Model & Agent
+#### Custom Model
+A Model is the concrete implementation of your algorithm. For each step, the model should expect an observation from the ego-centric camera.
+```
+action = self.agent.step(obs)
+```
+**obs** has format:
+```
+obs = [{
+    'globalgps': [X, Y, Z]              # robot location
+    'globalrotation': [X, Y, Z, W]      # robot orientation in quaternion
+    'rgb': np.array(256, 256, 3)        # rgb camera image 
+    'depth': np.array(256, 256, 1)      # depth image
+}]
+```
+**action** has format:
+```
+action = List[int]                      # action for each environments
+# 0: stop
+# 1: move forward
+# 2: turn left
+# 3: turn right
+```
+#### Create a Custom Config Class
+
+In the model file, define a `Config` class that inherits from `PretrainedConfig`.  
+A reference implementation is `CMAModelConfig` in [`cma_model.py`](../internnav/model/cma/cma_policy.py).
+
+#### Registration and Integration
+
+In [`internnav/model/__init__.py`](../internnav/model/__init__.py):
+- Add the new model to `get_policy`.
+- Add the new model's configuration to `get_config`.
+
+#### Create a Custom Agent
+
+The Agent handles interaction with the environment, data preprocessing/postprocessing, and calls the Model for inference.  
+A custom Agent usually inherits from [`Agent`](../internnav/agent/base.py) and implements the following key methods:
+
+- `reset()`: Resets the Agent's internal state (e.g., RNN states, action history). Called at the start of each episode.
+- `inference(obs)`: Receives environment observations `obs`, performs preprocessing (e.g., tokenizing instructions, padding), calls the model for inference, and returns an action.
+- `step(obs)`: The external interface, usually calls `inference`, and can include logging or timing.
+
+Example: [`CMAAgent`](../internnav/agent/cma_agent.py)
+
+#### Create a Trainer
+
+The Trainer manages the training loop, including data loading, forward pass, loss calculation, and backpropagation.  
+A custom trainer usually inherits from the [`Base Trainer`](../internnav/trainer/base.py) and implements:
+
+- `train_epoch()`: Runs one training epoch (batch iteration, forward pass, loss calculation, parameter update).
+- `eval_epoch()`: Evaluates the model on the validation set and records metrics.
+- `save_checkpoint()`: Saves model weights, optimizer state, and training progress.
+- `load_checkpoint()`: Loads pretrained models or resumes training.
+
+Example: [`CMATrainer`](../internnav/trainer/cma_trainer.py) shows how to handle sequence data, compute action loss, and implement imitation learning.
+
+#### Training Data
+
+The training data is under `data/vln_pe/traj_data`. Our dataset provides trajectory data collected from the H1 robot as it navigates through the task environment.
+Each observation in the trajectory is paired with its corresponding action.
+
+You may also incorporate external datasets to improve model generalization.
+
+#### Evaluation Data
+In `raw_data/val`, for each task, the model should guide the robot at the start position and rotation to the target position with language instruction.
+
+#### Set the Corresponding Configuration
+
+Refer to existing **training** configuration files for customization:
+
+- **CMA Model Config**: [`cma_exp_cfg`](../scripts/train/configs/cma.py)
+
+Configuration files should define:
+- `ExpCfg` (experiment config)
+- `EvalCfg` (evaluation config)
+- `IlCfg` (imitation learning config)
+
+Ensure your configuration is imported and registered in [`__init__.py`](../scripts/train/configs/__init__.py).
+
+Key parameters include:
+- `name`: Experiment name
+- `model_name`: Must match the name used during model registration
+- `batch_size`: Batch size
+- `lr`: Learning rate
+- `epochs`: Number of training epochs
+- `dataset_*_root_dir`: Dataset paths
+- `lmdb_features_dir`: Feature storage path
+
+Refer to existing **evaluation** config files for customization:
+
+- **CMA Model Evaluation Config**: [`h1_cma_cfg.py`](../scripts/eval/configs/h1_cma_cfg.py)
+
+Main fields:
+- `name`: Evaluation experiment name
+- `model_name`: Must match the name used during training
+- `ckpt_to_load`: Path to the model checkpoint
+- `split`: Dataset split (`val_seen`, `val_unseen`, `test`, etc.)
+
+### Example: Train & Evaluate the Baseline Model
 - We provide train and eval scripts to quick start.
 - Use our train script to train your model:
     ```bash
@@ -164,14 +294,20 @@ For advanced usage, including customizing datasets, models, and experimental set
     ```bash
     $ ./scripts/eval/start_eval.sh --config scripts/eval/configs/challenge_cfg.py
     ```
-- **Example**: Try to train and evaluate the baseline models. 
-We provide default train and eval configs named as `challenge_xxx_cfg.py` under `scripts/.../configs`
+- Currently supported baseline model: Sequence-to-Sequence  (Seq2Seq), Cross-Modal Attention (CMA), Recurrent Diffusion Policy (RDP). Implementations can be found at:
+    - `internnav/agent/`: model agent
+    - `internnav/model/`: trained model
+    - `scripts/train/configs`: training configs
+    - `scripts/eval/configs`: evaluating configs
 
-## 📦 Packaging & Submission
+
+## 📦 Packaging and Submission
 
 ### ✅ Ensure Trained Weights & Model Are Included
 
-Make sure your trained weights and model are correctly packaged in your submitted Docker image at `/root/InternNav` and that the evaluation configuration is properly set at: `scripts/eval/configs/challenge_cfg.py`. No need to include the `data` directory in your submission. We will handle the test dataset.
+- Make sure your trained weights and model code are correctly packaged in your submitted Docker image at `/root/InternNav`.
+- The evaluation configuration is properly set at: `scripts/eval/configs/challenge_cfg.py`. 
+- No need to include the `data` directory in your submission. We will handle the test dataset.
 ```bash
 # quick check
 $ bash challenge/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py
@@ -179,7 +315,7 @@ $ bash challenge/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.
 
 ### Build Your Submission Docker Image
 
-Write a **Dockerfile** and follow the instructions below to build your submission image:
+Write your **Dockerfile** and follow the instructions below to build your submission image:
 ```bash
 # Navigate to the directory
 $ cd PATH/TO/INTERNNAV/
@@ -190,12 +326,13 @@ $ docker build -t my-internnav-custom:v1 .
 Or commit your container as new image: 
 
 ```bash
-$ docker commit [container_name] my-internnav-with-updates:v1
+$ docker commit internnav my-internnav-with-updates:v1
 # Easier to manage custom environment
-# May include all changes, making the docker image bloat
+# May include all changes, making the docker image bloat. Please delete cache and other operations to reduce the image size.
 ```
 
-Push to your public registry
+Push to your public registry. You can follow the following [aliyun document](https://help.aliyun.com/zh/acr/user-guide/create-a-repository-and-build-images?spm=a2c4g.11186623.help-menu-60716.d_2_15_4.75c362cbMywaYx&scm=20140722.H_60997._.OR_help-T_cn~zh-V_1) or [Quay document](https://quay.io/tutorial/) to create a free personal image registry. During the creation of the repository, please set it to public access.
+
 ```bash
 $ docker tag my-internnav-custom:v1 your-registry/internnav-custom:v1
 $ docker push your-registry/internnav-custom:v1
@@ -203,13 +340,15 @@ $ docker push your-registry/internnav-custom:v1
 
 ### Submit your image URL on Eval.AI
 
+After creating an account and team on [eval.ai](https://eval.ai/web/challenges/challenge-page/2627/overview), please submit your entry here. In the "Make Submission" column at the bottom, you can select phase. Please select Upload file as the submission type and upload the JSON file shown below. If you select private for your submission visibility, the results will not be published on the leaderboard. You can select public again on the subsequent result viewing page.
+
 #### Submission Format
 
 Create a JSON file with your Docker image URL and team information. The submission must follow this exact structure:
 
 ```json
 {
-    "url": "registry.cn-hangzhou.aliyuncs.com/yourteam/iros2025:dev",
+    "url": "your-registry/internnav-custom:v1",
     "team": {
         "name": "your-team-name",
         "members": [
@@ -301,8 +440,8 @@ This track pushes the boundary of embodied AI by combining **natural language un
 
 
 
-## 📖 Citation
-For more details with in-depth physical analysis results on the VLN task, please refer to our **VLN-PE**:
+## 🔗 Citation
+For more details with in-depth physical analysis results on the VLN task, please refer to **VLN-PE**:
 [Rethinking the Embodied Gap in Vision-and-Language Navigation: A Holistic Study of Physical and Visual Disparities](https://arxiv.org/pdf/2507.13019).
 ```
 @inproceedings{vlnpe,
@@ -312,3 +451,9 @@ For more details with in-depth physical analysis results on the VLN task, please
   year={2025}
 }
 ```
+
+## 👏 Contribution
+- **Organizer**: Shanghai AI Lab
+- **Co-organizers**: ManyCore Tech, University of Adelaide
+- **Data Contributions**: Online test data provided by Prof. Qi Wu's team; Kujiale scenes provided by ManyCore Tech
+- **Sponsors** (in no particular order): ByteDance, HUAWEI, ENGINEAI, HONOR, ModelScope, Alibaba Cloud, AGILEX, DOBOT
