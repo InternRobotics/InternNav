@@ -1,16 +1,14 @@
 from enum import Enum
 from pathlib import Path
 from time import time
-
 import numpy as np
-
 from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator.base import Evaluator
 from internnav.evaluator.utils.common import set_seed_model
 from internnav.evaluator.utils.config import get_lmdb_path
 from internnav.evaluator.utils.data_collector import DataCollector
 from internnav.evaluator.utils.dataset import ResultLogger, split_data
-from internnav.evaluator.utils.eval import generate_episode, serialize_obs
+from internnav.evaluator.utils.eval import generate_episode
 from internnav.projects.dataloader.resumable import ResumablePathKeyDataloader
 from internnav.utils import common_log_util, progress_log_multi_util
 from internnav.utils.common_log_util import common_logger as log
@@ -51,19 +49,17 @@ class VlnMultiEvaluator(Evaluator):
     def __init__(self, config: EvalCfg):
         self.task_name = config.task.task_name
         if not Path(get_lmdb_path(self.task_name)).exists():
-            split_data(config.dataset.dataset_settings)
-        self.result_logger = ResultLogger(config.dataset.dataset_settings)
+            split_data(config.dataset)
+        self.result_logger = ResultLogger(config.dataset)
         common_log_util.init(self.task_name)
-        self.dataloader = ResumablePathKeyDataloader(**config.dataset.dataset_settings)
+        self.dataloader = ResumablePathKeyDataloader(config.dataset.dataset_type, **config.dataset.dataset_settings)
         self.dataset_name = Path(config.dataset.dataset_settings['base_data_dir']).name
         progress_log_multi_util.init(self.task_name, self.dataloader.size)
         self.total_path_num = self.dataloader.size
         progress_log_multi_util.progress_logger_multi.info(
             f'start eval dataset: {self.task_name}, total_path:{self.dataloader.size}'  # noqa: E501
         )
-
-        self.robot_flash = config.task.robot_flash
-        
+        # generate episode
         episodes = generate_episode(self.dataloader, config)
         config.task.task_settings.update({'episodes': episodes})
         self.env_num = config.task.task_settings['env_num']
@@ -90,6 +86,8 @@ class VlnMultiEvaluator(Evaluator):
         super().__init__(config)
         set_seed_model(0)
         self.data_collector = DataCollector(self.dataloader.lmdb_path)
+        self.robot_flash = config.task.robot_flash
+
 
     @property
     def ignore_obs_attr(self):
@@ -135,9 +133,8 @@ class VlnMultiEvaluator(Evaluator):
         )
         obs[fake_obs_index] = self.fake_obs
         obs = self.remove_obs_attr(obs)
-        obs_trans = serialize_obs(obs)
         if not np.logical_and.reduce(self.runner_status == runner_status_code.WARM_UP):
-            action = self.agent.step(obs_trans)
+            action = self.agent.step(obs)
             log.info(f'now action:{len(action)} ,{action}, fake_obs_index:{fake_obs_index}')
             action = transform_action_batch(action, self.robot_flash)
         # change warm_up
@@ -274,7 +271,6 @@ class VlnMultiEvaluator(Evaluator):
         while self.env.is_running():
 
             obs, action = self.get_action(obs, action)
-            print(f"step action: {action}")
             obs, terminated = self.env_step(action)
             env_term, reset_info = self.terminate_ops(obs, reset_info, terminated)
             if env_term:
