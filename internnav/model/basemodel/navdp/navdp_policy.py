@@ -117,12 +117,6 @@ class NavDPNet(PreTrainedModel):
         self.cond_critic_mask = torch.zeros((self.predict_size,2 + self.memory_size * 16))
         self.cond_critic_mask[:,0:2] = float('-inf')        
         self.tgt_mask = self.tgt_mask.to(self._device)
-        self.cond_critic_mask = self._create_cond_critic_mask()
-        # self.to(self._device)
-
-    def _create_cond_critic_mask(self):
-        # create buffer but not specify device
-        return torch.ones((self.predict_size,2 + self.memory_size * 16), dtype=torch.bool)
     
     def to(self, device, *args, **kwargs):
         # first call the to method of the parent class

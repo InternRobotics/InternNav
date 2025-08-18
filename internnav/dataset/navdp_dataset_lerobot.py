@@ -400,6 +400,15 @@ class NavDP_Base_Datset(Dataset):
             avg_time = self.batch_time_sum / self.batch_size
             print(f'__getitem__ pid={os.getpid()}, avg_time(last {self.batch_size})={avg_time:.2f}s, cnt={self.item_cnt}')
             self.batch_time_sum = 0.0
+        point_goal = torch.tensor(point_goal, dtype=torch.float32)
+        image_goal = torch.tensor(image_goal, dtype=torch.float32)
+        pixel_goal = torch.tensor(pixel_goal, dtype=torch.float32)
+        memory_images = torch.tensor(memory_images, dtype=torch.float32)
+        depth_image = torch.tensor(depth_image, dtype=torch.float32)
+        pred_actions = torch.tensor(pred_actions, dtype=torch.float32)
+        augment_actions = torch.tensor(augment_actions, dtype=torch.float32)
+        pred_critic = torch.tensor(pred_critic, dtype=torch.float32)
+        augment_critic = torch.tensor(augment_critic, dtype=torch.float32)
         return point_goal,image_goal,pixel_goal,memory_images,depth_image,pred_actions,augment_actions,pred_critic,augment_critic,float(pixel_flag)
     
 
