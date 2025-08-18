@@ -30,7 +30,7 @@ eval_cfg = EvalCfg(
         },
         scene=SceneCfg(
             scene_type='kujiale',
-            scene_data_dir='kujiale_data/scene_data/kujiale',
+            scene_data_dir='interiornav_data/scene_data',
         ),
         robot_name='h1',
         robot_usd_path='data/Embodiments/vln-pe/h1/h1_vln_pointcloud.usd',
@@ -40,7 +40,7 @@ eval_cfg = EvalCfg(
     dataset=EvalDatasetCfg(
         dataset_type="kujiale",
         dataset_settings={
-            'base_data_dir': 'kujiale_data/raw_data/kujiale',
+            'base_data_dir': 'interiornav_data/raw_data',
             'split_data_types': ['val_unseen', 'val_seen'],
             'filter_stairs': False,
         },

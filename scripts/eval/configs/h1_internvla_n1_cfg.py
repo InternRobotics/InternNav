@@ -63,7 +63,7 @@ eval_cfg = EvalCfg(
     dataset=EvalDatasetCfg(
         dataset_type="mp3d",
         dataset_settings={
-            'base_data_dir': 'data/vln_pe/raw_data',
+            'base_data_dir': 'data/vln_pe/raw_data/r2r',
             'split_data_types': ['val_unseen'],  # 'val_seen'
             'filter_stairs': False,      
             # 'selected_scans': ['zsNo4HB9uLZ'],

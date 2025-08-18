@@ -79,31 +79,32 @@ $ docker run --name internnav -it --rm --gpus all --network host \
 ### Download the starter dataset (val_seen + val_unseen splits)
 All the datasets are in LeRobot format. Please refer to [Dataset Structure & Format Specification](https://internrobotics.github.io/user_guide/internnav/tutorials/dataset.html).
 
-Download [**InteriorAgent Dataset**](https://huggingface.co/datasets/spatialverse/InteriorAgent)
+Download the [**InteriorNav Dataset**](https://huggingface.co/datasets/spatialverse/InteriorAgent)
 ```bash
 $ git lfs install
 # At /root/InternNav/
-$ mkdir kujiale_data
+$ mkdir interiornav_data
 
-# InteriorAgent scene usd
-$ git clone https://huggingface.co/datasets/spatialverse/InteriorAgent kujiale_data/scene_data
+# InteriorNav scene usd
+$ git clone https://huggingface.co/datasets/spatialverse/InteriorAgent interiornav_data/scene_data
 
-# InteriorAgent train and val dataset
-$ git clone https://huggingface.co/datasets/spatialverse/InteriorAgent_Nav kujiale_data/raw_data
+# InteriorNav val dataset
+$ git clone https://huggingface.co/datasets/spatialverse/InteriorAgent_Nav interiornav_data/raw_data
+
+# train data can be found in next section under IROS-2025-Challenge-Nav
 ```
-Please refer to [document](https://internrobotics.github.io/user_guide/internnav/quick_start/installation.html#interndata-n1-dataset-preparation) for a full guide on InternData-N1 Dataset Preparation.
+Please refer to [document](https://internrobotics.github.io/user_guide/internnav/quick_start/installation.html#interndata-n1-dataset-preparation) for a full guide on InternData-N1 Dataset Preparation. In this challenge, we used test on the VLN-PE part of the [InternData-N1](https://huggingface.co/datasets/InternRobotics/InternData-N1) dataset. Optional: please feel free to download the full dataset to train your model.
 
-- Download the [InternData-N1](https://huggingface.co/datasets/InternRobotics/InternData-N1) for the `vln_pe/`, 
+- Download the [**IROS-2025-Challenge-Nav Dataset**](https://huggingface.co/datasets/InternRobotics/IROS-2025-Challenge-Nav/tree/main) for the `vln_pe/`, 
 - Download the [SceneData-N1](https://huggingface.co/datasets/InternRobotics/Scene-N1/tree/main) for the `scene_data/`, 
 - Download the [Embodiments](https://huggingface.co/datasets/InternRobotics/Embodiments) for the `Embodiments/`
+
 ```bash
 # InternData-N1 with vln-pe data only
-GIT_LFS_SKIP_SMUDGE=1 git clone -b v0.1-full https://huggingface.co/datasets/InternRobotics/InternData-N1 data
-cd data
-git lfs pull --include="vln_pe/**"
+git clone https://huggingface.co/datasets/InternRobotics/IROS-2025-Challenge-Nav data
 
 # Scene
-wget https://huggingface.co/datasets/InternRobotics/Scene-N1/resolve/main/mp3d_pe.tar.gz
+wget https://huggingface.co/datasets/InternRobotics/Scene-N1/resolve/main/mp3d_pe.tar.gz    # unzip to data/scene_data
 
 # Embodiments
 git clone https://huggingface.co/datasets/InternRobotics/Embodiments data/Embodiments
@@ -120,16 +121,16 @@ data/
 │       ├── 1LXtFkjw3qL/
 │       └── ...
 └── vln_pe/
-    ├── raw_data/
-    │   ├── train/
-    │   ├── val_seen/
-    │   │   └── val_seen.json.gz
-    │   └── val_unseen/
-    │       └── val_unseen.json.gz
-    └── traj_data/
-        ├── interior_agent/
-        │   └── kujiale
-        └── mp3d/
+    ├── raw_data/                       # JSON files defining tasks, navigation goals, and dataset splits
+    │   └── r2r/
+    │       ├── train/
+    │       ├── val_seen/
+    │       │   └── val_seen.json.gz
+    │       └── val_unseen/
+    └── traj_data/                      # training sample data for two types of scenes
+        ├── interiornav/
+        │   └── kujiale_xxxx.tar.gz    
+        └── r2r/
             └── trajectory_0/
                 ├── data/
                 ├── meta/
@@ -137,7 +138,7 @@ data/
 ```
 #### Interior_data/
 ```bash
-kujiale_data
+interiornav_data
 ├── scene_data      
 │   ├── kujiale_xxxx/
 │   └── ...
