@@ -130,6 +130,7 @@ docs/en/_build
 internutopia/default_config.py
 data
 kujiale_data
+interiornav_data
 images/
 internutopia
 internutopia_extension
