@@ -79,7 +79,7 @@ $ docker run --name internnav -it --rm --gpus all --network host \
 ### Download the starter dataset (val_seen + val_unseen splits)
 All the datasets are in LeRobot format. Please refer to [Dataset Structure & Format Specification](https://internrobotics.github.io/user_guide/internnav/tutorials/dataset.html).
 
-Download **InteriorAgent Dataset**
+Download [**InteriorAgent Dataset**](https://huggingface.co/datasets/spatialverse/InteriorAgent)
 ```bash
 $ git lfs install
 # At /root/InternNav/
@@ -170,6 +170,7 @@ For fair comparison in this IROS challenge, the USD file, controller, and observ
 - **Robot USD file**: Includes the Unitree H1 assets and an RGB-D camera.
 - **Controller**: Supports four discrete actions: move forward 0.25 m, turn left 15°, turn right 15°, and stop.
 - **Observation space**: Ego-centric monocular RGB-D input.
+- **Technical**: All publicly available datasets and pretrained weights are allowed. The use of large-scale model APIs (e.g., GPT, Claude, Gemini, etc.) is **not** permitted. **Note**: the test server for this challenge has no internet access.
 
 ### Development Overview
 The main architecture of the evaluation code adopts a client-server model. In the client, we specify the corresponding configuration (*.cfg), which includes settings such as the scenarios to be evaluated, robots, models, and parallelization parameters. The client sends requests to the server, which then make model to predict and response to the client.
@@ -302,7 +303,7 @@ Main fields:
 - The evaluation process now can be viewed at `logs/`. Update `challenge_cfg.py` to get visualization output:
     - Set `eval_settings['vis_output']=True` to see saved frames and video during the evaluation trajectory
     - Set `env_settings['headless']=False` to open isaac-sim interactive window
-    ![output](output.gif)
+    <img src="output.gif" alt="output" style="width:50%;"> 
 
 ## 📦 Packaging and Submission
 
