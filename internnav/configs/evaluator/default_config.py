@@ -257,21 +257,6 @@ def get_config(evaluator_cfg: EvalCfg):
         {'robot_offset': robot_offset, 'task_name': evaluator_cfg.task.task_name}
     )
 
-    base_data_dir = evaluator_cfg.dataset.dataset_settings["base_data_dir"]
-    # switch model
-    if evaluator_cfg.agent.model_name == 'cma':
-        model_settings = cma_cfg.model_dump()
-        model_settings['instruction_encoder']['embedding_file'] = os.path.join(base_data_dir, "embeddings.json.gz")
-        model_settings['instruction_encoder']['dataset_vocab'] = os.path.join(base_data_dir, "train/train.json.gz")
-    elif evaluator_cfg.agent.model_name == 'rdp':
-        model_settings = rdp_cfg.model_dump()
-    elif evaluator_cfg.agent.model_name == 'seq2seq':
-        model_settings = seq2seq_cfg.model_dump()
-        model_settings['instruction_encoder']['embedding_file'] = os.path.join(base_data_dir, "embeddings.json.gz")
-        model_settings['instruction_encoder']['dataset_vocab'] = os.path.join(base_data_dir, "train/train.json.gz")
-    elif evaluator_cfg.agent.model_name == 'internvla_n1':
-        model_settings = internvla_n1_cfg.model_dump()
-        
     #switch scene
     if evaluator_cfg.task.scene.scene_type == 'mp3d':
         evaluator_cfg.task.scene = SceneCfg(
@@ -297,6 +282,16 @@ def get_config(evaluator_cfg: EvalCfg):
             scene_settings={},
             scene_data_dir=evaluator_cfg.task.scene.scene_data_dir,
         )
+
+    # switch model
+    if evaluator_cfg.agent.model_name == 'cma':
+        model_settings = cma_cfg.model_dump()
+    elif evaluator_cfg.agent.model_name == 'rdp':
+        model_settings = rdp_cfg.model_dump()
+    elif evaluator_cfg.agent.model_name == 'seq2seq':
+        model_settings = seq2seq_cfg.model_dump()
+    elif evaluator_cfg.agent.model_name == 'internvla_n1':
+        model_settings = internvla_n1_cfg.model_dump()
 
     model_settings.update(evaluator_cfg.agent.model_settings)
     evaluator_cfg.agent.model_settings = model_settings
