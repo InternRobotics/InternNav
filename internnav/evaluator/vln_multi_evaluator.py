@@ -51,10 +51,10 @@ class VlnMultiEvaluator(Evaluator):
     def __init__(self, config: EvalCfg):
         self.task_name = config.task.task_name
         if not Path(get_lmdb_path(self.task_name)).exists():
-            split_data(config.dataset.dataset_settings)
-        self.result_logger = ResultLogger(config.dataset.dataset_settings)
+            split_data(config.dataset)
+        self.result_logger = ResultLogger(config.dataset)
         common_log_util.init(self.task_name)
-        self.dataloader = ResumablePathKeyDataloader(**config.dataset.dataset_settings)
+        self.dataloader = ResumablePathKeyDataloader(config.dataset.dataset_type, **config.dataset.dataset_settings)
         self.dataset_name = Path(config.dataset.dataset_settings['base_data_dir']).name
         progress_log_multi_util.init(self.task_name, self.dataloader.size)
         self.total_path_num = self.dataloader.size
