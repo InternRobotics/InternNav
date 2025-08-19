@@ -78,13 +78,13 @@ class CMA_CLIP_Net(PreTrainedModel):
         if config is None:
             config = cls.config_class.from_pretrained(pretrained_model_name_or_path, **kwargs)
 
-        # 如果 config 是 pydantic 模型，转换为 CMAModelConfig
+        # if config is pydantic model, convert to CMAModelConfig
         if hasattr(config, 'model_dump'):
             config = cls.config_class(model_cfg=config)
 
         model = cls(config)
 
-        # 加载预训练权重
+        # Load pretrained weights
         if os.path.isdir(pretrained_model_name_or_path):
             pytorch_model_path = os.path.join(pretrained_model_name_or_path, 'pytorch_model.bin')
             safetensors_model_path = os.path.join(pretrained_model_name_or_path, 'model.safetensors')

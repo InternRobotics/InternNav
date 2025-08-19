@@ -73,7 +73,7 @@ class CMANet(PreTrainedModel):
         if config is None:
             config = cls.config_class.from_pretrained(pretrained_model_name_or_path, **kwargs)
 
-        # 如果 config 是 pydantic 模型，转换为 CMAModelConfig
+        # if config is pydantic model, convert to CMAModelConfig
         if hasattr(config, 'model_dump'):
             config = cls.config_class(model_cfg=config)
 
