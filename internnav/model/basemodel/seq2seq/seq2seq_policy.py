@@ -12,6 +12,11 @@ from internnav.configs.trainer.exp import ExpCfg
 from internnav.model.encoder import InstructionEncoder, resnet_encoders
 from internnav.model.encoder.rnn_encoder import build_rnn_state_encoder
 
+try:
+    import safetensors.torch
+    _has_safetensors = True
+except ImportError:
+    _has_safetensors = False
 
 class CategoricalNet(nn.Module):
     def __init__(self, num_inputs: int, num_outputs: int) -> None:
@@ -73,7 +78,34 @@ class Seq2SeqNet(PreTrainedModel):
 
         # load pretrained weights
         if os.path.isdir(pretrained_model_name_or_path):
-            model.load_state_dict(torch.load(os.path.join(pretrained_model_name_or_path, 'pytorch_model.bin')))
+            pytorch_model_path = os.path.join(pretrained_model_name_or_path, 'pytorch_model.bin')
+            safetensors_model_path = os.path.join(pretrained_model_name_or_path, 'model.safetensors')
+            
+            if _has_safetensors and os.path.exists(safetensors_model_path):
+                try:
+                    incompatible_keys, _ = model.load_state_dict(
+                        safetensors.torch.load_file(safetensors_model_path)
+                    )
+                    print(f'Successfully loaded model from {safetensors_model_path}')
+                except Exception as e:
+                    print(f'Failed to load safetensors file: {e}')
+                    if os.path.exists(pytorch_model_path):
+                        incompatible_keys, _ = model.load_state_dict(
+                            torch.load(pytorch_model_path)
+                        )
+                        print(f'Successfully loaded model from {pytorch_model_path}')
+                    else:
+                        raise FileNotFoundError(f'No model file found in {pretrained_model_name_or_path}')
+            elif os.path.exists(pytorch_model_path):
+                incompatible_keys, _ = model.load_state_dict(
+                    torch.load(pytorch_model_path)
+                )
+                print(f'Successfully loaded model from {pytorch_model_path}')
+            else:
+                raise FileNotFoundError(f'No model file found in {pretrained_model_name_or_path}')
+                
+            if len(incompatible_keys) > 0:
+                print(f'Incompatible keys: {incompatible_keys}')
         elif pretrained_model_name_or_path is None or len(pretrained_model_name_or_path) == 0:
             pass  # no pretrained model
         else:
