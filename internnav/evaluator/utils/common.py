@@ -561,7 +561,8 @@ def images_to_video(image_folder, output_path, fps=10):
     image_files.sort(key=lambda x: int(os.path.splitext(os.path.basename(x))[0]))
 
     if not image_files:
-        raise ValueError("No images found in the folder.")
+        print("No images found in the folder.")
+        return
 
     # Read the first image to get frame size
     frame = cv2.imread(image_files[0])

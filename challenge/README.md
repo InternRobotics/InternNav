@@ -102,13 +102,13 @@ Please refer to [document](https://internrobotics.github.io/user_guide/internnav
 
 ```bash
 # InternData-N1 with vln-pe data only
-git clone https://huggingface.co/datasets/InternRobotics/IROS-2025-Challenge-Nav data
+$ git clone https://huggingface.co/datasets/InternRobotics/IROS-2025-Challenge-Nav data
 
 # Scene
-wget https://huggingface.co/datasets/InternRobotics/Scene-N1/resolve/main/mp3d_pe.tar.gz    # unzip to data/scene_data
+$ wget https://huggingface.co/datasets/InternRobotics/Scene-N1/resolve/main/mp3d_pe.tar.gz    # unzip to data/scene_data
 
 # Embodiments
-git clone https://huggingface.co/datasets/InternRobotics/Embodiments data/Embodiments
+$ git clone https://huggingface.co/datasets/InternRobotics/Embodiments data/Embodiments
 ```
 
 ### Suggested Dataset Directory Structure
@@ -159,6 +159,9 @@ $ wget -P checkpoints/ddppo-models https://dl.fbaipublicfiles.com/habitat/data/b
 $ huggingface-cli download --include 'longclip-B.pt' --local-dir-use-symlinks False --resume-download Beichenzhang/LongCLIP-B --local-dir checkpoints/clip-long
 # download r2r finetuned baseline checkpoints
 $ git clone https://huggingface.co/InternRobotics/VLN-PE && mv VLN-PE/r2r checkpoints/
+
+# pulled code need to download longclip and diffusion policy
+$ git submodule update --init
 ```
 
 ## 🛠️ Model Training and Testing
@@ -190,6 +193,9 @@ The main components include:
 - We provide train and eval scripts to quick start.
 - Use our train script to train your model:
     ```bash
+    $ conda activate internutopia
+    $ pip install -r requirements/train.txt --index-url https://pypi.org/simple
+
     $ ./scripts/train/start_train.sh --name train_rdp --model rdp
     ```
 - Use our evaluation script for quick checks:
@@ -339,7 +345,10 @@ $ docker commit internnav my-internnav-with-updates:v1
 # Easier to manage custom environment
 # May include all changes, making the docker image bloat. Please delete cache and other operations to reduce the image size.
 ```
-
+[Optional] quick test your image with a mini split in r2r dataset, 10 episodes should be done
+```bash
+$ bash challenge/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py --split mini
+```
 Push to your public registry. You can follow the following [aliyun document](https://help.aliyun.com/zh/acr/user-guide/create-a-repository-and-build-images?spm=a2c4g.11186623.help-menu-60716.d_2_15_4.75c362cbMywaYx&scm=20140722.H_60997._.OR_help-T_cn~zh-V_1) or [Quay document](https://quay.io/tutorial/) to create a free personal image registry. During the creation of the repository, please set it to public access.
 
 ```bash
