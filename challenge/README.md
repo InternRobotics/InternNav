@@ -73,6 +73,7 @@ $ docker run --name internnav -it --rm --gpus all --network host \
   -v ${HOME}/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
   -v ${HOME}/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
   -v ${HOME}/docker/isaac-sim/documents:/root/Documents:rw \
+  -v ${PWD}/data/scene_data/mp3d_pe:/isaac-sim/Matterport3D/data/v1/scans:ro \
   crpi-mdum1jboc8276vb5.cn-beijing.personal.cr.aliyuncs.com/iros-challenge/internnav:v1.0
 ```
 
