@@ -52,7 +52,9 @@ class BaseDataset(IterableDataset):
 
         # Handle RGB and depth features/data
         new_data['rgb'] = data['camera_info'][self.camera_name]['rgb']
-        if len(data['camera_info'][self.camera_name]['depth']) == 2:
+        depth_shape = data['camera_info'][self.camera_name]['depth'][0].shape  # empty data is filtered
+        if len(depth_shape) == 2:
+            # [256, 256] -> [256, 256, 1]
             new_data['depth'] = np.expand_dims(data['camera_info'][self.camera_name]['depth'], axis=-1)
         else:
             new_data['depth'] = data['camera_info'][self.camera_name]['depth']
