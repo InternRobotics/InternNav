@@ -339,13 +339,6 @@ $ docker commit internnav my-internnav-with-updates:v1
 # May include all changes, making the docker image bloat. Please delete cache and other operations to reduce the image size.
 ```
 
-Test your image with mini dataset
-```bash
-# Run local benchmark on the validation set
-$ bash challenge/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py --split mini
-
-```
-
 Push to your public registry. You can follow the following [aliyun document](https://help.aliyun.com/zh/acr/user-guide/create-a-repository-and-build-images?spm=a2c4g.11186623.help-menu-60716.d_2_15_4.75c362cbMywaYx&scm=20140722.H_60997._.OR_help-T_cn~zh-V_1) or [Quay document](https://quay.io/tutorial/) to create a free personal image registry. During the creation of the repository, please set it to public access.
 
 ```bash
