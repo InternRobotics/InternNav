@@ -185,7 +185,25 @@ The main components include:
 
 - **Config**: Defines configuration parameters for the model and training
 
-
+### Example: Train & Evaluate the Baseline Model
+- We provide train and eval scripts to quick start.
+- Use our train script to train your model:
+    ```bash
+    $ ./scripts/train/start_train.sh --name train_rdp --model rdp
+    ```
+- Use our evaluation script for quick checks:
+    ```bash
+    $ ./scripts/eval/start_eval.sh --config scripts/eval/configs/challenge_cfg.py
+    ```
+- Currently supported baseline model: Sequence-to-Sequence  (Seq2Seq), Cross-Modal Attention (CMA), Recurrent Diffusion Policy (RDP). Implementations can be found at:
+    - `internnav/agent/`: model agent
+    - `internnav/model/`: trained model
+    - `scripts/train/configs`: training configs
+    - `scripts/eval/configs`: evaluating configs
+- The evaluation process now can be viewed at `logs/`. Update `challenge_cfg.py` to get visualization output:
+    - Set `eval_settings['vis_output']=True` to see saved frames and video during the evaluation trajectory
+    - Set `env_settings['headless']=False` to open isaac-sim interactive window
+    <img src="output.gif" alt="output" style="width:50%;"> 
 
 ### Create Your Model & Agent
 #### Custom Model
@@ -284,38 +302,23 @@ Main fields:
 - `name`: Evaluation experiment name
 - `model_name`: Must match the name used during training
 - `ckpt_to_load`: Path to the model checkpoint
+- `task`: Define the tasks settings, number of env, scene, robots
+- `dataset`: Load r2r or interiornav dataset 
 - `split`: Dataset split (`val_seen`, `val_unseen`, `test`, etc.)
-
-### Example: Train & Evaluate the Baseline Model
-- We provide train and eval scripts to quick start.
-- Use our train script to train your model:
-    ```bash
-    $ ./scripts/train/start_train.sh --name train_rdp --model rdp
-    ```
-- Use our evaluation script for quick checks:
-    ```bash
-    $ ./scripts/eval/start_eval.sh --config scripts/eval/configs/challenge_cfg.py
-    ```
-- Currently supported baseline model: Sequence-to-Sequence  (Seq2Seq), Cross-Modal Attention (CMA), Recurrent Diffusion Policy (RDP). Implementations can be found at:
-    - `internnav/agent/`: model agent
-    - `internnav/model/`: trained model
-    - `scripts/train/configs`: training configs
-    - `scripts/eval/configs`: evaluating configs
-- The evaluation process now can be viewed at `logs/`. Update `challenge_cfg.py` to get visualization output:
-    - Set `eval_settings['vis_output']=True` to see saved frames and video during the evaluation trajectory
-    - Set `env_settings['headless']=False` to open isaac-sim interactive window
-    <img src="output.gif" alt="output" style="width:50%;"> 
 
 ## 📦 Packaging and Submission
 
-### ✅ Ensure Trained Weights & Model Are Included
+### ✅ Run the benchmark locally (same entrypoint as EvalAI)
+
+Use this to evaluate your model on the validation split locally. The command is identical to what EvalAI runs, so it’s also a good sanity check before submitting.
 
 - Make sure your trained weights and model code are correctly packaged in your submitted Docker image at `/root/InternNav`.
 - The evaluation configuration is properly set at: `scripts/eval/configs/challenge_cfg.py`. 
-- No need to include the `data` directory in your submission. We will handle the test dataset.
+- No need to include the `data` directory in your submission. 
 ```bash
-# quick check
-$ bash challenge/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py
+# Run local benchmark on the validation set
+$ bash challenge/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py --split [val_seen/val_unseen]
+
 ```
 
 ### Build Your Submission Docker Image
@@ -334,6 +337,13 @@ Or commit your container as new image:
 $ docker commit internnav my-internnav-with-updates:v1
 # Easier to manage custom environment
 # May include all changes, making the docker image bloat. Please delete cache and other operations to reduce the image size.
+```
+
+Test your image with mini dataset
+```bash
+# Run local benchmark on the validation set
+$ bash challenge/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py --split mini
+
 ```
 
 Push to your public registry. You can follow the following [aliyun document](https://help.aliyun.com/zh/acr/user-guide/create-a-repository-and-build-images?spm=a2c4g.11186623.help-menu-60716.d_2_15_4.75c362cbMywaYx&scm=20140722.H_60997._.OR_help-T_cn~zh-V_1) or [Quay document](https://quay.io/tutorial/) to create a free personal image registry. During the creation of the repository, please set it to public access.
