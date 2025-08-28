@@ -176,7 +176,8 @@ class NavDP_Policy_DPT_CriticSum_DAT(nn.Module):
         return output
     
     def predict_pointgoal_action(self, vlm_tokens, input_images=None, input_depths=None, vlm_mask=None, sample_num=32):
-        ''' Predict action sequence for point goal navigation using diffusion-based approach.
+        """
+        Predict action sequence for point goal navigation using diffusion-based approach.
 
         This method generates a sequence of actions to reach a target point using 
         vision-language model (VLM) embeddings and RGB-D sensory inputs, leveraging
@@ -200,7 +201,7 @@ class NavDP_Policy_DPT_CriticSum_DAT(nn.Module):
         Returns:
             Tensor: Predicted action trajectories after diffusion denoising,
                 shape (sample_num * batch_size, prediction_size, 3)
-        '''
+        """
         with torch.no_grad():
             bs = vlm_tokens.shape[0]
             device_ = vlm_tokens.device
