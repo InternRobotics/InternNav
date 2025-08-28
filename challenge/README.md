@@ -345,15 +345,28 @@ $ docker commit internnav my-internnav-with-updates:v1
 # Easier to manage custom environment
 # May include all changes, making the docker image bloat. Please delete cache and other operations to reduce the image size.
 ```
-[Optional] quick test your image with a mini split in r2r dataset, 10 episodes should be done
-```bash
-$ bash challenge/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py --split mini
-```
+
 Push to your public registry. You can follow the following [aliyun document](https://help.aliyun.com/zh/acr/user-guide/create-a-repository-and-build-images?spm=a2c4g.11186623.help-menu-60716.d_2_15_4.75c362cbMywaYx&scm=20140722.H_60997._.OR_help-T_cn~zh-V_1) or [Quay document](https://quay.io/tutorial/) to create a free personal image registry. During the creation of the repository, please set it to public access.
 
 ```bash
 $ docker tag my-internnav-custom:v1 your-registry/internnav-custom:v1
 $ docker push your-registry/internnav-custom:v1
+```
+
+[Optional] quick test your image with a mini split in r2r dataset, 10 episodes should be done. This also tests whether you have set the image to public access.
+```bash
+$ docker logout
+$ docker run --name internnav-test -it --gpus all --network host \
+  -e "ACCEPT_EULA=Y" \
+  -e "PRIVACY_CONSENT=Y" \
+  -e "DISPLAY=${DISPLAY}" \
+  --entrypoint /bin/bash \
+  -w /root/InternNav \
+  -v /tmp/.X11-unix/:/tmp/.X11-unix \
+  -v ${PWD}/data:/root/InternNav/data \
+  -v ${PWD}/interiornav_data:/root/InternNav/interiornav_data \
+  your-registry/internnav-custom:v1 \
+  -c "challenge/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py --split mini; exec /bin/bash"
 ```
 
 ### Submit your image URL on Eval.AI
