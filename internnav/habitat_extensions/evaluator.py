@@ -577,6 +577,7 @@ class VLNEvaluator:
                                 with torch.no_grad():
                                     traj_latents = self.model.generate_latents(output_ids, pixel_values, image_grid_thw)
                                 
+                                # prepocess align with navdp
                                 image_dp = torch.tensor(np.array(look_down_image.resize((224, 224)))).to(torch.bfloat16) / 255
                                 pix_goal_image = copy.copy(image_dp)
                                 images_dp = torch.stack([pix_goal_image, image_dp]).unsqueeze(0).to(self.device)
