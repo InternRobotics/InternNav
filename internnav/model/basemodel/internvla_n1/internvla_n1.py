@@ -296,5 +296,5 @@ class InternVLAN1ForCausalLM(Qwen2_5_VLForConditionalGeneration, InternVLAN1Meta
         return hidden_states
     
     def generate_traj(self, traj_latents, images_dp=None, depths_dp=None):
-        all_trajs, _, _, _, _ = self.model.navdp.predict_pointgoal_action(traj_latents.to(self.get_model().device), images_dp, depths_dp, vlm_mask=None)
+        all_trajs = self.model.navdp.predict_pointgoal_action(traj_latents.to(self.get_model().device), images_dp, depths_dp, vlm_mask=None)
         return all_trajs

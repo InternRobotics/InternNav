@@ -4,7 +4,6 @@ defaults:
   - /habitat: habitat_config_base
   - /habitat/task: vln_r2r
   - /habitat/simulator/agents@habitat.simulator.agents.main_agent: rgbd_agent
-  # - /habitat/simulator/sensor_setups@habitat.simulator.agents.main_agent: rgbd_agent
   - /habitat/dataset/vln: mp3d_r2r
   - /habitat/task/lab_sensors:
     - gps_sensor
@@ -49,7 +48,6 @@ habitat:
         type: SPL
       oracle_success:
         type: OracleSuccess
-        # success_distance: 3.0
       oracle_navigation_error:
         type: OracleNavigationError
     actions:
@@ -76,5 +74,4 @@ habitat:
     type: R2RVLN-v1
     split: val_seen
     scenes_dir: data/scene_datasets/
-    # data_path: data/datasets/vln/mp3d/r2r/v1/{split}/{split}.json.gz
     data_path: data/dataset/r2r/R2R_VLNCE_v1-3/{split}/{split}.json.gz

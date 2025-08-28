@@ -114,7 +114,7 @@ class DAT_RGBD_Patch_Backbone(nn.Module):
 
         model_configs = {'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]}}
         self.rgb_model = DepthAnythingV2(**model_configs['vits'])
-        # self.rgb_model.load_state_dict(torch.load(checkpoint))
+        self.rgb_model.load_state_dict(torch.load(checkpoint))
         self.rgb_model = self.rgb_model.pretrained
         
         self.preprocess_mean = torch.tensor([0.485, 0.456, 0.406], dtype=self.input_dtype)
