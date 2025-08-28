@@ -34,7 +34,6 @@ from internnav.utils.dist import *
 
 DEFAULT_IMAGE_TOKEN = "<image>"
 
-
 class VLNEvaluator:
     def __init__(
         self,
@@ -578,15 +577,15 @@ class VLNEvaluator:
                                 with torch.no_grad():
                                     traj_latents = self.model.generate_latents(output_ids, pixel_values, image_grid_thw)
                                 
-                                image_dp = torch.tensor(np.array(look_down_image.resize((224, 224)))).to(torch.bfloat16)
+                                image_dp = torch.tensor(np.array(look_down_image.resize((224, 224)))).to(torch.bfloat16) / 255
                                 pix_goal_image = copy.copy(image_dp)
-                                images_dp = torch.stack([pix_goal_image, image_dp]).unsqueeze(0)
+                                images_dp = torch.stack([pix_goal_image, image_dp]).unsqueeze(0).to(self.device)
                                 depth_dp = look_down_depth.unsqueeze(-1).to(torch.bfloat16)
                                 pix_goal_depth = copy.copy(depth_dp)
-                                depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0)
+                                depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0).to(self.device)
                                 
                                 with torch.no_grad():
-                                    dp_actions = self.model.generate_traj(traj_latents) 
+                                    dp_actions = self.model.generate_traj(traj_latents, images_dp, depths_dp) 
                             
                                 random_choice = np.random.choice(dp_actions.shape[0])
                                 if self.args.continuous_traj:
@@ -597,6 +596,8 @@ class VLNEvaluator:
                                     action_list = chunk_token(dp_actions[random_choice])
                                 
                                 local_actions = action_list
+                                if len(local_actions) >= 4:
+                                    local_actions = local_actions[:4]
                                 action = local_actions[0]
                                 if action == 0:
                                     goal = None
@@ -623,10 +624,40 @@ class VLNEvaluator:
                             action = action.detach().cpu().numpy()[0] if isinstance(action, torch.Tensor) else action
                             action = action[0] if hasattr(action, "__len__") else action
                         else: # dual-system logic
-                            if len(local_actions) != 0:
+                            if len(local_actions)==0:
+                                ############nav_dp###########
+                                local_actions = []
+                                # traj_latents = self.model.generate_latents(output_ids, inputs.pixel_values, inputs.image_grid_thw)
+                                image_dp = torch.tensor(np.array(look_down_image.resize((224, 224)))).to(torch.bfloat16) / 255
+                                
+                                images_dp = torch.stack([pix_goal_image, image_dp]).unsqueeze(0).to(self.device)
+                                depth_dp = look_down_depth.unsqueeze(-1).to(torch.bfloat16)
+                                
+                                depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0).to(self.device)
+                                with torch.no_grad():
+                                    dp_actions = self.model.generate_traj(traj_latents, images_dp, depths_dp)
+
+                                random_choice = np.random.choice(dp_actions.shape[0])
+                                if self.args.continuous_traj:
+                                    action_list = traj_to_actions(dp_actions)
+                                    if len(action_list) < 8:
+                                        action_list += [0] * (8-len(action_list))
+                                else:
+                                    action_list = chunk_token(dp_actions[random_choice])
+                                print("first action_list", action_list)
+                                
+                                local_actions = action_list
+                                if len(local_actions) >= 4:
+                                    local_actions = local_actions[:4]
+                                # if len(local_actions) >= 2:
+                                #     local_actions = local_actions[:2]
+                                
+                                print("local_actions", local_actions)
+                                
                                 action = local_actions.pop(0)
+                                ############nav_dp###########
                             else:
-                                action = 0
+                                action = local_actions.pop(0)
                         
                         forward_action +=1
                         print('forward_action', forward_action, flush=True)
@@ -668,7 +699,7 @@ class VLNEvaluator:
                 process_bar.update(1)
                 
                 metrics = env.get_metrics()
-                if self.save_video :
+                if self.save_video:
                     images_to_video(
                         vis_frames, os.path.join(self.output_path, f'vis_{self.epoch}', f'{scene_id}'), f'{episode_id:04d}', fps=6, quality=9
                     )

@@ -13,7 +13,7 @@ defaults:
 
 habitat:
   environment:
-    max_episode_steps: 10000
+    max_episode_steps: 5000
     iterator_options:
       max_scene_repeat_steps: 50000
       shuffle: False
@@ -76,4 +76,5 @@ habitat:
     type: R2RVLN-v1
     split: val_seen
     scenes_dir: data/scene_datasets/
-    data_path: data/datasets/vln/mp3d/r2r/v1/{split}/{split}.json.gz
+    # data_path: data/datasets/vln/mp3d/r2r/v1/{split}/{split}.json.gz
+    data_path: data/dataset/r2r/R2R_VLNCE_v1-3/{split}/{split}.json.gz

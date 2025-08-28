@@ -95,7 +95,7 @@ class TokenCompressor(nn.Module):
             key_padding_mask=padding_mask
         )
         return out
-    
+
 class DAT_RGBD_Patch_Backbone(nn.Module):
     def __init__(self,
                  image_size=224,
@@ -114,7 +114,7 @@ class DAT_RGBD_Patch_Backbone(nn.Module):
 
         model_configs = {'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]}}
         self.rgb_model = DepthAnythingV2(**model_configs['vits'])
-        self.rgb_model.load_state_dict(torch.load(checkpoint), strict=False)
+        # self.rgb_model.load_state_dict(torch.load(checkpoint))
         self.rgb_model = self.rgb_model.pretrained
         
         self.preprocess_mean = torch.tensor([0.485, 0.456, 0.406], dtype=self.input_dtype)
@@ -131,7 +131,7 @@ class DAT_RGBD_Patch_Backbone(nn.Module):
 
         self.former_query = nn.Embedding(self.memory_size * 16, 384)
         nn.init.constant_(self.former_query.weight, val=0)
-        self.former_pe = nn.Embedding((self.memory_size + 1) * 256, 384)
+        self.former_pe = nn.Embedding((self.memory_size * 2) * 256, 384)
         nn.init.constant_(self.former_pe.weight, val=0)
         self.former_net = nn.TransformerDecoder(nn.TransformerDecoderLayer(384, 8, batch_first=True), 2)
         self.project_layer = nn.Linear(384, embed_size)
@@ -164,7 +164,7 @@ class DAT_RGBD_Patch_Backbone(nn.Module):
             tensor_depths = torch.cat([tensor_depths, tensor_depths, tensor_depths], dim=1)
             depth_token = self.depth_model.get_intermediate_layers(tensor_depths)[0].reshape(B, T * 256, -1)
 
-        former_pe_indice = torch.arange((self.memory_size + 1) * 256, device=images.device).expand(image_token.shape[0], (self.memory_size + 1) * 256)
+        former_pe_indice = torch.arange((self.memory_size * 2) * 256, device=images.device).expand(image_token.shape[0], (self.memory_size * 2) * 256)
         former_pe = self.former_pe(former_pe_indice)
         former_token = torch.cat((image_token, depth_token), dim=1) + former_pe
 

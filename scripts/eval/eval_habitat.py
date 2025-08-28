@@ -58,7 +58,9 @@ def main():
     np.random.seed(local_rank)
     
     #* 1. Load model and tokenizer. Currently, we support two modes: dual_system and system2 in Habitat.
-    processor = AutoProcessor.from_pretrained(args.model_path)
+    processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-7B-Instruct")
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path, use_fast=True)
+    processor.tokenizer = tokenizer
     processor.tokenizer.padding_side = 'left'
     
     device = torch.device(f"cuda:{local_rank}")

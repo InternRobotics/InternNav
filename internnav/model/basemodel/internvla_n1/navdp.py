@@ -10,7 +10,7 @@ import random
 class NavDP_Policy_DPT_CriticSum_DAT(nn.Module):
     def __init__(self,
                  image_size=224,
-                 memory_size=3,
+                 memory_size=2,
                  predict_size=32,
                  temporal_depth=16,
                  heads=8,
@@ -86,12 +86,19 @@ class NavDP_Policy_DPT_CriticSum_DAT(nn.Module):
             nn.Linear(vlm_token_dim//8, token_dim)
         )
         
-        self.goal_compressor = TokenCompressor(token_dim, 8, 1)  # 8 is num_heads, used for information aggregation
+        self.goal_compressor = TokenCompressor(token_dim, 8, 1)
         
         self.pg_embed_mlp = nn.Sequential(
             nn.Linear(2, token_dim//2),
             nn.ReLU(),
             nn.Linear(token_dim//2, token_dim)
+        )
+        self.pg_pred_mlp = nn.Sequential(
+            nn.Linear(token_dim, token_dim//2),
+            nn.ReLU(),
+            nn.Linear(token_dim//2, token_dim//4),
+            nn.ReLU(),
+            nn.Linear(token_dim//4, 2)
         )
 
         self.model_name = "NavDP_Policy_DPT_CriticSum_DAT"
@@ -113,22 +120,18 @@ class NavDP_Policy_DPT_CriticSum_DAT(nn.Module):
             
             model_dict = self.state_dict()
             
-            # Get matched keys
             matched_dict = {k: v for k, v in pretrained_dict.items() 
                         if k in model_dict and v.size() == model_dict[k].size()}
             
-            # Get unmatched keys
             unmatched_pretrained = [k for k in pretrained_dict if k not in matched_dict]
             unmatched_model = [k for k in model_dict if k not in pretrained_dict]
             
-            # Update and load
             model_dict.update(matched_dict)
             self.load_state_dict(model_dict)
             
             rank0_print(f"Successfully loaded pretrained weights from {self.navdp_pretrained}")
             rank0_print(f"Loaded {len(matched_dict)}/{len(model_dict)} layers")
             
-            # Print unloaded pretrained parameters
             if unmatched_pretrained:
                 rank0_print("\nParameters in pretrained but NOT loaded:")
                 for k in unmatched_pretrained:
@@ -138,7 +141,6 @@ class NavDP_Policy_DPT_CriticSum_DAT(nn.Module):
                         reason = "not in model"
                     rank0_print(f"  - {k} ({reason})")
             
-            # Print uninitialized parameters in model
             if unmatched_model:
                 rank0_print("\nParameters in model but NOT in pretrained:")
                 for k in unmatched_model:
@@ -168,21 +170,21 @@ class NavDP_Policy_DPT_CriticSum_DAT(nn.Module):
         cond_embedding = cond_embedding.repeat(action_embeds.shape[0], 1, 1)
         input_embedding = action_embeds + self.out_pos_embed[:, :self.predict_size, :]
         
-        output = self.decoder(tgt=input_embedding, memory=cond_embedding, tgt_mask=self.tgt_mask)
+        output = self.decoder(tgt = input_embedding, memory = cond_embedding, tgt_mask = self.tgt_mask)
         output = self.layernorm(output)
         output = self.action_head(output)
         return output
     
     def predict_pointgoal_action(self, vlm_tokens, input_images=None, input_depths=None, vlm_mask=None, sample_num=32):
-        """
-        Args:
-            vlm_tokens: bs*sel_num, token_nums, 3584
-            input_images: bs*sel_num, memory+1, 224, 224, 3
-            input_depths: bs*sel_num, 1, 224, 224, 3
-            vlm_mask: bs*sel_num, token_nums
-        """
+        '''
+        vlm_tokens: bs*sel_num, token_nums, 3584
+        input_images: bs*sel_num, memory+1, 224, 224, 3
+        input_depths: bs*sel_num, 1, 224, 224, 3
+        vlm_mask: bs*sel_num, token_nums
+        '''
         with torch.no_grad():
             bs = vlm_tokens.shape[0]
+            device_ = vlm_tokens.device
             if bs != 1:
                 vlm_tokens = vlm_tokens[0:1]
                 vlm_mask = vlm_mask[0:1]
@@ -190,21 +192,21 @@ class NavDP_Policy_DPT_CriticSum_DAT(nn.Module):
             
             if vlm_mask is not None:
                 vlm_mask_ = vlm_mask.bool()
-                # mask==True parts will be ignored by transformer, but now vlm valid parts have mask==True!
                 vlm_mask = ~vlm_mask_
             
             vlm_tokens = self.vlm_embed_mlp(vlm_tokens)
-            vlm_embed = torch.mean(vlm_tokens, dim=1).unsqueeze(1)
+            vlm_embed = self.goal_compressor(vlm_tokens, vlm_mask)
+            
+            rgbd_embed = self.rgbd_encoder(input_images, input_depths)
             
             noisy_action = torch.randn((sample_num * bs, self.predict_size, 3), dtype=vlm_embed.dtype).to(vlm_embed.device)
             naction = noisy_action
             
             self.noise_scheduler.set_timesteps(self.noise_scheduler.config.num_train_timesteps)
             for k in self.noise_scheduler.timesteps[:]:
-                noise_pred = self.predict_noise(naction, k.unsqueeze(0), vlm_embed)
-                naction = self.noise_scheduler.step(model_output=noise_pred, timestep=k, sample=naction).prev_sample
-                
-
+                noise_pred = self.predict_noise(naction, k.unsqueeze(0), vlm_embed, rgbd_embed)
+                naction = self.noise_scheduler.step(model_output=noise_pred,timestep=k,sample=naction).prev_sample
+            
             current_trajectory = naction
             return current_trajectory, current_trajectory, None, None, None
             
