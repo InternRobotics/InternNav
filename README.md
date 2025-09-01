@@ -110,6 +110,7 @@ Please refer to the [documentation](https://internrobotics.github.io/user_guide/
       <td>
          <ul>
             <li align="left"><a href="">StreamVLN</a></li>
+            <li align="left"><a href="">InternVLA-N1-Preview (S2)</a></li>
             <li align="left"><a href="">InternVLA-N1 (S2)</a></li>
          </ul>
       </td>
@@ -129,21 +130,26 @@ Please refer to the [documentation](https://internrobotics.github.io/user_guide/
             <li align="left"><a href="">Seq2Seq</a></li>
             <li align="left"><a href="">CMA</a></li>
             <li align="left"><a href="">RDP</a></li>
+            <li align="left"><a href="">InternVLA-N1-Preview</a></li>
             <li align="left"><a href="">InternVLA-N1</a></li>
          </ul>
       </td>
    </tbody>
 </table>
 
-### InternVLA-N1 Results
+### Benchmark Results
 
 #### VLN-CE Task
 | Model  | Dataset/Benchmark | NE | OS | SR | SPL | Download |
 | ------ | ----------------- | -- | -- | --------- |  -- | --------- |
-| `InternVLA-N1 (S2)` | R2R | 5.09 | 60.9 | 53.7 | 49.7 | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-S2) | 
-| `InternVLA-N1` | R2R | **4.76** | **63.4** | **56.7** | **52.6** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1) | 
-| `InternVLA-N1 (S2)` | RxR | 6.39 | 60.1 | 50.5 | 43.3 | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-S2) |
-| `InternVLA-N1` | RxR | **5.65** | **63.2** | **53.5** | **45.7** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1) |
+| `InternVLA-N1 (S2)` | R2R | 4.89 | 60.6 | 55.4 | 52.1| [Model](https://huggingface.co/InternRobotics/InternVLA-N1-S2) | 
+| `InternVLA-N1` | R2R | **4.83** | **63.3** | **58.2** | **54.0** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1) | 
+| `InternVLA-N1 (S2)` | RxR | 6.67 | 56.5 | 48.6 | 42.6 | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-S2) |
+| `InternVLA-N1` | RxR | **5.91** | **60.8** | **53.5** | **46.1** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1) |
+| `InternVLA-N1-Preview (S2)` | R2R | 5.09 | 60.9 | 53.7 | 49.7 | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-Preview-S2) | 
+| `InternVLA-N1-Preview` | R2R | **4.76** | **63.4** | **56.7** | **52.6** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-Preview) | 
+| `InternVLA-N1-Preview (S2)` | RxR | 6.39 | 60.1 | 50.5 | 43.3 | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-Preview-S2) |
+| `InternVLA-N1-Preview` | RxR | **5.65** | **63.2** | **53.5** | **45.7** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-Preview) |
 
 #### VLN-PE Task
 | Model  | Dataset/Benchmark | NE | OS | SR | SPL | Download |
@@ -151,11 +157,13 @@ Please refer to the [documentation](https://internrobotics.github.io/user_guide/
 | `Seq2Seq` | Flash | 8.27 | 43.0 | 15.7 | 9.7 | [Model](https://huggingface.co/InternRobotics/VLN-PE) | 
 | `CMA` | Flash | 7.52 | 45.0 | 24.4 | 18.2 | [Model](https://huggingface.co/InternRobotics/VLN-PE) | 
 | `RDP` | Flash | 6.98 | 42.5 | 24.9 | 17.5 | [Model](https://huggingface.co/InternRobotics/VLN-PE) | 
-| `InternVLA-N1` | Flash | **4.21** | **68.0** | **59.8** | **54.0** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1) | 
+| `InternVLA-N1-Preview` | Flash | **4.21** | **68.0** | **59.8** | **54.0** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-Preview) |
+| `InternVLA-N1` | Flash | **4.13** | **67.6** | **60.4** | **54.9** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1) | 
 | `Seq2Seq` | Physical | 7.88 | 28.1 | 15.1 | 10.7 | [Model](https://huggingface.co/InternRobotics/VLN-PE) | 
 | `CMA` | Physical | 7.26 | 31.4 | 22.1 | 18.6 | [Model](https://huggingface.co/InternRobotics/VLN-PE) | 
 | `RDP` | Physical | 6.72 | 36.9 | 25.2 | 17.7 | [Model](https://huggingface.co/InternRobotics/VLN-PE) | 
-| `InternVLA-N1` | Physical | **5.31** | **49.0** | **42.6** | **35.8** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1) | 
+| `InternVLA-N1-Preview` | Physical | **5.31** | **49.0** | **42.6** | **35.8** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-Preview) |
+| `InternVLA-N1` | Physical | **4.73** | **56.7** | **50.6** | **43.3** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1) | 
 
 #### Visual Navigation Task - PointGoal Navigation
 | Model  | Dataset/Benchmark | SR | SPL | Download |
