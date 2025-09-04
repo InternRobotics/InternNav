@@ -29,6 +29,7 @@ repos:
     rev: v2.2.1
     hooks:
       - id: codespell
+        args: ["--skip=*.md,*.txt,*.rst"]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v3.1.0
     hooks:

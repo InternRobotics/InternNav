@@ -4,7 +4,7 @@
 
 This track challenges participants to develop **multimodal navigation agents** that can interpret **natural language instructions** and operate within a **realistic physics-based simulation** environment.
 
-Participants will deploy their agents on a **legged humanoid robot** (e.g., **Unitree H1**) to perform complex indoor navigation tasks using **egocentric visual inputs** and **language commands**. Agents must not only understand instructions but also perceive the environment, model trajectory history, and predict navigation actions in real time. 
+Participants will deploy their agents on a **legged humanoid robot** (e.g., **Unitree H1**) to perform complex indoor navigation tasks using **egocentric visual inputs** and **language commands**. Agents must not only understand instructions but also perceive the environment, model trajectory history, and predict navigation actions in real time.
 
 The system should be capable of handling challenges such as camera shake, height variation, and local obstacle avoidance, ultimately achieving robust and safe vision-and-language navigation.
 
@@ -28,13 +28,13 @@ This guide provides a step-by-step walkthrough for participating in the **IROS 2
 
 
 ## 🔗 Useful Links
-- 🔍 **Challenge Overview:**  
+- 🔍 **Challenge Overview:**
  [Challenge of Multimodal Robot Learning in InternUtopia and Real World](https://internrobotics.shlab.org.cn/challenge/2025/).
 
-- 📖 **InternUtopia + InternNav Documentation:**  
+- 📖 **InternUtopia + InternNav Documentation:**
  [Getting Started](https://internrobotics.github.io/user_guide/internutopia/get_started/index.html)
 
-- 🚀 **Interactive Demo:**  
+- 🚀 **Interactive Demo:**
  [InternNav Model Inference Demo](https://huggingface.co/spaces/InternRobotics/InternNav-Eval-Demo)
 
 
@@ -43,12 +43,12 @@ This guide provides a step-by-step walkthrough for participating in the **IROS 2
 
 ### Clone the InternNav repository to any desired location
 ```bash
-$ git clone git@github.com:InternRobotics/InternNav.git
+$ git clone -b release/v0.1 git@github.com:InternRobotics/InternNav.git --recursive
 ```
 
 ### Pull our base Docker image
 ```bash
-$ docker pull crpi-mdum1jboc8276vb5.cn-beijing.personal.cr.aliyuncs.com/iros-challenge/internnav:v1.0
+$ docker pull crpi-mdum1jboc8276vb5.cn-beijing.personal.cr.aliyuncs.com/iros-challenge/internnav:v1.1
 ```
 
 ### Run the container
@@ -96,8 +96,8 @@ $ git clone https://huggingface.co/datasets/spatialverse/InteriorAgent_Nav inter
 ```
 Please refer to [document](https://internrobotics.github.io/user_guide/internnav/quick_start/installation.html#interndata-n1-dataset-preparation) for a full guide on InternData-N1 Dataset Preparation. In this challenge, we used test on the VLN-PE part of the [InternData-N1](https://huggingface.co/datasets/InternRobotics/InternData-N1) dataset. Optional: please feel free to download the full dataset to train your model.
 
-- Download the [**IROS-2025-Challenge-Nav Dataset**](https://huggingface.co/datasets/InternRobotics/IROS-2025-Challenge-Nav/tree/main) for the `vln_pe/`, 
-- Download the [SceneData-N1](https://huggingface.co/datasets/InternRobotics/Scene-N1/tree/main) for the `scene_data/`, 
+- Download the [**IROS-2025-Challenge-Nav Dataset**](https://huggingface.co/datasets/InternRobotics/IROS-2025-Challenge-Nav/tree/main) for the `vln_pe/`,
+- Download the [SceneData-N1](https://huggingface.co/datasets/InternRobotics/Scene-N1/tree/main) for the `scene_data/`,
 - Download the [Embodiments](https://huggingface.co/datasets/InternRobotics/Embodiments) for the `Embodiments/`
 
 ```bash
@@ -114,7 +114,7 @@ $ git clone https://huggingface.co/datasets/InternRobotics/Embodiments data/Embo
 ### Suggested Dataset Directory Structure
 #### InternData-N1
 ```
-data/ 
+data/
 ├── Embodiments/
 ├── scene_data/
 │   └── mp3d_pe/
@@ -130,7 +130,7 @@ data/
     │       └── val_unseen/
     └── traj_data/                      # training sample data for two types of scenes
         ├── interiornav/
-        │   └── kujiale_xxxx.tar.gz    
+        │   └── kujiale_xxxx.tar.gz
         └── r2r/
             └── trajectory_0/
                 ├── data/
@@ -140,10 +140,10 @@ data/
 #### Interior_data/
 ```bash
 interiornav_data
-├── scene_data      
+├── scene_data
 │   ├── kujiale_xxxx/
 │   └── ...
-└── raw_data        
+└── raw_data
     ├── train/
     ├── val_seen/
     └── val_unseen/
@@ -166,7 +166,7 @@ $ git submodule update --init
 
 ## 🛠️ Model Training and Testing
 
-Please refer to the [documentation](https://internrobotics.github.io/user_guide/internnav/quick_start/train_eval.html) for a quick-start guide to training or evaluating supported models in InternNav. 
+Please refer to the [documentation](https://internrobotics.github.io/user_guide/internnav/quick_start/train_eval.html) for a quick-start guide to training or evaluating supported models in InternNav.
 
 For advanced usage, including customizing datasets, models, and experimental settings, see the [tutorial](https://internrobotics.github.io/user_guide/internnav/tutorials/index.html).
 
@@ -210,7 +210,7 @@ The main components include:
 - The evaluation process now can be viewed at `logs/`. Update `challenge_cfg.py` to get visualization output:
     - Set `eval_settings['vis_output']=True` to see saved frames and video during the evaluation trajectory
     - Set `env_settings['headless']=False` to open isaac-sim interactive window
-    <img src="output.gif" alt="output" style="width:50%;"> 
+    <img src="output.gif" alt="output" style="width:50%;">
 
 ### Create Your Model & Agent
 #### Custom Model
@@ -223,7 +223,7 @@ action = self.agent.step(obs)
 obs = [{
     'globalgps': [X, Y, Z]              # robot location
     'globalrotation': [X, Y, Z, W]      # robot orientation in quaternion
-    'rgb': np.array(256, 256, 3)        # rgb camera image 
+    'rgb': np.array(256, 256, 3)        # rgb camera image
     'depth': np.array(256, 256, 1)      # depth image
 }]
 ```
@@ -237,7 +237,7 @@ action = List[int]                      # action for each environments
 ```
 #### Create a Custom Config Class
 
-In the model file, define a `Config` class that inherits from `PretrainedConfig`.  
+In the model file, define a `Config` class that inherits from `PretrainedConfig`.
 A reference implementation is `CMAModelConfig` in [`cma_model.py`](../internnav/model/cma/cma_policy.py).
 
 #### Registration and Integration
@@ -248,7 +248,7 @@ In [`internnav/model/__init__.py`](../internnav/model/__init__.py):
 
 #### Create a Custom Agent
 
-The Agent handles interaction with the environment, data preprocessing/postprocessing, and calls the Model for inference.  
+The Agent handles interaction with the environment, data preprocessing/postprocessing, and calls the Model for inference.
 A custom Agent usually inherits from [`Agent`](../internnav/agent/base.py) and implements the following key methods:
 
 - `reset()`: Resets the Agent's internal state (e.g., RNN states, action history). Called at the start of each episode.
@@ -259,7 +259,7 @@ Example: [`CMAAgent`](../internnav/agent/cma_agent.py)
 
 #### Create a Trainer
 
-The Trainer manages the training loop, including data loading, forward pass, loss calculation, and backpropagation.  
+The Trainer manages the training loop, including data loading, forward pass, loss calculation, and backpropagation.
 A custom trainer usually inherits from the [`Base Trainer`](../internnav/trainer/base.py) and implements:
 
 - `train_epoch()`: Runs one training epoch (batch iteration, forward pass, loss calculation, parameter update).
@@ -310,7 +310,7 @@ Main fields:
 - `model_name`: Must match the name used during training
 - `ckpt_to_load`: Path to the model checkpoint
 - `task`: Define the tasks settings, number of env, scene, robots
-- `dataset`: Load r2r or interiornav dataset 
+- `dataset`: Load r2r or interiornav dataset
 - `split`: Dataset split (`val_seen`, `val_unseen`, `test`, etc.)
 
 ## 📦 Packaging and Submission
@@ -320,8 +320,8 @@ Main fields:
 Use this to evaluate your model on the validation split locally. The command is identical to what EvalAI runs, so it’s also a good sanity check before submitting.
 
 - Make sure your trained weights and model code are correctly packaged in your submitted Docker image at `/root/InternNav`.
-- The evaluation configuration is properly set at: `scripts/eval/configs/challenge_cfg.py`. 
-- No need to include the `data` directory in your submission. 
+- The evaluation configuration is properly set at: `scripts/eval/configs/challenge_cfg.py`.
+- No need to include the `data` directory in your submission.
 ```bash
 # Run local benchmark on the validation set
 $ bash challenge/start_eval_iros.sh --config scripts/eval/configs/challenge_cfg.py --split [val_seen/val_unseen]
@@ -338,7 +338,7 @@ $ cd PATH/TO/INTERNNAV/
 # Build the new image
 $ docker build -t my-internnav-custom:v1 .
 ```
-Or commit your container as new image: 
+Or commit your container as new image:
 
 ```bash
 $ docker commit internnav my-internnav-with-updates:v1
@@ -443,15 +443,15 @@ For detailed submission guidelines and troubleshooting, refer to the official Ev
 ### 🧪 Simulation Environment
 
 - **Platform**: Physics-driven simulation using [InternUtopia](https://github.com/InternRobotics/InternUtopia)
-- **Robot**: Unitree H1 humanoid robot model  
-- **Tasks**: Instruction-based navigation in richly furnished indoor scenes  
+- **Robot**: Unitree H1 humanoid robot model
+- **Tasks**: Instruction-based navigation in richly furnished indoor scenes
 - **Evaluation**: Based on success rate, path efficiency, and instruction compliance
 
 
 
 ### 🔍 Evaluation Metrics
 
-- **Success Rate (SR)**: Proportion of episodes where the agent reaches the goal location within 3m  
+- **Success Rate (SR)**: Proportion of episodes where the agent reaches the goal location within 3m
 - **SPL**: Success weighted by Path Length
 - **Trajectory Length (TL)**: Total length of the trajectory (m)
 - **Navigation Error (NE)**: Euclidean distance between the agent's final position and the goal (m)
@@ -463,8 +463,8 @@ For detailed submission guidelines and troubleshooting, refer to the official Ev
 
 ### 🚨 Challenges to Solve
 
-- ✅ Integrating vision, language, and control into a single inference pipeline  
-- ✅ Overcoming sensor instability and actuation delay from simulated humanoid locomotion  
+- ✅ Integrating vision, language, and control into a single inference pipeline
+- ✅ Overcoming sensor instability and actuation delay from simulated humanoid locomotion
 - ✅ Ensuring real-time, smooth, and goal-directed behavior under physics constraints
 
 This track pushes the boundary of embodied AI by combining **natural language understanding**, **3D vision**, and **realistic robot control**, fostering solutions ready for future real-world deployments.
