@@ -1,7 +1,7 @@
 '''
-Test the evaluator eval logic without model involve.
+Test the evaluator eval logic with ray, set proc_num = 4.
 The main progress:
-    Init => warm up => fake one action
+    Init => warm up => one action
 '''
 
 import importlib.util
@@ -34,6 +34,8 @@ def main():
         return getattr(config_module, attr_name)
 
     evaluator_cfg = load_eval_cfg('scripts/eval/configs/challenge_cfg.py', attr_name='eval_cfg')
+    evaluator_cfg.task.task_settings["use_distributed"] = True
+    evaluator_cfg.task.task_settings["proc_num"] = 4
     cfg = get_config(evaluator_cfg)
     evaluator = Evaluator.init(cfg)
 
