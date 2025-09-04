@@ -66,4 +66,4 @@ jobs:
 
           # run tests
           /root/miniconda3/envs/internutopia/bin/python -c "import torch,sys;print(sys.executable);print('cuda:',torch.cuda.is_available())"
-          /root/miniconda3/envs/internutopia/bin/python -m pytest -q -W ignore --timeout=900 --timeout-method=kill
+          /root/miniconda3/envs/internutopia/bin/python -m pytest -q -W ignore --timeout=900 --timeout-method=signal
