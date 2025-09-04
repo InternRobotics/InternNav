@@ -8,7 +8,7 @@ def tmp_cfg(tmp_path):
     return p
 
 
-# 按需全局 hook（例：缺 GPU 时自动跳过 gpu 标记）
+# global hook: skip mark
 def pytest_runtest_setup(item):
     if "gpu" in item.keywords:
         try:

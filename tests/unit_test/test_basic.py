@@ -18,7 +18,6 @@ def test_sin(x, expected):
 
 @pytest.mark.slow
 def test_slow_example():
-    # 假装这里很慢
     assert sum(range(10000)) > 0
 
 

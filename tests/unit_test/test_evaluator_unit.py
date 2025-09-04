@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from internnav.evaluator.vln_pe_evaluator import transform_action_batch  # 按你的真实模块路径改
+from internnav.evaluator.vln_pe_evaluator import transform_action_batch
 
 
 @pytest.mark.slow
