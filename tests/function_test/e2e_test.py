@@ -54,13 +54,13 @@ def test_server():
     common_body(start_command)
 
 
-@pytest.mark.gpu
-def test_challenge():
-    start_command = 'python ./tests/function_test/test_challenge.py'
+@pytest.mark.ray
+def test_evaluator():
+    start_command = 'python ./tests/function_test/test_evaluator.py'
     common_body(start_command)
 
 
-@pytest.mark.ray
-def test_challenge_ray():
-    start_command = 'python ./tests/function_test/test_challenge_ray.py'
+@pytest.mark.gpu
+def test_challenge():
+    start_command = 'python ./tests/function_test/test_challenge.py'
     common_body(start_command)

@@ -5,11 +5,11 @@ The main progress:
 '''
 
 import importlib.util
-import subprocess
 import sys
 import time
 
 import numpy as np
+from test_server import start_server, stop_server
 
 from internnav.configs.evaluator.default_config import get_config
 from internnav.evaluator import Evaluator
@@ -66,39 +66,32 @@ def main():
     evaluator.env.close()
 
 
-def start_server():
-    server_cmd = [
-        sys.executable,
-        "internnav/agent/utils/server.py",
-        "--config",
-        "scripts/eval/configs/challenge_cfg.py",
-    ]
+def start_evaluator():
+    from multiprocessing import get_context
 
-    proc = subprocess.Popen(
-        server_cmd,
-        stdout=None,
-        stderr=None,
-    )
-    return proc
+    ctx = get_context("spawn")  # Use 'spawn' to avoid issues on some platforms
+    p = ctx.Process(target=main)
+    p.start()
+    p.join()
+    assert p.exitcode == 0
+    print("Evaluator process completed successfully.")
 
 
 if __name__ == '__main__':
     try:
         proc = start_server()
         time.sleep(3)
-        main()
+        start_evaluator()
+
     except Exception as e:
         print(f'exception is {e}')
         import traceback
 
         traceback.print_exc()
         sys.exit(1)
+
+    except SystemExit as e:
+        print(f"Caught SystemExit from env.close(): code={e.code}", flush=True)
+
     finally:
-        if proc and proc.poll() is None:
-            print("Shutting down server...")
-            proc.terminate()
-            try:
-                proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                print("Force killing server...")
-                proc.kill()
+        stop_server(proc)

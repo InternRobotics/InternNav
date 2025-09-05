@@ -1,7 +1,10 @@
+import sys
 from enum import Enum
 from pathlib import Path
 from time import time
+
 import numpy as np
+
 from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator.base import Evaluator
 from internnav.evaluator.utils.common import set_seed_model
@@ -28,21 +31,22 @@ def transform_action_batch(actions, flash=False):
         if 'ideal_flag' in action.keys():
             ideal_flag = action['ideal_flag']
             if flash:
-                assert ideal_flag == True
+                assert ideal_flag is True
         else:
             ideal_flag = False
         if not ideal_flag:
             transformed_actions.append({'h1': {'vln_dp_move_by_speed': action['action'][0]}})
             continue
         a = action['action']
-        if a == 0 or a == [0] or a==[[0]]:
+        if a == 0 or a == [0] or a == [[0]]:
             transformed_actions.append({'h1': {'stop': []}})
         elif a == -1 or a == [-1] or a == [[-1]]:
             transformed_actions.append({'h1': {'stand_still': []}})
         else:
             move = f"move_by_{'discrete' if not flash else 'flash'}"
-            transformed_actions.append({'h1': {move: a}}) # discrete e.g. [3]
+            transformed_actions.append({'h1': {move: a}})  # discrete e.g. [3]
     return transformed_actions
+
 
 @Evaluator.register('vln_multi')
 class VlnMultiEvaluator(Evaluator):
@@ -61,6 +65,9 @@ class VlnMultiEvaluator(Evaluator):
         )
         # generate episode
         episodes = generate_episode(self.dataloader, config)
+        if len(episodes) == 0:
+            log.info("No more episodes to evaluate")
+            sys.exit(0)
         config.task.task_settings.update({'episodes': episodes})
         self.env_num = config.task.task_settings['env_num']
         self.proc_num = (
@@ -87,7 +94,6 @@ class VlnMultiEvaluator(Evaluator):
         set_seed_model(0)
         self.data_collector = DataCollector(self.dataloader.lmdb_path)
         self.robot_flash = config.task.robot_flash
-
 
     @property
     def ignore_obs_attr(self):
@@ -223,15 +229,11 @@ class VlnMultiEvaluator(Evaluator):
             log.info(f'env{reset_env_ids}: states switch to WARM UP.')
             # modify original reset_info
             reset_infos = np.array(reset_infos)
-            reset_infos[reset_env_ids] = (
-                new_reset_infos if len(new_reset_infos) > 0 else None
-            ) 
+            reset_infos[reset_env_ids] = new_reset_infos if len(new_reset_infos) > 0 else None
             self.runner_status[
                 np.vectorize(lambda x: x)(reset_infos) == None  # noqa: E711
             ] = runner_status_code.TERMINATED
-            log.info(
-                f'env{np.vectorize(lambda x: x)(reset_infos) == None}: states switch to TERMINATED.'
-            )
+            log.info(f'env{np.vectorize(lambda x: x)(reset_infos) == None}: states switch to TERMINATED.')
             reset_infos = reset_infos.tolist()
 
         if np.logical_and.reduce(self.runner_status == runner_status_code.TERMINATED):

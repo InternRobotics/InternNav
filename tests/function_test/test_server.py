@@ -10,8 +10,6 @@ def start_server():
     server_cmd = [
         sys.executable,
         "internnav/agent/utils/server.py",
-        "--config",
-        "scripts/eval/configs/challenge_cfg.py",
     ]
 
     proc = subprocess.Popen(
@@ -21,6 +19,18 @@ def start_server():
         start_new_session=True,
     )
     return proc
+
+
+def stop_server(proc):
+    if proc and proc.poll() is None:
+        print("Shutting down server...")
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            raise RuntimeError("❌ Server failed to shut down within 10 seconds.")
 
 
 if __name__ == '__main__':
@@ -33,13 +43,7 @@ if __name__ == '__main__':
             raise RuntimeError(f"❌ Server exited too early with code {proc.returncode}")
         print("✅ Server is still alive after 5 seconds.")
 
-        if proc and proc.poll() is None:
-            print("Shutting down server...")
-            proc.terminate()
-            try:
-                proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                raise RuntimeError("❌ Server failed to shut down within 10 seconds.")
+        stop_server(proc)
 
     except Exception as e:
         print(f'exception is {e}')
