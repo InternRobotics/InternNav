@@ -26,7 +26,6 @@ class IlCfg(BaseModel, extra='allow'):
     save_filter_frozen_weights: Optional[bool] = None
     load_from_ckpt: Optional[bool]
     ckpt_to_load: Optional[str]
-    load_from_pretrain: Optional[bool]
     dataset_r2r_root_dir: Optional[str] = None
     dataset_3dgs_root_dir: Optional[str] = None
     dataset_grutopia10_root_dir: Optional[str] = None

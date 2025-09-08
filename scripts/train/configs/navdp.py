@@ -2,7 +2,6 @@ from internnav.configs.model.navdp import navdp_cfg
 from internnav.configs.trainer.eval import EvalCfg
 from internnav.configs.trainer.exp import ExpCfg
 from internnav.configs.trainer.il import FilterFailure, IlCfg, Loss
-import os
 
 navdp_exp_cfg = ExpCfg(
     name='navdp_train',
@@ -14,7 +13,7 @@ navdp_exp_cfg = ExpCfg(
     tensorboard_dir='checkpoints/%s/tensorboard',
     checkpoint_folder='checkpoints/%s/ckpts',
     log_dir='checkpoints/%s/logs',
-    local_rank= 0,
+    local_rank=0,
     # device = None,
     seed=0,
     eval=EvalCfg(
@@ -41,7 +40,6 @@ navdp_exp_cfg = ExpCfg(
         save_filter_frozen_weights=False,
         load_from_ckpt=False,
         ckpt_to_load='',
-        load_from_pretrain=False,
         lmdb_map_size=1e12,
         dataset_r2r_root_dir='data/vln_pe/raw_data/r2r',
         dataset_3dgs_root_dir='',
@@ -50,8 +48,8 @@ navdp_exp_cfg = ExpCfg(
         lerobot_features_dir='data/vln_pe/traj_data/r2r',
         camera_name='pano_camera_0',
         report_to='tensorboard',  # wandb, tensorboard, none
-        dataset_navdp = 'data/datasets/navdp_dataset_lerobot.json',
-        root_dir = 'data/datasets/InternData-N1/vln_n1/traj_data',
+        dataset_navdp='data/datasets/navdp_dataset_lerobot.json',
+        root_dir='data/datasets/InternData-N1/vln_n1/traj_data',
         image_size=224,
         scene_scale=1.0,
         preload=False,
@@ -66,7 +64,7 @@ navdp_exp_cfg = ExpCfg(
         dropout=0.1,
         scratch=False,
         finetune=False,
-        ddp_find_unused_parameters = True,
+        ddp_find_unused_parameters=True,
         filter_failure=FilterFailure(
             use=True,
             min_rgb_nums=15,
