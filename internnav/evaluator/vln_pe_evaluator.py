@@ -286,6 +286,9 @@ class VlnPeEvaluator(Evaluator):
 
             # save step obs
             if self.vis_output:
+                if self.config.task.task_settings['use_distributed']:
+                    raise Exception('visualization not support distributed mode!')
+
                 for ob, info, act in zip(obs, reset_info, action):
                     if info is None or 'rgb' not in ob or ob['fail_reason']:
                         continue
