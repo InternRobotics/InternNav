@@ -9,6 +9,9 @@ Participants will deploy their agents on a **legged humanoid robot** (e.g., **Un
 The system should be capable of handling challenges such as camera shake, height variation, and local obstacle avoidance, ultimately achieving robust and safe vision-and-language navigation.
 
 ---
+## Updates
+- We have fixed possible memory leak inside InternUtopia. Please pull the latest image v1.2 to use.
+- For submission, please make sure the image contain `screen`. Quick check: `$ screen --version`.
 
 ## 📋 Table of Contents
 - [📚 Getting Started](#-get-started)
