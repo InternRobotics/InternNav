@@ -47,7 +47,7 @@ if [ -n "$processes" ]; then
         echo "kill: $pid"
     done
 fi
-python internnav/agent/utils/server.py --config scripts/eval/configs/challenge_kujiale_cfg.py > "$SERVER_LOG" 2>&1 &
+python internnav/agent/utils/server.py --config scripts/eval/configs/challenge_cfg.py > "$SERVER_LOG" 2>&1 &
 
 
 START_COMMAND_KUJIALE="python -u scripts/eval/eval_iros.py --config $CONFIG --default_config scripts/eval/configs/challenge_kujiale_cfg.py --split $SPLIT"
