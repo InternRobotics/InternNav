@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from internnav.model.basemodel.LongCLIP.model import longclip
+from internnav.modules.basemodel.LongCLIP.model import longclip
 from internnav.trainer.base import BaseTrainer
 
 

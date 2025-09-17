@@ -1,8 +1,8 @@
 import torch
 import torch.nn.functional as F
 
-from internnav.model.basemodel.LongCLIP.model import longclip
-from internnav.model.utils.bert_token import BertTokenizer
+from internnav.modules.basemodel.LongCLIP.model import longclip
+from internnav.modules.utils.bert_token import BertTokenizer
 from internnav.trainer.base import BaseTrainer
 
 

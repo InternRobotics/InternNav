@@ -44,8 +44,8 @@ from transformers import (
 PROJECT_ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(PROJECT_ROOT_PATH)
 print(f"PROJECT_ROOT_PATH {PROJECT_ROOT_PATH}")
-from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
-from internnav.model.utils.vln_utils import rho_theta, image_resize, traj_to_actions, chunk_token, split_and_clean, open_image
+from internnav.modules.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
+from internnav.modules.utils.vln_utils import rho_theta, image_resize, traj_to_actions, chunk_token, split_and_clean, open_image
 from internnav.habitat_extensions import measures
 from internnav.utils.dist import *
 

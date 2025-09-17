@@ -12,7 +12,7 @@ from transformers import (
 import habitat
 
 import numpy as np
-from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
+from internnav.modules.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
 from internnav.utils.dist import *
 from internnav.habitat_extensions.evaluator import VLNEvaluator
 from internnav.habitat_extensions import measures

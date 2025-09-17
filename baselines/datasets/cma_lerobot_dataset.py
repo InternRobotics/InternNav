@@ -5,7 +5,7 @@ import numpy as np
 import torch
 
 from internnav.dataset.base import BaseDataset, ObservationsDict, _block_shuffle
-from internnav.model.utils.feature_extract import extract_instruction_tokens
+from internnav.modules.utils.feature_extract import extract_instruction_tokens
 from internnav.utils.lerobot_as_lmdb import LerobotAsLmdb
 
 

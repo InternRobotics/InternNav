@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import math
-from internnav.model.encoder.depth_anything.depth_anything_v2.dpt import DepthAnythingV2
+from internnav.modules.encoder.depth_anything.depth_anything_v2.dpt import DepthAnythingV2
 
 
 class SinusoidalPosEmb(nn.Module):

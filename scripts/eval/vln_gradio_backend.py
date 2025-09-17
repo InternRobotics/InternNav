@@ -21,7 +21,7 @@ import logging
 from enum import Enum
 from internnav.utils.dist import *
 from internnav.habitat_extensions.evaluator_single import VLNEvaluator
-from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
+from internnav.modules.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
 from transformers import (
     AutoTokenizer,
     AutoProcessor,

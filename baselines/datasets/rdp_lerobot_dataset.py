@@ -25,9 +25,9 @@ except ImportError:
 
 from internnav.dataset.base import BaseDataset, ObservationsDict, _block_shuffle
 from internnav.evaluator.utils.common import norm_depth
-from internnav.model.basemodel.LongCLIP.model import longclip
-from internnav.model.basemodel.rdp.utils import get_delta, normalize_data, to_local_coords
-from internnav.model.utils.feature_extract import extract_instruction_tokens
+from internnav.modules.basemodel.LongCLIP.model import longclip
+from internnav.modules.basemodel.rdp.utils import get_delta, normalize_data, to_local_coords
+from internnav.modules.utils.feature_extract import extract_instruction_tokens
 from internnav.utils.lerobot_as_lmdb import LerobotAsLmdb
 
 
