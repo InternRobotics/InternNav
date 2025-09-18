@@ -1,9 +1,10 @@
 import torch
 import torch.nn.functional as F
 
-from internnav.modules.basemodel.LongCLIP.model import longclip
-from internnav.modules.utils.bert_token import BertTokenizer
 from internnav.trainer.base import BaseTrainer
+
+from ..basemodels.LongCLIP.model import longclip
+from ..modules.utils.bert_token import BertTokenizer
 
 
 class CMATrainer(BaseTrainer):

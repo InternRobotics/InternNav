@@ -12,19 +12,25 @@ from transformers import PretrainedConfig, PreTrainedModel
 
 from internnav.configs.model.base_encoders import ModelCfg
 from internnav.configs.trainer.exp import ExpCfg
-from internnav.model.encoder import (
+
+### from internnav.model.encoder import (
+from ...modules.encoder import (
     ImageEncoder,
     InstructionLongCLIPEncoder,
     LanguageEncoder,
     VisionLanguageEncoder,
 )
-from internnav.model.encoder.rnn_encoder import build_rnn_state_encoder
+
+### from internnav.model.encoder.rnn_encoder import build_rnn_state_encoder
+from ...modules.encoder.rnn_encoder import build_rnn_state_encoder
 
 try:
     import safetensors.torch
+
     _has_safetensors = True
 except ImportError:
     _has_safetensors = False
+
 
 class CustomFixedCategorical(torch.distributions.Categorical):
     """Same as the CustomFixedCategorical in hab-lab, but renames log_probs
@@ -88,30 +94,24 @@ class CMA_CLIP_Net(PreTrainedModel):
         if os.path.isdir(pretrained_model_name_or_path):
             pytorch_model_path = os.path.join(pretrained_model_name_or_path, 'pytorch_model.bin')
             safetensors_model_path = os.path.join(pretrained_model_name_or_path, 'model.safetensors')
-            
+
             if _has_safetensors and os.path.exists(safetensors_model_path):
                 try:
-                    incompatible_keys, _ = model.load_state_dict(
-                        safetensors.torch.load_file(safetensors_model_path)
-                    )
+                    incompatible_keys, _ = model.load_state_dict(safetensors.torch.load_file(safetensors_model_path))
                     print(f'Successfully loaded model from {safetensors_model_path}')
                 except Exception as e:
                     print(f'Failed to load safetensors file: {e}')
                     if os.path.exists(pytorch_model_path):
-                        incompatible_keys, _ = model.load_state_dict(
-                            torch.load(pytorch_model_path)
-                        )
+                        incompatible_keys, _ = model.load_state_dict(torch.load(pytorch_model_path))
                         print(f'Successfully loaded model from {pytorch_model_path}')
                     else:
                         raise FileNotFoundError(f'No model file found in {pretrained_model_name_or_path}')
             elif os.path.exists(pytorch_model_path):
-                incompatible_keys, _ = model.load_state_dict(
-                    torch.load(pytorch_model_path)
-                )
+                incompatible_keys, _ = model.load_state_dict(torch.load(pytorch_model_path))
                 print(f'Successfully loaded model from {pytorch_model_path}')
             else:
                 raise FileNotFoundError(f'No model file found in {pretrained_model_name_or_path}')
-                
+
             if len(incompatible_keys) > 0:
                 print(f'Incompatible keys: {incompatible_keys}')
         elif pretrained_model_name_or_path is None or len(pretrained_model_name_or_path) == 0:

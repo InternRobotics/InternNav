@@ -3,15 +3,17 @@ import time
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torchvision.transforms import ToPILImage
 from transformers import CLIPImageProcessor, CLIPVisionConfig, CLIPVisionModel
 
 from internnav.configs.model.base_encoders import ImageEncoder as ImageEncoderCfg
 
-from ..basemodel.LongCLIP.model import longclip
+### from ..basemodel.LongCLIP.model import longclip
+from ...basemodels.LongCLIP.model import longclip
 from . import resnet_encoders
 from .bert_backbone import PositionalEncoding
-import torch.nn.functional as F
+
 
 class ImageEncoder(torch.nn.Module):
     def __init__(

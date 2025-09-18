@@ -9,7 +9,9 @@ from internnav.configs.agent import AgentCfg
 from internnav.configs.model.base_encoders import ModelCfg
 from internnav.evaluator.utils.common import set_seed_model
 from internnav.evaluator.utils.models import batch_obs
-from internnav.modules import get_config, get_policy
+
+### from internnav.modules import get_config, get_policy
+from ..modules import get_config, get_policy
 
 
 @Agent.register('cma')

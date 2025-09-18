@@ -2,8 +2,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from internnav.modules.basemodel.LongCLIP.model import longclip
 from internnav.trainer.base import BaseTrainer
+
+from ..basemodels.LongCLIP.model import longclip
 
 
 def action_reduce(action_mask, unreduced_loss: torch.Tensor):

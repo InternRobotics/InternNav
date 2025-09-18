@@ -4,7 +4,8 @@ import torch.nn.functional as F
 
 from internnav.configs.model.base_encoders import TextEncoder
 
-from ..basemodel.LongCLIP.model import longclip
+### from ..basemodel.LongCLIP.model import longclip
+from ...basemodels.LongCLIP.model import longclip
 
 
 class InstructionLongCLIPEncoder(nn.Module):
@@ -32,8 +33,12 @@ class InstructionLongCLIPEncoder(nn.Module):
 
         x = (
             x
-            + (text_transformer.positional_embedding.to(x.device) * text_transformer.mask1.to(x.device)).type(data_type).to(x.device)
-            + (text_transformer.positional_embedding_res.to(x.device) * text_transformer.mask2.to(x.device)).type(data_type).to(x.device)
+            + (text_transformer.positional_embedding.to(x.device) * text_transformer.mask1.to(x.device))
+            .type(data_type)
+            .to(x.device)
+            + (text_transformer.positional_embedding_res.to(x.device) * text_transformer.mask2.to(x.device))
+            .type(data_type)
+            .to(x.device)
         )
 
         x = x.permute(1, 0, 2)  # NLD -> LND

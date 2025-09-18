@@ -6,15 +6,26 @@ from gym import spaces
 
 from internnav.utils.common_log_util import common_logger as logger
 
-from .basemodel.cma.cma_clip_policy import CMA_CLIP_Net, CMACLIPModelConfig
-from .basemodel.cma.cma_policy import CMAModelConfig, CMANet
-from .basemodel.internvla_n1.internvla_n1_policy import (
+### from .basemodel.cma.cma_clip_policy import CMA_CLIP_Net, CMACLIPModelConfig
+from ..basemodels.cma.cma_clip_policy import CMA_CLIP_Net, CMACLIPModelConfig
+
+### from .basemodel.cma.cma_policy import CMAModelConfig, CMANet
+from ..basemodels.cma.cma_policy import CMAModelConfig, CMANet
+
+### from .basemodel.internvla_n1.internvla_n1_policy import (
+from ..basemodels.internvla_n1.internvla_n1_policy import (
     InternVLAN1ModelConfig,
     InternVLAN1Net,
 )
-from .basemodel.navdp.navdp_policy import NavDPModelConfig, NavDPNet
-from .basemodel.rdp.rdp_policy import RDPModelConfig, RDPNet
-from .basemodel.seq2seq.seq2seq_policy import Seq2SeqModelConfig, Seq2SeqNet
+
+### from .basemodel.navdp.navdp_policy import NavDPModelConfig, NavDPNet
+from ..basemodels.navdp.navdp_policy import NavDPModelConfig, NavDPNet
+
+### from .basemodel.rdp.rdp_policy import RDPModelConfig, RDPNet
+from ..basemodels.rdp.rdp_policy import RDPModelConfig, RDPNet
+
+### from .basemodel.seq2seq.seq2seq_policy import Seq2SeqModelConfig, Seq2SeqNet
+from ..basemodels.seq2seq.seq2seq_policy import Seq2SeqModelConfig, Seq2SeqNet
 from .utils.misc import set_cuda, set_random_seed, wrap_model
 from .utils.save import load_checkpoint
 
