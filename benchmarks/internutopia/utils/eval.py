@@ -5,15 +5,15 @@ from internutopia.core.config.robot import ControllerCfg
 from internutopia_extension.configs.robots.h1 import H1RobotCfg
 from internutopia_extension.configs.sensors import RepCameraCfg
 
-from internnav.configs.evaluator import EvalCfg
-from internnav.evaluator.utils.common import load_kujiale_scene_usd, load_scene_usd
-from internnav.projects.dataloader.resumable import ResumablePathKeyDataloader
-from internnav.projects.internutopia_vln_extension.configs.metrics.vln_pe_metrics import (
+from benchmarks.internutopia.episode_loader.resumable import ResumablePathKeyDataloader
+from benchmarks.internutopia.internutopia_vln_extension.configs.metrics.vln_pe_metrics import (
     VLNPEMetricCfg,
 )
-from internnav.projects.internutopia_vln_extension.configs.tasks.vln_eval_task import (
+from benchmarks.internutopia.internutopia_vln_extension.configs.tasks.vln_eval_task import (
     VLNEvalTaskCfg,
 )
+from benchmarks.internutopia.utils.common import load_kujiale_scene_usd, load_scene_usd
+from internnav.configs.evaluator import EvalCfg
 
 
 def generate_episode(dataloader: ResumablePathKeyDataloader, config: EvalCfg):

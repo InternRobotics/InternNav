@@ -6,13 +6,13 @@ from time import time
 import numpy as np
 
 from benchmarks.internutopia.episode_loader.resumable import ResumablePathKeyDataloader
+from benchmarks.internutopia.utils.common import set_seed_model
+from benchmarks.internutopia.utils.config import get_lmdb_path
+from benchmarks.internutopia.utils.data_collector import DataCollector
+from benchmarks.internutopia.utils.dataset import ResultLogger, split_data
+from benchmarks.internutopia.utils.eval import generate_episode
 from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator.base import Evaluator
-from internnav.evaluator.utils.common import set_seed_model
-from internnav.evaluator.utils.config import get_lmdb_path
-from internnav.evaluator.utils.data_collector import DataCollector
-from internnav.evaluator.utils.dataset import ResultLogger, split_data
-from internnav.evaluator.utils.eval import generate_episode
 from internnav.utils import common_log_util, progress_log_multi_util
 from internnav.utils.common_log_util import common_logger as log
 

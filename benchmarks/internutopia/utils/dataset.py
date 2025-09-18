@@ -5,10 +5,10 @@ import sys
 import lmdb
 import msgpack_numpy
 
+from benchmarks.internutopia.utils.common import load_data
+from benchmarks.internutopia.utils.config import get_lmdb_path, get_lmdb_prefix
 from internnav import PROJECT_ROOT_PATH
 from internnav.configs.evaluator import EvalDatasetCfg
-from internnav.evaluator.utils.common import load_data
-from internnav.evaluator.utils.config import get_lmdb_path, get_lmdb_prefix
 
 from .config import Config
 
