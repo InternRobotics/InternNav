@@ -3,10 +3,10 @@ from typing import Any, Dict, List
 from internutopia.core.config import Config, SimConfig
 from internutopia.core.config.distribution import RayDistributionCfg
 from internutopia.core.vec_env import Env
+from internutopia_vln_extension import import_extensions
 
 from internnav.configs.evaluator import EnvCfg, TaskCfg
 from internnav.env import base
-from internnav.projects.internutopia_vln_extension import import_extensions
 
 
 @base.Env.register('vln_multi')
