@@ -1,15 +1,15 @@
+import json
 import os
 import sys
-import json
 
 import lmdb
 import msgpack_numpy
 
 from internnav import PROJECT_ROOT_PATH
+from internnav.configs.evaluator import EvalDatasetCfg
 from internnav.evaluator.utils.common import load_data
 from internnav.evaluator.utils.config import get_lmdb_path, get_lmdb_prefix
 
-from internnav.configs.evaluator import EvalDatasetCfg
 from .config import Config
 
 
@@ -151,7 +151,6 @@ class ResultLogger:
 
     def write_now_result_json(self):
         # create log file
-        log_content = []
         self.database_read = lmdb.open(
             f'{self.lmdb_path}/sample_data.lmdb',
             map_size=1 * 1024 * 1024 * 1024 * 1024,
@@ -209,23 +208,23 @@ class ResultLogger:
                     reason_map[ret_type] = reason_map[ret_type] + 1
                 if success > 0:
                     reason_map['reach_goal'] = reason_map['reach_goal'] + 1
-            
+
             if count == 0:
                 continue
-            json_data[split]={}
-            json_data[split]['TL']=round((total_TL / count),4)
-            json_data[split]['NE']=round((total_NE / count),4)
+            json_data[split] = {}
+            json_data[split]['TL'] = round((total_TL / count), 4)
+            json_data[split]['NE'] = round((total_NE / count), 4)
             if 'fall' not in reason_map:
                 reason_map['fall'] = 0
-            json_data[split]['FR']=round((reason_map['fall'] / count),4)
+            json_data[split]['FR'] = round((reason_map['fall'] / count), 4)
             if 'stuck' in reason_map:
-                json_data[split]['StR']=round((reason_map['stuck'] / count),4)
+                json_data[split]['StR'] = round((reason_map['stuck'] / count), 4)
             else:
-                json_data[split]['StR']=0
-            json_data[split]['OS']=round((total_osr / count),4)
-            json_data[split]['SR']=round((total_success / count),4)
-            json_data[split]['SPL']=round((total_spl / count),4)
-            json_data[split]['Count']=count
+                json_data[split]['StR'] = 0
+            json_data[split]['OS'] = round((total_osr / count), 4)
+            json_data[split]['SR'] = round((total_success / count), 4)
+            json_data[split]['SPL'] = round((total_spl / count), 4)
+            json_data[split]['Count'] = count
 
         # write log content to file
         with open(f'{self.dataset_type}_result.json', 'w') as f:

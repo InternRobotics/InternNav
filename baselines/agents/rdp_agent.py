@@ -10,8 +10,8 @@ from internnav.configs.agent import AgentCfg
 from internnav.configs.model.base_encoders import ModelCfg
 from internnav.evaluator.utils.models import batch_obs
 from internnav.utils.common_log_util import common_logger as log
+from LongCLIP.model import longclip
 
-from ..basemodels.LongCLIP.model import longclip
 from ..basemodels.rdp.utils import (
     FixedLengthStack,
     compute_actions,
@@ -21,23 +21,6 @@ from ..basemodels.rdp.utils import (
     quat_to_euler_angles,
     to_local_coords_batch,
 )
-
-### from internnav.model import get_config, get_policy
-### from internnav.model.basemodel.LongCLIP.model import longclip
-### from internnav.model.basemodel.rdp.utils import (
-###     FixedLengthStack,
-###     compute_actions,
-###     get_delta,
-###     map_action_to_2d,
-###     normalize_data,
-###     quat_to_euler_angles,
-###     to_local_coords_batch,
-### )
-### from internnav.model.utils.bert_token import BertTokenizer
-### from internnav.model.utils.feature_extract import (
-###     extract_image_features,
-###     extract_instruction_tokens,
-### )
 from ..modules import get_config, get_policy
 from ..modules.utils.bert_token import BertTokenizer
 from ..modules.utils.feature_extract import (
