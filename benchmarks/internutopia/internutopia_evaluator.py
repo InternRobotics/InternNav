@@ -4,8 +4,8 @@ from pathlib import Path
 from time import time
 
 import numpy as np
-from episode_loader.resumable import ResumablePathKeyDataloader
 
+from benchmarks.internutopia.episode_loader.resumable import ResumablePathKeyDataloader
 from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator.base import Evaluator
 from internnav.evaluator.utils.common import set_seed_model

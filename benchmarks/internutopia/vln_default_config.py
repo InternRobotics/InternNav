@@ -4,20 +4,26 @@ import sys
 import numpy as np
 from internutopia.core.config.distribution import RayDistributionCfg
 from internutopia_extension.configs.sensors import RepCameraCfg
-from internutopia_vln_extension.configs.controllers.discrete_controller import (
-    DiscreteControllerCfg,
-)
-from internutopia_vln_extension.configs.controllers.stand_still import (
-    StandStillControllerCfg,
-)
-from internutopia_vln_extension.configs.metrics.vln_pe_metrics import VLNPEMetricCfg
-from internutopia_vln_extension.configs.robots.h1 import vln_move_by_flash_cfg
-from internutopia_vln_extension.configs.robots.h1 import (
-    vln_move_by_speed_cfg as h1_vln_move_by_speed_cfg,
-)
-from internutopia_vln_extension.configs.sensors.vln_camera import VLNCameraCfg
 from pydantic import BaseModel
 
+from benchmarks.internutopia.internutopia_vln_extension.configs.controllers.discrete_controller import (
+    DiscreteControllerCfg,
+)
+from benchmarks.internutopia.internutopia_vln_extension.configs.controllers.stand_still import (
+    StandStillControllerCfg,
+)
+from benchmarks.internutopia.internutopia_vln_extension.configs.metrics.vln_pe_metrics import (
+    VLNPEMetricCfg,
+)
+from benchmarks.internutopia.internutopia_vln_extension.configs.robots.h1 import (
+    vln_move_by_flash_cfg,
+)
+from benchmarks.internutopia.internutopia_vln_extension.configs.robots.h1 import (
+    vln_move_by_speed_cfg as h1_vln_move_by_speed_cfg,
+)
+from benchmarks.internutopia.internutopia_vln_extension.configs.sensors.vln_camera import (
+    VLNCameraCfg,
+)
 from internnav.configs.evaluator import (
     ControllerCfg,
     EnvCfg,
