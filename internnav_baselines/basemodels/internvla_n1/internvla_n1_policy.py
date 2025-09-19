@@ -6,14 +6,17 @@ from typing import Union
 
 import numpy as np
 import torch
-
-# from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM, InternVLAN1ModelConfig
-# from internnav.model.utils.vln_utils import S2Output, S1Output, traj_to_actions, chunk_token, split_and_clean
-from internvla_n1.internvla_n1 import InternVLAN1ForCausalLM, InternVLAN1ModelConfig
 from PIL import Image
 from transformers import AutoProcessor, AutoTokenizer, PreTrainedModel
 
 from internnav.configs.model.base_encoders import ModelCfg
+
+# from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM, InternVLAN1ModelConfig
+# from internnav.model.utils.vln_utils import S2Output, S1Output, traj_to_actions, chunk_token, split_and_clean
+from internnav_baselines.basemodels.internvla_n1.internvla_n1 import (
+    InternVLAN1ForCausalLM,
+    InternVLAN1ModelConfig,
+)
 from internnav_baselines.modules.utils.vln_utils import (
     S1Output,
     S2Output,
@@ -61,7 +64,7 @@ class InternVLAN1Net(PreTrainedModel):
     def init_prompts(self):
         self.DEFAULT_IMAGE_TOKEN = "<image>"
         # For absolute pixel goal
-        prompt = f"You are an autonomous navigation assistant. Your task is to <instruction>. Where should you go next to stay on track? Please output the next waypoint\'s coordinates in the image. Please output STOP when you have successfully completed the task."
+        prompt = "You are an autonomous navigation assistant. Your task is to <instruction>. Where should you go next to stay on track? Please output the next waypoint\'s coordinates in the image. Please output STOP when you have successfully completed the task."
         answer = ""
         self.conversation = [{"from": "human", "value": prompt}, {"from": "gpt", "value": answer}]
 
@@ -103,7 +106,6 @@ class InternVLAN1Net(PreTrainedModel):
 
     def step_no_infer(self, rgb, depth, pose):
         image = Image.fromarray(rgb).convert('RGB')
-        raw_image_size = image.size
         image = image.resize((self.resize_w, self.resize_h))
         self.rgb_list.append(image)
         self.episode_idx += 1
@@ -206,7 +208,7 @@ class InternVLAN1Net(PreTrainedModel):
 
         action_list = [x for x in action_list if x != 0]
 
-        ##If the mode is async, S1 just use the part of actions
+        # If the mode is async, S1 just use the part of actions
         if use_async:
             output = S1Output(idx=action_list[:4])
         else:
