@@ -36,8 +36,6 @@ eval_cfg = EvalCfg(
         robot_usd_path='data/Embodiments/vln-pe/h1/h1_vln_pointcloud.usd',
         camera_resolution=[256, 256],  # (W,H)
         camera_prim_path='torso_link/h1_pano_camera_0',
-        vlnce=False,  # vlnpe by default
-        obstacle_detection=False,  # whether allow flash across obstacle
     ),
     dataset=EvalDatasetCfg(
         dataset_type="mp3d",
