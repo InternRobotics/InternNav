@@ -35,7 +35,7 @@ The toolbox supports the most advanced high-quality navigation dataset, InternDa
 ## 🔥 News
 
 - [2025/07] We are hosting 🏆IROS 2025 Grand Challenge, stay tuned at [official website](https://internrobotics.shlab.org.cn/challenge/2025/).
-- [2025/07] InternNav v0.1.0 released.
+- [2025/07] InternNav v0.1.1 released.
 
 ## 📋 Table of Contents
 - [🏠 Introduction](#-introduction)
