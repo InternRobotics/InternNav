@@ -24,7 +24,7 @@ eval_cfg = EvalCfg(
     task=TaskCfg(
         task_name='challenge_mp3d_eval',
         task_settings={
-            'env_num': 2,
+            'env_num': 1,
             'use_distributed': False,
             'proc_num': 2,
         },
@@ -34,10 +34,10 @@ eval_cfg = EvalCfg(
         ),
         robot_name='h1',
         robot_usd_path='data/Embodiments/vln-pe/h1/h1_vln_pointcloud.usd',
-        camera_resolution=[256,256], # (W,H)
+        camera_resolution=[256, 256],  # (W,H)
         camera_prim_path='torso_link/h1_pano_camera_0',
-        vlnce=False,   # vlnpe by default
-        obstacle_detection=False,   # whether allow flash across obstacle
+        vlnce=False,  # vlnpe by default
+        obstacle_detection=False,  # whether allow flash across obstacle
     ),
     dataset=EvalDatasetCfg(
         dataset_type="mp3d",
@@ -47,8 +47,5 @@ eval_cfg = EvalCfg(
             'filter_stairs': False,
         },
     ),
-    eval_settings={
-        'save_to_json': False,
-        'vis_output': True     
-    }
+    eval_settings={'save_to_json': False, 'vis_output': True},
 )
