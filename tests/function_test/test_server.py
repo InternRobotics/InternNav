@@ -1,6 +1,7 @@
 """
 Test if the server starts successfully and is still alive after sleep.
 """
+
 import subprocess
 import sys
 import time

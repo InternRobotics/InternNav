@@ -1,8 +1,8 @@
-'''
+"""
 Test the evaluator eval logic with ray, set proc_num = 4.
 The main progress:
     Init => warm up => one action
-'''
+"""
 
 import importlib.util
 import subprocess

@@ -1,5 +1,5 @@
 """
-Test for VLN evaluators.
+Test for  all 5 models, finish one episode each.
 
 1. create temp one episode test split.
 2. run and finish with ray (env_num=2, proc_num=8).

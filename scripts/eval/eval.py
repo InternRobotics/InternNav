@@ -6,9 +6,10 @@ import argparse
 import importlib.util
 
 from internnav.evaluator import Evaluator
+from internnav_baselines import agents
 from internnav_benchmarks.internutopia.vln_default_config import get_config
 
-# This file is the main file
+# This file is the main file to run eval with different configs.
 
 
 def parse_args():
@@ -37,6 +38,7 @@ def main():
     print(cfg)
     evaluator = Evaluator.init(cfg)
     print(type(evaluator))
+    print(agents.__all__)
     evaluator.eval()
 
 

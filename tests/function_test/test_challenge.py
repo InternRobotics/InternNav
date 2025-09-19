@@ -1,8 +1,8 @@
-'''
+"""
 Test the evaluator eval logic without model involve.
 The main progress:
     Init => warm up => fake one action
-'''
+"""
 
 import importlib.util
 import sys
