@@ -3,8 +3,6 @@ import os
 import numpy as np
 import torch
 from gym import spaces
-from utils.misc import set_cuda, set_random_seed, wrap_model
-from utils.save import load_checkpoint
 
 from internnav.utils.common_log_util import common_logger as logger
 
@@ -34,6 +32,8 @@ from internnav_baselines.basemodels.seq2seq.seq2seq_policy import (
     Seq2SeqModelConfig,
     Seq2SeqNet,
 )
+from internnav_baselines.modules.utils.misc import set_cuda, set_random_seed, wrap_model
+from internnav_baselines.modules.utils.save import load_checkpoint
 
 
 def get_policy(policy_name):
