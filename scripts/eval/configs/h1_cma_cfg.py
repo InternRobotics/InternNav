@@ -26,7 +26,7 @@ eval_cfg = EvalCfg(
         task_settings={
             'env_num': 2,
             'use_distributed': False,
-            'proc_num': 2,
+            'proc_num': 1,
         },
         scene=SceneCfg(
             scene_type='mp3d',
