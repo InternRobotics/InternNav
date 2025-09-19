@@ -8,8 +8,6 @@ from torchvision.transforms import ToPILImage
 from transformers import CLIPImageProcessor, CLIPVisionConfig, CLIPVisionModel
 
 from internnav.configs.model.base_encoders import ImageEncoder as ImageEncoderCfg
-
-# from ..basemodel.LongCLIP.model import longclip
 from src.LongCLIP.model import longclip
 
 from . import resnet_encoders
@@ -102,7 +100,6 @@ class ImageEncoder(torch.nn.Module):
     def process_image(self, image_inputs):
         if len(image_inputs.shape) == 5:
             # bs, stack_num, 224, 224, 3
-            image_size = image_inputs.shape[2]
             # image_inputs = image_inputs.reshape(-1, 3, image_size, image_size)
             image_inputs = image_inputs.reshape(
                 -1,
@@ -367,7 +364,6 @@ class ImageEncoder(torch.nn.Module):
         do_embeds=False,
         img_mod='cls',
     ):
-        batch_size = rgb_inputs.shape[0]
         if do_process:
             rgb_inputs = self.process_image(rgb_inputs)
             depth_inputs = self.process_depth(depth_inputs)
@@ -402,7 +398,7 @@ class ImageEncoder(torch.nn.Module):
 
         elif img_mod == 'multi_patches_avg_pooling':
             # combine the depth with the full rgb embeds at the 0-pth location.
-            ## 0-th location: full depth+img. 2~5: semantic rgb.
+            # 0-th location: full depth+img. 2~5: semantic rgb.
             image_map_embeds[:, 0, :] = image_map_embeds[:, 0, :] + depth_map_embeds
             img_depth_embeds = image_map_embeds
 

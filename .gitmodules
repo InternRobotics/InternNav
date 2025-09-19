@@ -11,3 +11,4 @@
 [submodule "src/depth_anything"]
 	path = src/depth_anything
 	url = https://github.com/DepthAnything/Depth-Anything-V2.git
+	ignore = untracked

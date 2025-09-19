@@ -3,8 +3,7 @@ import math
 import torch
 import torch.nn as nn
 
-# from internnav.modules.encoder.depth_anything.depth_anything_v2.dpt import DepthAnythingV2
-from depth_anything.depth_anything_v2.dpt import DepthAnythingV2
+from src.depth_anything.depth_anything_v2.dpt import DepthAnythingV2
 
 
 class SinusoidalPosEmb(nn.Module):

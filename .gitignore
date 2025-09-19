@@ -146,4 +146,4 @@ logs/
 *.ckpt
 /results/
 checkpoints
-internnav/model/basemodel/LongCLIP/
+src/*
