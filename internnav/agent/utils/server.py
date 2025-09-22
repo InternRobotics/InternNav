@@ -70,13 +70,11 @@ class AgentServer:
         if agent_name not in self.agent_instances:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Agent not found')
 
-    def run(self, reload=False):
+    def run(self):
         uvicorn.run(
-            '__main__:server.app',
+            self.app,
             host=self.host,
             port=self.port,
-            reload=reload,
-            reload_dirs=['./internnav/agent/', './internnav/model/'],
         )
 
 
@@ -106,4 +104,4 @@ args.port = eval_cfg.agent.server_port
 server = AgentServer(args.host, args.port)
 
 if __name__ == '__main__':
-    server.run(args.reload)
+    server.run()
