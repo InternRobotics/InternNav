@@ -180,6 +180,8 @@ For fair comparison in this IROS challenge, the USD file, controller, and observ
 - **Observation space**: Ego-centric monocular RGB-D input.
 - **Technical**: All publicly available datasets and pretrained weights are allowed. The use of large-scale model APIs (e.g., GPT, Claude, Gemini, etc.) is **not** permitted. **Note**: the test server for this challenge has no internet access.
 
+**Note**: Please use our provided camera usd `camera_prim_path='torso_link/h1_pano_camera_0'` as the RGB-D camera, the resolution can be `[640, 480]` or `[256, 256]`.
+
 ### Development Overview
 The main architecture of the evaluation code adopts a client-server model. In the client, we specify the corresponding configuration (*.cfg), which includes settings such as the scenarios to be evaluated, robots, models, and parallelization parameters. The client sends requests to the server, which then make model to predict and response to the client.
 

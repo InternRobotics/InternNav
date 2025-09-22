@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument(
         "--default_config",
         type=str,
-        default='scripts/eval/configs/h1_cma_cfg.py',
+        default='scripts/eval/configs/challenge_mp3d_cfg.py',
         help='eval config file path, e.g. scripts/eval/configs/h1_cma_cfg.py',
     )
     parser.add_argument(
@@ -45,9 +45,22 @@ def load_eval_cfg(config_path, attr_name='eval_cfg'):
 
 
 def replace_cfg(evaluator_cfg, default_cfg, split):
+    # agent and model settings
     default_cfg.agent = evaluator_cfg.agent
+
+    # split setting
     if split:
         default_cfg.dataset.dataset_settings['split_data_types'] = [split]
+
+    # camera settings
+    if (
+        evaluator_cfg.task.camera_resolution not in [[256, 256], [640, 480]]
+        or evaluator_cfg.task.camera_prim_path != default_cfg.task.camera_prim_path
+    ):
+        raise ValueError(
+            "Please use our provided camera usd `camera_prim_path='torso_link/h1_pano_camera_0'` as the RGB-D camera, the resolution can be `[640, 480]` or `[256, 256]`."
+        )
+    default_cfg.task.camera_resolution = evaluator_cfg.task.camera_resolution
 
 
 def main():
