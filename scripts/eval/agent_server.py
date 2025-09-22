@@ -59,4 +59,4 @@ if __name__ == '__main__':
         print(f"Warning: No config file provided, using port {args.port}")
 
     server = AgentServer(args.host, args.port)
-    server.run(args.reload)
+    server.run()
