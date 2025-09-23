@@ -342,7 +342,8 @@ def draw_trajectory(array, obs_lst, reference_path):
     import matplotlib.pyplot as plt
     import numpy as np
     from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-    from omni.isaac.core.utils.rotations import quat_to_euler_angles
+
+    from internnav.utils.baselines_utils import quat_to_euler_angles
 
     # from internnav.evaluator.utils.path_plan import world_to_pixel
     from internnav_benchmarks.internutopia.utils.path_plan import world_to_pixel

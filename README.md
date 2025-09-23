@@ -1,6 +1,6 @@
 <div align="center">
 
-[![demo](assets/InternNav.gif "demo")](https://www.youtube.com/watch?v=fD0F1jIax5Y)
+[![demo](static/InternNav.gif "demo")](https://www.youtube.com/watch?v=fD0F1jIax5Y)
 
 [![Gradio Demo](https://img.shields.io/badge/Gradio-Demo-orange?style=flat&logo=gradio)](https://huggingface.co/spaces/InternRobotics/InternNav-Eval-Demo)
 [![doc](https://img.shields.io/badge/Document-FFA500?logo=readthedocs&logoColor=white)](https://internrobotics.github.io/user_guide/internnav/index.html)

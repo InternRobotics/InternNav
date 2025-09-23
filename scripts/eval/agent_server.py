@@ -46,7 +46,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--config',
         type=str,
-        default='',
+        default=None,
         help='eval config file path, e.g. scripts/eval/configs/h1_cma_cfg.py',
     )
     parser.add_argument('--port', type=int, default=8087)

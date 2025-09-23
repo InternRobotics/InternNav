@@ -29,13 +29,14 @@ class VlnMultiEnv(base.Env):
         import_extensions()
 
         self.env = Env(config)
+        self.env_num = task_settings['env_num']
+        self.proc_num = env_settings['distribution_config']['proc_num'] if 'distribution_config' in env_settings else 1
 
     def reset(self, reset_index=None):
         # print('Vln env reset')
         return self.env.reset(reset_index)
 
     def step(self, action: List[Any]):
-        # print('CalvinEnv step')
         return self.env.step(action)
 
     def is_running(self):
@@ -53,3 +54,35 @@ class VlnMultiEnv(base.Env):
 
     def get_info(self) -> Dict[str, Any]:
         pass
+
+    def transform_action_batch(self, actions, flash=False):
+        transformed_actions = []
+        for action in actions:
+            if 'ideal_flag' in action.keys():
+                ideal_flag = action['ideal_flag']
+                if flash:
+                    assert ideal_flag is True
+            else:
+                ideal_flag = False
+            if not ideal_flag:
+                transformed_actions.append({'h1': {'vln_dp_move_by_speed': action['action'][0]}})
+                continue
+            a = action['action']
+            if a == 0 or a == [0] or a == [[0]]:
+                transformed_actions.append({'h1': {'stop': []}})
+            elif a == -1 or a == [-1] or a == [[-1]]:
+                transformed_actions.append({'h1': {'stand_still': []}})
+            else:
+                move = f"move_by_{'discrete' if not flash else 'flash'}"
+                transformed_actions.append({'h1': {move: a}})  # discrete e.g. [3]
+        return transformed_actions
+
+    def warm_up(self):
+        while True:
+            obs, _, _, _, _ = self.step(
+                action=[{self.task_config.robot_name: {'stand_still': []}} for _ in range(self.env_num * self.proc_num)]
+            )
+            if obs[0][self.task_config.robot_name]['finish_action']:
+                print('get_obs')
+                break
+        return obs

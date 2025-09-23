@@ -4,6 +4,15 @@ import time
 import numpy as np
 import torch
 from gym import spaces
+from utils.baselines_utils import (
+    FixedLengthStack,
+    compute_actions,
+    get_delta,
+    map_action_to_2d,
+    normalize_data,
+    quat_to_euler_angles,
+    to_local_coords_batch,
+)
 
 from internnav.agent.base import Agent
 from internnav.configs.agent import AgentCfg
@@ -16,15 +25,6 @@ from internnav_benchmarks.internutopia.utils.models import batch_obs
 # from LongCLIP.model import longclip
 from src.LongCLIP.model import longclip
 
-from ..basemodels.rdp.utils import (
-    FixedLengthStack,
-    compute_actions,
-    get_delta,
-    map_action_to_2d,
-    normalize_data,
-    quat_to_euler_angles,
-    to_local_coords_batch,
-)
 from ..modules import get_config, get_policy
 from ..modules.utils.bert_token import BertTokenizer
 from ..modules.utils.feature_extract import (
@@ -353,4 +353,11 @@ class RdpAgent(Agent):
         action = self.inference(obs)
         end = time.time()
         print(f'总时间： {round(end-start,4)}s')
-        return action
+
+        # convert from [[x],[y]] to [{'action': [x],'ideal_flag':True}, {'action': [y],'ideal_flag':True}]
+        actions = []
+        for a in action:
+            if not isinstance(a, list):
+                a = [a]
+            actions.append({'action': a, 'ideal_flag': True})
+        return actions

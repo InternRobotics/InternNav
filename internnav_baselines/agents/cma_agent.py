@@ -133,4 +133,11 @@ class CmaAgent(Agent):
         action = self.inference(obs)
         end = time.time()
         print(f'Time: {round(end-start,4)}s')
-        return action
+
+        # convert from [[x],[y]] to [{'action': [x],'ideal_flag':True}, {'action': [y],'ideal_flag':True}]
+        actions = []
+        for a in action:
+            if not isinstance(a, list):
+                a = [a]
+            actions.append({'action': a, 'ideal_flag': True})
+        return actions

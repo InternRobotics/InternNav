@@ -29,9 +29,6 @@ from internnav_baselines.modules.encoder import (
     PositionalEncoding,
     VisionLanguageEncoder,
 )
-
-# from ...encoder.rnn_encoder import build_rnn_state_encoder
-# from ...utils.utils import get_action
 from internnav_baselines.modules.encoder.rnn_encoder import build_rnn_state_encoder
 from internnav_baselines.modules.utils.utils import get_action
 
@@ -166,7 +163,7 @@ class RDPNet(PreTrainedModel):
         try:
             for k, v in self.model_config.cross_modal_encoder.dict().items():
                 setattr(cross_modal_config, k, v)
-        except Exception as e:
+        except Exception:
             for k, v in dict(self.model_config.cross_modal_encoder).items():
                 setattr(cross_modal_config, k, v)
 

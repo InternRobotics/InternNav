@@ -9,6 +9,7 @@ from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator.base import Evaluator
 from internnav.utils import common_log_util, progress_log_multi_util
 from internnav.utils.common_log_util import common_logger as log
+from internnav.utils.visualize_util import VisualizeUtil
 from internnav_benchmarks.internutopia.episode_loader.resumable import (
     ResumablePathKeyDataloader,
 )
@@ -27,29 +28,6 @@ class runner_status_code(Enum):
     STOP = 4
 
 
-def transform_action_batch(actions, flash=False):
-    transformed_actions = []
-    for action in actions:
-        if 'ideal_flag' in action.keys():
-            ideal_flag = action['ideal_flag']
-            if flash:
-                assert ideal_flag is True
-        else:
-            ideal_flag = False
-        if not ideal_flag:
-            transformed_actions.append({'h1': {'vln_dp_move_by_speed': action['action'][0]}})
-            continue
-        a = action['action']
-        if a == 0 or a == [0] or a == [[0]]:
-            transformed_actions.append({'h1': {'stop': []}})
-        elif a == -1 or a == [-1] or a == [[-1]]:
-            transformed_actions.append({'h1': {'stand_still': []}})
-        else:
-            move = f"move_by_{'discrete' if not flash else 'flash'}"
-            transformed_actions.append({'h1': {move: a}})  # discrete e.g. [3]
-    return transformed_actions
-
-
 @Evaluator.register('vln_multi')
 class VlnMultiEvaluator(Evaluator):
     def __init__(self, config: EvalCfg):
@@ -65,6 +43,9 @@ class VlnMultiEvaluator(Evaluator):
         progress_log_multi_util.progress_logger_multi.info(
             f'start eval dataset: {self.task_name}, total_path:{self.dataloader.size}'  # noqa: E501
         )
+        self.vis_output = config.eval_settings['vis_output']
+        self.visualize_util = VisualizeUtil(self.task_name, fps=6)
+
         # generate episode
         episodes = generate_episode(self.dataloader, config)
         if len(episodes) == 0:
@@ -96,6 +77,7 @@ class VlnMultiEvaluator(Evaluator):
         set_seed_model(0)
         self.data_collector = DataCollector(self.dataloader.lmdb_path)
         self.robot_flash = config.task.robot_flash
+        self.save_to_json = config.eval_settings['save_to_json']
 
     @property
     def ignore_obs_attr(self):
@@ -109,16 +91,6 @@ class VlnMultiEvaluator(Evaluator):
 
     def remove_obs_attr(self, obs):
         return [{k: v for k, v in ob.items() if k not in self.ignore_obs_attr} for ob in obs]
-
-    def warm_up(self):
-        while True:
-            obs, _, _, _, _ = self.env.step(
-                action=[{self.robot_name: {'stand_still': []}} for _ in range(self.env_num * self.proc_num)]
-            )
-            if obs[0][self.robot_name]['finish_action']:
-                print('get_obs')
-                break
-        return obs
 
     def now_path_key(self, info):
         return info.data['path_key']
@@ -144,7 +116,7 @@ class VlnMultiEvaluator(Evaluator):
         if not np.logical_and.reduce(self.runner_status == runner_status_code.WARM_UP):
             action = self.agent.step(obs)
             log.info(f'now action:{len(action)} ,{action}, fake_obs_index:{fake_obs_index}')
-            action = transform_action_batch(action, self.robot_flash)
+            action = self.env.transform_action_batch(action, self.robot_flash)
         # change warm_up
         action = np.array(action)
         action[self.runner_status == runner_status_code.WARM_UP] = {'h1': {'stand_still': []}}
@@ -218,6 +190,13 @@ class VlnMultiEvaluator(Evaluator):
                     step_count=obs['metrics'][list(obs['metrics'].keys())[0]][0]['steps'],
                     result=obs['metrics'][list(obs['metrics'].keys())[0]][0]['fail_reason'],
                 )
+                if self.vis_output:
+                    self.visualize_util.trace_end(
+                        trajectory_id=self.now_path_key(reset_info),
+                        result=obs['metrics'][list(obs['metrics'].keys())[0]][0]['fail_reason'],
+                    )
+                if self.save_to_json:
+                    self.result_logger.write_now_result_json()
                 self.result_logger.write_now_result()
                 self.runner_status[env_id] = runner_status_code.NOT_RESET
                 log.info(f'env{env_id}: states switch to NOT_RESET.')
@@ -247,6 +226,10 @@ class VlnMultiEvaluator(Evaluator):
             progress_log_multi_util.trace_start(
                 trajectory_id=self.now_path_key(reset_info),
             )
+            if self.vis_output:
+                self.visualize_util.trace_start(
+                    trajectory_id=self.now_path_key(reset_info), reference_path=reset_info.data['reference_path']
+                )
         return False, reset_infos
 
     def eval(self):
@@ -259,9 +242,13 @@ class VlnMultiEvaluator(Evaluator):
             progress_log_multi_util.trace_start(
                 trajectory_id=self.now_path_key(info),
             )
+            if self.vis_output:
+                self.visualize_util.trace_start(
+                    trajectory_id=self.now_path_key(info), reference_path=info.data['reference_path']
+                )
         log.info('start new episode!')
 
-        obs = self.warm_up()
+        obs = self.env.warm_up()
         self.fake_obs = obs[0][self.robot_name]
         action = [{self.robot_name: {'stand_still': []}} for _ in range(self.env_num * self.proc_num)]
         obs = self._obs_remove_robot_name(obs)
@@ -279,6 +266,16 @@ class VlnMultiEvaluator(Evaluator):
             env_term, reset_info = self.terminate_ops(obs, reset_info, terminated)
             if env_term:
                 break
+
+            # save step obs
+            if self.vis_output:
+                for ob, info, act in zip(obs, reset_info, action):
+                    if info is None or 'rgb' not in ob or ob['fail_reason']:
+                        continue
+                    self.visualize_util.save_observation(
+                        trajectory_id=self.now_path_key(info), obs=ob, action=act[self.robot_name]
+                    )
+
         self.env.close()
         progress_log_multi_util.report()
 

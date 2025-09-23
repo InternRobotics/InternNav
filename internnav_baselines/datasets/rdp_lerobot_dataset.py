@@ -22,18 +22,10 @@ except ImportError:
     BICUBIC = Image.BICUBIC
 
 from internnav.dataset.base import BaseDataset, ObservationsDict, _block_shuffle
+from internnav.utils.baselines_utils import get_delta, normalize_data, to_local_coords
 from internnav.utils.lerobot_as_lmdb import LerobotAsLmdb
-from internnav_baselines.basemodels.rdp.utils import (
-    get_delta,
-    normalize_data,
-    to_local_coords,
-)
 from internnav_baselines.modules.utils.feature_extract import extract_instruction_tokens
 from internnav_benchmarks.internutopia.utils.common import norm_depth
-
-# from internnav.modules.basemodel.LongCLIP.model import longclip
-# from internnav.modules.basemodel.rdp.utils import get_delta, normalize_data, to_local_coords
-# from internnav.modules.utils.feature_extract import extract_instruction_tokens
 from src.LongCLIP.model import longclip
 
 
