@@ -27,8 +27,8 @@ from internnav.configs.evaluator import (
     SceneCfg,
     TaskCfg,
 )
-from internnav.configs.evaluator.default_config import get_config
 from internnav.evaluator import Evaluator
+from internnav_benchmarks.internutopia.vln_default_config import get_config
 
 eval_cfg = EvalCfg(
     agent=AgentCfg(

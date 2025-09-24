@@ -18,7 +18,7 @@ done
 if [ "$RANK" -eq 0 ]; then
     RAY_max_direct_call_object_size=104857600 ray start --head --port=6379
     sleep 20s
-    bash scripts/eval/start_eval.sh
+    bash scripts/eval/bash/start_eval.sh
     sleep inf
 else
     RAY_max_direct_call_object_size=104857600 ray start --address=${MASTER_ADDR}:6379

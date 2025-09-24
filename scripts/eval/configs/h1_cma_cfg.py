@@ -23,7 +23,7 @@ eval_cfg = EvalCfg(
         },
     ),
     task=TaskCfg(
-        task_name='cma_plus_eval',
+        task_name='cma_plus_eval1',
         task_settings={
             'env_num': 2,
             'use_distributed': False,
@@ -48,5 +48,5 @@ eval_cfg = EvalCfg(
             'filter_stairs': False,
         },
     ),
-    eval_settings={'save_to_json': True, 'vis_output': True},
+    eval_settings={'save_to_json': False, 'vis_output': False},
 )

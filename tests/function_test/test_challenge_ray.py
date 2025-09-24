@@ -11,9 +11,9 @@ import time
 
 import numpy as np
 
-from internnav.configs.evaluator.default_config import get_config
 from internnav.evaluator import Evaluator
 from internnav.utils import progress_log_multi_util
+from internnav_benchmarks.internutopia.vln_default_config import get_config
 
 
 def main():

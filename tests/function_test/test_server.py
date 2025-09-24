@@ -10,7 +10,7 @@ import time
 def start_server():
     server_cmd = [
         sys.executable,
-        "internnav/agent/utils/server.py",
+        "scripts/eval/agent_server.py",
     ]
 
     proc = subprocess.Popen(

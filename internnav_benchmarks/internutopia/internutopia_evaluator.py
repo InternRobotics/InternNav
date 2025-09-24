@@ -138,10 +138,10 @@ class VlnMultiEvaluator(Evaluator):
             self.runner_status[
                 np.logical_and(self.runner_status == runner_status_code.NORMAL, action == {'h1': {'stop': []}})
             ] = runner_status_code.STOP
-            print(action)
-            t0 = time()
+            # print(action)
+            # t0 = time()
             obs, reward, terminated, truncated, info = self.env.step(action=action.tolist())
-            print(f"inner one step time {time() - t0}")
+            # print(f"inner one step time {time() - t0}")
             obs = self._obs_remove_robot_name(obs)
             finish_status = np.logical_or(
                 np.array([ob['finish_action'] for ob in obs]),
@@ -190,6 +190,7 @@ class VlnMultiEvaluator(Evaluator):
                     step_count=obs['metrics'][list(obs['metrics'].keys())[0]][0]['steps'],
                     result=obs['metrics'][list(obs['metrics'].keys())[0]][0]['fail_reason'],
                 )
+                self.result_logger.write_now_result()
                 if self.vis_output:
                     self.visualize_util.trace_end(
                         trajectory_id=self.now_path_key(reset_info),
@@ -197,7 +198,6 @@ class VlnMultiEvaluator(Evaluator):
                     )
                 if self.save_to_json:
                     self.result_logger.write_now_result_json()
-                self.result_logger.write_now_result()
                 self.runner_status[env_id] = runner_status_code.NOT_RESET
                 log.info(f'env{env_id}: states switch to NOT_RESET.')
         reset_env_ids = np.where(self.runner_status == runner_status_code.NOT_RESET)[  # need this status to reset
