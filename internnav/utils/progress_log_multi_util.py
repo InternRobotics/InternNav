@@ -60,6 +60,11 @@ def init(dataset_name, path_count):
     global PROGRESS
     global INITED
     PROGRESS = ProgressInfo(dataset_name, path_count)
+
+    # Ensure logger is enabled and isolated from global config
+    progress_logger_multi.propagate = False
+    progress_logger_multi.disabled = False
+
     log_dir = f'{PROJECT_ROOT_PATH}/logs/{get_task_name()}/progress/'
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
@@ -69,6 +74,8 @@ def init(dataset_name, path_count):
     file_handler.setFormatter(formatter)
     progress_logger_multi.addHandler(file_handler)
     INITED = True
+
+    progress_logger_multi.info("progress logger initialized")
 
 
 def last_log(last_trajectory_id, step_count=-1):
