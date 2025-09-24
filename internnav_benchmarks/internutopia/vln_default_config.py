@@ -38,6 +38,7 @@ from internnav_benchmarks.internutopia.internutopia_vln_extension.configs.sensor
 )
 
 cfg = EvalCfg(
+    eval_type='vln_multi',
     agent=None,
     env=EnvCfg(
         env_type='vln_multi',

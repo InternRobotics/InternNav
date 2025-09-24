@@ -4,7 +4,11 @@ import time
 import numpy as np
 import torch
 from gym import spaces
-from utils.baselines_utils import (
+
+from internnav.agent.base import Agent
+from internnav.configs.agent import AgentCfg
+from internnav.configs.model.base_encoders import ModelCfg
+from internnav.utils.baselines_utils import (
     FixedLengthStack,
     compute_actions,
     get_delta,
@@ -13,10 +17,6 @@ from utils.baselines_utils import (
     quat_to_euler_angles,
     to_local_coords_batch,
 )
-
-from internnav.agent.base import Agent
-from internnav.configs.agent import AgentCfg
-from internnav.configs.model.base_encoders import ModelCfg
 from internnav.utils.common_log_util import common_logger as log
 
 # from internnav.evaluator.utils.models import batch_obs

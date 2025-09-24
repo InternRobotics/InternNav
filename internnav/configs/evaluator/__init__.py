@@ -56,6 +56,7 @@ class EvalDatasetCfg(BaseModel):
 
 
 class EvalCfg(BaseModel):
+    eval_type: Optional[str] = None
     agent: Optional[AgentCfg] = None
     env: EnvCfg
     task: TaskCfg

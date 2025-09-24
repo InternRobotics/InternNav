@@ -8,6 +8,7 @@ from internnav.configs.evaluator import (
 )
 
 eval_cfg = EvalCfg(
+    eval_type="vln_multi",
     agent=AgentCfg(
         server_port=8087,
         model_name='cma',
@@ -47,5 +48,5 @@ eval_cfg = EvalCfg(
             'filter_stairs': False,
         },
     ),
-    eval_settings={'save_to_json': False, 'vis_output': True},
+    eval_settings={'save_to_json': True, 'vis_output': True},
 )
