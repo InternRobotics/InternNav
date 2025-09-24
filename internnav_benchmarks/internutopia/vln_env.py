@@ -36,7 +36,7 @@ class VlnMultiEnv(base.Env):
         # print('Vln env reset')
         return self.env.reset(reset_index)
 
-    def step(self, action: List[Any]):
+    def step(self, action: List[Dict]):
         return self.env.step(action)
 
     def is_running(self):
@@ -55,7 +55,7 @@ class VlnMultiEnv(base.Env):
     def get_info(self) -> Dict[str, Any]:
         pass
 
-    def transform_action_batch(self, actions, flash=False):
+    def transform_action_batch(self, actions: List[Dict], flash=False):
         transformed_actions = []
         for action in actions:
             if 'ideal_flag' in action.keys():

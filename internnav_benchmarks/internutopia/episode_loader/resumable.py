@@ -4,11 +4,11 @@ import msgpack_numpy
 # from internnav.evaluator.utils.config import get_lmdb_path
 from internnav_benchmarks.internutopia.utils.config import get_lmdb_path
 
-from .base import BasePathKeyDataloader
+from .base import EpisodeIterator
 from .data_reviser import skip_list
 
 
-class ResumablePathKeyDataloader(BasePathKeyDataloader):
+class ResumableEpisodeIterator(EpisodeIterator):
     def __init__(
         self,
         dataset_type,

@@ -4,7 +4,7 @@ from internnav_benchmarks.internutopia.utils.common import load_data
 from .data_reviser import revise_one_data, skip_list
 
 
-class BasePathKeyDataloader:
+class EpisodeIterator:
     def __init__(
         self,
         dataset_type,

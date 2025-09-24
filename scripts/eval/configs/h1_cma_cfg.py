@@ -8,7 +8,7 @@ from internnav.configs.evaluator import (
 )
 
 eval_cfg = EvalCfg(
-    eval_type="vln_multi",
+    eval_type="utopia",
     agent=AgentCfg(
         server_port=8087,
         model_name='cma',

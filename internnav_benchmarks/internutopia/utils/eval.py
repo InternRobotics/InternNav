@@ -4,7 +4,7 @@ from internutopia_extension.configs.sensors import RepCameraCfg
 
 from internnav.configs.evaluator import EvalCfg
 from internnav_benchmarks.internutopia.episode_loader.resumable import (
-    ResumablePathKeyDataloader,
+    ResumableEpisodeIterator,
 )
 from internnav_benchmarks.internutopia.internutopia_vln_extension.configs.metrics.vln_pe_metrics import (
     VLNPEMetricCfg,
@@ -18,7 +18,7 @@ from internnav_benchmarks.internutopia.utils.common import (
 )
 
 
-def generate_episode(dataloader: ResumablePathKeyDataloader, config: EvalCfg):
+def generate_episode(dataloader: ResumableEpisodeIterator, config: EvalCfg):
     scene_data_dir = config.task.scene.scene_data_dir
     scene_asset_path = config.task.scene.scene_asset_path
     eval_path_key_list = dataloader.resumed_path_key_list

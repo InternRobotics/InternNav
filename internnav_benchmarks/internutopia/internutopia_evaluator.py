@@ -11,7 +11,7 @@ from internnav.utils import common_log_util, progress_log_multi_util
 from internnav.utils.common_log_util import common_logger as log
 from internnav.utils.visualize_util import VisualizeUtil
 from internnav_benchmarks.internutopia.episode_loader.resumable import (
-    ResumablePathKeyDataloader,
+    ResumableEpisodeIterator,
 )
 from internnav_benchmarks.internutopia.utils.common import set_seed_model
 from internnav_benchmarks.internutopia.utils.config import get_lmdb_path
@@ -28,26 +28,149 @@ class runner_status_code(Enum):
     STOP = 4
 
 
-@Evaluator.register('vln_multi')
-class VlnMultiEvaluator(Evaluator):
+@Evaluator.register('utopia')
+class UtopiaEvaluator(Evaluator):
+    """
+    UtopiaEvaluator
+    ----------------
+    Evaluator for InternUtopia VLN episodes. It orchestrates end-to-end evaluation by:
+    (1) materializing episodes, (2) managing environment/agent interaction, (3) logging
+    per-trajectory progress and aggregate results, and (4) optionally saving visualization
+    frames and JSON outputs.
+
+    This evaluator also defines the **communication protocol** between the agent and the
+    environment and adapts it to the simulator’s schema. Concretely, the agent consumes
+    observation batches in a task-level VLN format and produces action batches in a
+    task-level VLN format; the evaluator then converts those actions to the simulator/
+    robot-specific format via `env.transform_action_batch(...)`.
+
+    Registration
+    ------------
+    Registered as ``'utopia'`` via ``@Evaluator.register('utopia')``.
+
+    Protocol (VLN task)
+    -------------------
+    The evaluator standardizes the agent↔env interface at the VLN task level:
+
+    • Observation (per env slot):
+        obs: Dict with at least:
+            - 'rgb':   np.ndarray  # H×W×3
+            - 'depth': np.ndarray  # H×W or H×W×1
+        Additional keys produced by the environment (e.g., 'finish_action', 'metrics', etc.)
+        are **stripped** before calling the agent, see ``ignore_obs_attr``.
+
+    • Action (batch for all env slots):
+        List[Dict[str, Any]], e.g.:
+            [{'action': [2], 'ideal_flag': True}, ...]
+        where:
+            - 'action' is a length-1 list wrapping the discrete action id (int)
+            - 'ideal_flag' (bool) may annotate oracle/ideal actions or other flags
+        The evaluator will call:
+            ``action = self.agent.step(obs_batch)``  # VLN format
+            ``action = self.env.transform_action_batch(action, self.robot_flash)``  # sim format
+        During warm-up or after termination, the evaluator may inject safe placeholders
+        (e.g., stand-still) until all slots are ready.
+
+    Lifecycle
+    ---------
+    1) Episode materialization:
+        - Ensures LMDB split exists (``split_data``) and constructs a
+          ``ResumableEpisodeIterator`` from dataset config.
+        - Generates a finite episode list with ``generate_episode(...)`` and writes it
+          into ``config.task.task_settings['episodes']``.
+
+    2) Resource sizing:
+        - Derives ``env_num`` / ``proc_num`` from config, then reduces them if
+          ``env_num * proc_num`` exceeds available paths.
+        - Propagates sizes to both task and agent model settings.
+
+    3) Environment loop:
+        - ``env.reset()`` → warm-up → repeated cycles of:
+            a) prepare obs for the agent (remove ignored fields; fill warm-up slots),
+            b) ``agent.step(obs_batch)`` → task-level actions,
+            c) map actions to sim format via ``env.transform_action_batch(...)``,
+            d) ``env.step(...)`` with barrier on per-slot finish/termination,
+            e) per-slot termination handling, resets, and visualization dumps.
+
+    4) Termination & reporting:
+        - Saves per-trajectory metrics (``DataCollector``) and accumulates summary stats
+          (``ResultLogger``). Final aggregate is emitted by
+          ``progress_log_multi_util.report()``.
+
+    Logging & Artifacts
+    -------------------
+    • Progress logs:
+        - ``progress_log_multi_util`` tracks per-trajectory start/end, FPS, duration,
+          and result. Log files are placed under
+          ``{PROJECT_ROOT_PATH}/logs/{task_name}/progress/``.
+
+    • Result logs:
+        - ``ResultLogger`` writes running summaries; optional JSON output controlled by
+          ``eval_settings['save_to_json']``.
+
+    • Visualization:
+        - If ``vis_output`` is True, ``VisualizeUtil`` stores per-step observations and
+          end-of-trajectory markers (FPS=6 by default).
+
+    Attributes (selected)
+    ---------------------
+    task_name : str
+        Name of the benchmark task (used for paths, logging, visualization).
+    episode_iterator : ResumableEpisodeIterator
+        Iterator over concrete episodes; used to seed environment resets.
+    env_num, proc_num : int
+        Effective parallelism after auto-downscaling to dataset size.
+    robot_name : str
+        Simulator robot namespace used to peel robot-scoped observations.
+    runner_status : np.ndarray[rnner_status_code]
+        Per-slot status (NORMAL/WARM_UP/NOT_RESET/TERMINATED/STOP) controlling flow.
+    data_collector : DataCollector
+        Persists per-trajectory evaluation results (keyed by path_key).
+    result_logger : ResultLogger
+        Accumulates and periodically flushes aggregate metrics.
+    vis_output : bool
+        Enables visualization dumps.
+    save_to_json : bool
+        Enables JSON result dumps via ``ResultLogger``.
+
+    Parameters
+    ----------
+    config : EvalCfg
+        Full evaluator configuration:
+        - dataset.* for episode sources and split materialization,
+        - env.* for simulator settings (including optional distribution_config),
+        - task.* for robot and task settings,
+        - eval_settings.* for visualization and JSON output options.
+
+    Notes
+    -----
+    - The evaluator strips keys listed in ``ignore_obs_attr`` before dispatching to
+      the agent. Environment-only fields (e.g., 'finish_action', 'metrics', 'render')
+      never reach the agent.
+    - Warm-up and terminated slots receive safe placeholder observations and actions
+      so batch shapes remain stable throughout evaluation.
+    - Path identity is taken from ``reset_info.data['path_key']``; per-trajectory
+      progress is emitted via ``trace_start/trace_end``.
+    """
+
     def __init__(self, config: EvalCfg):
         self.task_name = config.task.task_name
         if not Path(get_lmdb_path(self.task_name)).exists():
             split_data(config.dataset)
         self.result_logger = ResultLogger(config.dataset)
         common_log_util.init(self.task_name)
-        self.dataloader = ResumablePathKeyDataloader(config.dataset.dataset_type, **config.dataset.dataset_settings)
+        self.episode_iterator = ResumableEpisodeIterator(config.dataset.dataset_type, **config.dataset.dataset_settings)
         self.dataset_name = Path(config.dataset.dataset_settings['base_data_dir']).name
-        progress_log_multi_util.init(self.task_name, self.dataloader.size)
-        self.total_path_num = self.dataloader.size
+        progress_log_multi_util.init(self.task_name, self.episode_iterator.size)
+        self.total_path_num = self.episode_iterator.size
         progress_log_multi_util.progress_logger_multi.info(
-            f'start eval dataset: {self.task_name}, total_path:{self.dataloader.size}'  # noqa: E501
+            f'start eval dataset: {self.task_name}, total_path:{self.episode_iterator.size}'  # noqa: E501
         )
         self.vis_output = config.eval_settings['vis_output']
         self.visualize_util = VisualizeUtil(self.task_name, fps=6)
 
         # generate episode
-        episodes = generate_episode(self.dataloader, config)
+        episodes = generate_episode(self.episode_iterator, config)
         if len(episodes) == 0:
             log.info("No more episodes to evaluate")
             sys.exit(0)
@@ -75,7 +198,7 @@ class VlnMultiEvaluator(Evaluator):
         self.robot_name = config.task.robot_name
         super().__init__(config)
         set_seed_model(0)
-        self.data_collector = DataCollector(self.dataloader.lmdb_path)
+        self.data_collector = DataCollector(self.episode_iterator.lmdb_path)
         self.robot_flash = config.task.robot_flash
         self.save_to_json = config.eval_settings['save_to_json']
 
@@ -233,7 +356,7 @@ class VlnMultiEvaluator(Evaluator):
         return False, reset_infos
 
     def eval(self):
-        print('--- VlnMultiEvaluator start ---')
+        print('--- UtopiaEvaluator start ---')
         obs, reset_info = self.env.reset()
         print('obs:', obs)
         for info in reset_info:
@@ -279,4 +402,4 @@ class VlnMultiEvaluator(Evaluator):
         self.env.close()
         progress_log_multi_util.report()
 
-        print('--- VlnMultiEvaluator end ---')
+        print('--- UtopiaEvaluator end ---')
