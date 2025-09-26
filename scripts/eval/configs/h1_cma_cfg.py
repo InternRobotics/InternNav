@@ -26,8 +26,8 @@ eval_cfg = EvalCfg(
         task_name='cma_plus_eval1',
         task_settings={
             'env_num': 2,
-            'use_distributed': False,
-            'proc_num': 1,
+            'use_distributed': True,
+            'proc_num': 4,
         },
         scene=SceneCfg(
             scene_type='mp3d',
@@ -45,8 +45,8 @@ eval_cfg = EvalCfg(
         dataset_settings={
             'base_data_dir': 'data/vln_pe/raw_data/r2r',
             'split_data_types': ['val_unseen', 'val_seen'],
-            'filter_stairs': False,
+            'filter_stairs': True,
         },
     ),
-    eval_settings={'save_to_json': False, 'vis_output': False},
+    eval_settings={'save_to_json': True, 'vis_output': False},
 )

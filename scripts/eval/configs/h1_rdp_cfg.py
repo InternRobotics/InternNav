@@ -8,6 +8,7 @@ from internnav.configs.evaluator import (
 )
 
 eval_cfg = EvalCfg(
+    eval_type="utopia",
     agent=AgentCfg(
         server_port=8087,
         model_name='rdp',
@@ -17,16 +18,16 @@ eval_cfg = EvalCfg(
     env=EnvCfg(
         env_type='vln_multi',
         env_settings={
-            'use_fabric': False,
+            'use_fabric': True,
             'headless': True,
         },
     ),
     task=TaskCfg(
-        task_name='rdp_eval',
+        task_name='rdp_eval_fabric_true_2',
         task_settings={
             'env_num': 2,
             'use_distributed': True,
-            'proc_num': 1,
+            'proc_num': 4,
         },
         scene=SceneCfg(
             scene_type='mp3d',
@@ -42,7 +43,8 @@ eval_cfg = EvalCfg(
         dataset_settings={
             'base_data_dir': 'data/vln_pe/raw_data/r2r',
             'split_data_types': ['val_unseen', 'val_seen'],
-            'filter_stairs': False,
+            'filter_stairs': True,
         },
     ),
+    eval_settings={'save_to_json': False, 'vis_output': False},
 )

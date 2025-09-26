@@ -3,7 +3,7 @@
 source /root/miniconda3/etc/profile.d/conda.sh
 conda activate internutopia
 
-CONFIG=scripts/eval/configs/h1_cma_cfg.py
+CONFIG=scripts/eval/configs/h1_rdp_cfg.py
 
 while [[ $# -gt 0 ]]; do
     case $1 in

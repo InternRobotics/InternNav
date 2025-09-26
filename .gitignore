@@ -147,3 +147,5 @@ logs/
 /results/
 checkpoints
 src/*
+
+test.py

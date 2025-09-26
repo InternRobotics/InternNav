@@ -54,8 +54,8 @@ class UtopiaEvaluator(Evaluator):
 
     • Observation (per env slot):
         obs: Dict with at least:
-            - 'rgb':   np.ndarray  # H×W×3
-            - 'depth': np.ndarray  # H×W or H×W×1
+            - 'rgb':   np.ndarray  # H,W,3
+            - 'depth': np.ndarray  # H,W or H,W,1
         Additional keys produced by the environment (e.g., 'finish_action', 'metrics', etc.)
         are **stripped** before calling the agent, see ``ignore_obs_attr``.
 
