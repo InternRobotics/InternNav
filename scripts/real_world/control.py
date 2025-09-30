@@ -115,6 +115,7 @@ class DiscreteRobotController(Turn90Degrees):
         self.start_yaw = None  # Reset start yaw to current position
         self.turning = False  # Reset turning flag
         self.run()
+        self.stand_still()  # Stop after moving forward
         rospy.loginfo("Turn left command executed.")
 
     def turn_right(self):
@@ -122,6 +123,7 @@ class DiscreteRobotController(Turn90Degrees):
         self.start_yaw = None  # Reset start yaw to current position
         self.turning = False  # Reset turning flag
         self.run()
+        self.stand_still()  # Stop after moving forward
         rospy.loginfo("Turn right command executed.")
 
 
