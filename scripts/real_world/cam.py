@@ -5,6 +5,7 @@ from typing import Dict, Optional, Tuple
 import cv2  # 仅用于极端兜底 resize，可去掉
 import numpy as np
 import pyrealsense2 as rs
+from save_obs import save_obs
 
 
 class AlignedRealSense:
@@ -118,3 +119,5 @@ if __name__ == "__main__":
         obs = cam.get_observation()
         print("RGB:", obs["rgb"].shape, obs["rgb"].dtype)
         print("Depth:", obs["depth"].shape, obs["depth"].dtype, "(meters)")
+        meta = save_obs(obs, outdir="./captures", prefix="rs")
+        print("Saved:", meta)
