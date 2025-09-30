@@ -87,11 +87,12 @@ class DiscreteRobotController(Turn90Degrees):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)  # initialize parent class
 
-    def stand_still(self):
+    def stand_still(self, duration=0.5):
         twist = Twist()
         twist.linear.x = 0.0
         twist.angular.z = 0.0
         self.cmd_vel_pub.publish(twist)
+        rospy.sleep(duration)  # Maintain stand still for a short duration
         rospy.loginfo("Stand still command executed.")
 
     def move_forward(self, distance=0.25):

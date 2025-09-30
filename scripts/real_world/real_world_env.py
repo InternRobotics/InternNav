@@ -1,13 +1,15 @@
+from cam import CameraSubscriber
 from control import DiscreteRobotController
 
 
 class RealWorldEnv:
-    def __init__(self):
+    def __init__(self, camera_topic="/camera/image_raw"):
         self.node = DiscreteRobotController()
+        self.cam = CameraSubscriber(camera_topic)
 
     def get_observation(self):
-        # Placeholder for getting real-world observation
-        return {}
+        frame = self.cam.get_latest()
+        return frame
 
     def step(self, action):
 
