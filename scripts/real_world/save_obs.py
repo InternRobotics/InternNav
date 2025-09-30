@@ -12,7 +12,7 @@ import numpy as np
 def save_obs(
     obs: dict,
     outdir: str = "./captures",
-    prefix: str | None = None,
+    prefix: str = None,
     max_depth_m: float = 3.0,  # 伪彩可视化的裁剪上限
     save_rgb: bool = True,
     save_depth_16bit: bool = True,

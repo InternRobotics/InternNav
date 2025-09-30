@@ -1,14 +1,14 @@
-from cam import CameraSubscriber
+from cam import AlignedRealSense
 from control import DiscreteRobotController
 
 
 class RealWorldEnv:
-    def __init__(self, camera_topic="/camera/image_raw"):
+    def __init__(self):
         self.node = DiscreteRobotController()
-        self.cam = CameraSubscriber(camera_topic)
+        self.cam = AlignedRealSense()
 
     def get_observation(self):
-        frame = self.cam.get_latest()
+        frame = self.cam.get_observation()
         return frame
 
     def step(self, action):
