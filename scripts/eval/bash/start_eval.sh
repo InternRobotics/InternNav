@@ -3,7 +3,7 @@
 source /root/miniconda3/etc/profile.d/conda.sh
 conda activate internutopia
 
-CONFIG=scripts/eval/configs/h1_rdp_cfg.py
+CONFIG=scripts/eval/configs/h1_cma_cfg.py
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -39,7 +39,7 @@ fi
 python scripts/eval/agent_server.py --config $CONFIG > "$SERVER_LOG" 2>&1 &
 
 
-RETRY_LIMIT=5
+RETRY_LIMIT=0
 MONITOR_INTERVAL=60
 DEADLOCK_THRESHOLD=$((5 * 60))
 

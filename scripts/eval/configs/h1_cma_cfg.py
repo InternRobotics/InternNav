@@ -23,10 +23,10 @@ eval_cfg = EvalCfg(
         },
     ),
     task=TaskCfg(
-        task_name='cma_plus_eval1',
+        task_name='stuck_test_660_680',
         task_settings={
             'env_num': 2,
-            'use_distributed': True,
+            'use_distributed': False,
             'proc_num': 4,
         },
         scene=SceneCfg(
@@ -48,5 +48,5 @@ eval_cfg = EvalCfg(
             'filter_stairs': True,
         },
     ),
-    eval_settings={'save_to_json': True, 'vis_output': False},
+    eval_settings={'save_to_json': False, 'vis_output': False},
 )

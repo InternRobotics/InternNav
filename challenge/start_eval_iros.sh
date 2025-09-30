@@ -40,7 +40,7 @@ mkdir -p logs
 SERVER_LOG="logs/${CONFIG_PREFIX}_server.log"
 EVAL_LOG="logs/${CONFIG_PREFIX}_eval.log"
 
-processes=$(ps -ef | grep 'internnav/agent/utils/server.py' | grep -v grep | awk '{print $2}')
+processes=$(ps -ef | grep 'scripts_eval_agent_server.py' | grep -v grep | awk '{print $2}')
 if [ -n "$processes" ]; then
     for pid in $processes; do
         kill -9 $pid
@@ -55,8 +55,8 @@ START_COMMAND_MP3D="python -u scripts/eval/eval_iros.py --config $CONFIG --defau
 LOG_FILE="$EVAL_LOG"
 
 
-rm eval_stdout.log
-rm eval_stderr.log
+rm -rf eval_stdout.log
+rm -rf eval_stderr.log
 
 start_process() {
     echo "Starting process..."

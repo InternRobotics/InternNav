@@ -8,6 +8,7 @@ from internnav.configs.evaluator import (
 )
 
 eval_cfg = EvalCfg(
+    eval_type='utopia',
     agent=AgentCfg(
         server_port=8087,
         model_name='cma',
@@ -22,10 +23,10 @@ eval_cfg = EvalCfg(
         },
     ),
     task=TaskCfg(
-        task_name='cma_kujiale_eval',
+        task_name='cma_kujiale_eval12',
         task_settings={
             'env_num': 2,
-            'use_distributed': True,
+            'use_distributed': False,
             'proc_num': 4,
         },
         scene=SceneCfg(
@@ -45,4 +46,5 @@ eval_cfg = EvalCfg(
             'filter_stairs': False,
         },
     ),
+    eval_settings={'save_to_json': False, 'vis_output': True},
 )

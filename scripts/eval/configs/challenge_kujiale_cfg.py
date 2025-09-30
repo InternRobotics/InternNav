@@ -8,6 +8,7 @@ from internnav.configs.evaluator import (
 )
 
 eval_cfg = EvalCfg(
+    eval_type="utopia",
     agent=AgentCfg(
         server_port=8087,
         model_name='rdp',
@@ -15,17 +16,17 @@ eval_cfg = EvalCfg(
         model_settings={},
     ),
     env=EnvCfg(
-        env_type='vln_pe',
+        env_type='vln_multi',
         env_settings={
             'use_fabric': False,
-            'headless': True,   # display option: set to False will open isaac-sim interactive window
+            'headless': True,  # display option: set to False will open isaac-sim interactive window
         },
     ),
     task=TaskCfg(
         task_name='challenge_kujiale_eval',
         task_settings={
             'env_num': 2,
-            'use_distributed': False,   # Ray distributed framework
+            'use_distributed': False,  # Ray distributed framework
             'proc_num': 8,
         },
         scene=SceneCfg(
@@ -34,7 +35,7 @@ eval_cfg = EvalCfg(
         ),
         robot_name='h1',
         robot_usd_path='data/Embodiments/vln-pe/h1/h1_vln_pointcloud.usd',
-        camera_resolution=[256,256], # (W,H)
+        camera_resolution=[256, 256],  # (W,H)
         camera_prim_path='torso_link/h1_pano_camera_0',
     ),
     dataset=EvalDatasetCfg(
@@ -45,8 +46,5 @@ eval_cfg = EvalCfg(
             'filter_stairs': False,
         },
     ),
-    eval_settings={
-        'save_to_json': True,
-        'vis_output': True      # save result to video under logs/
-    }
+    eval_settings={'save_to_json': True, 'vis_output': True},  # save result to video under logs/
 )
