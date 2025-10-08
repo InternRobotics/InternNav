@@ -27,7 +27,7 @@ eval_cfg = EvalCfg(
             'num_history': 8,
             'num_future_steps': 4,
             
-            'device': 'cuda:1',
+            'device': 'cuda:0',
             'predict_step_nums': 32,
             'continuous_traj': True, 
             # debug
