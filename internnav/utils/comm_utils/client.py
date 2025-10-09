@@ -32,6 +32,7 @@ class AgentClient:
             url=f'{self.base_url}/agent/init',
             json=request_data,
             headers={'Content-Type': 'application/json'},
+            timeout=5,
         )
         response.raise_for_status()
 
@@ -44,6 +45,7 @@ class AgentClient:
             url=f'{self.base_url}/agent/{self.agent_name}/step',
             json=request_data,
             headers={'Content-Type': 'application/json'},
+            timeout=5,
         )
         response.raise_for_status()
 
@@ -54,5 +56,6 @@ class AgentClient:
             url=f'{self.base_url}/agent/{self.agent_name}/reset',
             json=ResetRequest(reset_index=reset_index).model_dump(mode='json'),
             headers={'Content-Type': 'application/json'},
+            timeout=5,
         )
         response.raise_for_status()

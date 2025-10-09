@@ -5,7 +5,7 @@ import sys
 from internnav_benchmarks.internutopia.vln_default_config import get_config
 from real_world_env import RealWorldEnv
 
-from internnav.agent.utils.client import AgentClient
+from internnav.utils.comm_utils.client import AgentClient
 
 
 def parse_args():

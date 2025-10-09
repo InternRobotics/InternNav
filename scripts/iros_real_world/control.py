@@ -111,7 +111,7 @@ class DiscreteRobotController(Turn90Degrees):
         self.stand_still()  # Stop after moving forward
         rospy.loginfo("Move forward command executed.")
 
-    def turn_left(self, angle=30, speed=0.2):
+    def turn_left(self, angle=15, speed=0.2):
         self.turn_angle = math.radians(angle)  # 角度调这里
         self.angular_speed = speed  # Set positive angular speed for left turn
         self.start_yaw = None  # Reset start yaw to current position
@@ -120,7 +120,7 @@ class DiscreteRobotController(Turn90Degrees):
         self.stand_still()  # Stop after moving forward
         rospy.loginfo("Turn left command executed.")
 
-    def turn_right(self, angle=30, speed=-0.2):
+    def turn_right(self, angle=15, speed=-0.2):
         self.turn_angle = math.radians(angle)  # 角度调这里
         self.angular_speed = speed  # Set positive angular speed for left turn
         self.start_yaw = None  # Reset start yaw to current position
