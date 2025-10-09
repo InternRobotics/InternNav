@@ -1,0 +1,10 @@
+{
+  "timestamp_s": 1759218399.0439963,
+  "paths": {
+    "rgb": "./captures/rs_rgb.jpg",
+    "depth_mm": "./captures/rs_depth_mm.png",
+    "depth_vis": "./captures/rs_depth_vis.png"
+  },
+  "intrinsics": {},
+  "notes": "depth_mm.png 是以毫米存储的 16-bit PNG；depth_vis.png 仅用于可视化。"
+}

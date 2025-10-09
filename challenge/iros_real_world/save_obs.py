@@ -99,7 +99,7 @@ def load_obs_from_meta(meta_path: str, nan_for_zeros: bool = False) -> Dict:
         nan_for_zeros: 若为 True，则把深度为 0 的像素转为 NaN（便于下游遮挡处理）
     """
     meta_path = os.path.abspath(meta_path)
-    base = os.path.dirname(meta_path)
+    base = os.path.dirname(os.path.dirname(meta_path))
     with open(meta_path, "r") as f:
         meta = json.load(f)
 
