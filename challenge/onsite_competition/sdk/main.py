@@ -51,8 +51,8 @@ def main():
         obs = env.get_observation()
 
         # print("agent step...")
-        # action is a integer in [0, 3], agent return [{'action': int, 'ideal_flag': bool}]
-        action = agent.step(obs)[0]['action']  # only take the first env's action integer
+        # action is a integer in [0, 3], agent return [{'action': [int], 'ideal_flag': bool}] (same to internvla_n1 agent)
+        action = agent.step(obs)[0]['action'][0]  # only take the first env's action integer
 
         # print("env step...")
         env.step(action)

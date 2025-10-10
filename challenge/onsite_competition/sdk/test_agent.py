@@ -23,14 +23,15 @@ def test_agent(cfg_path=None, obs=None):
 
     agent = AgentClient(cfg.agent)
     for _ in range(10):
-        action = agent.step([obs])[0]['action']  # modify your agent to match the output format
+        action = agent.step([obs])[0]['action'][0]  # modify your agent to match the output format
         print(f"Action taken: {action}")
         assert action in [0, 1, 2, 3]
 
 
 if __name__ == "__main__":
     # use your own path
-    cfg_path = '/root/InternNav/scripts/eval/configs/h1_rdp_cfg.py'
+    # cfg_path = '/root/InternNav/scripts/eval/configs/h1_rdp_cfg.py'
+    cfg_path = '/root/InternNav/scripts/eval/configs/h1_internvla_n1_cfg.py'
     rs_meta_path = 'challenge/onsite_competition/captures/rs_meta.json'
 
     fake_obs_256 = {
@@ -51,5 +52,5 @@ if __name__ == "__main__":
 
     # work in progress, baseline model will be updated soon
     # test_agent(cfg_path=cfg_path, obs=fake_obs_256)
-    # test_agent(cfg_path='scripts/eval/configs/h1_internvla_n1_cfg.py', obs=fake_obs_640)
+    test_agent(cfg_path=cfg_path, obs=fake_obs_640)
     print("All tests passed!")
