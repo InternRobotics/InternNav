@@ -26,14 +26,14 @@ python -m internnav.agent.utils.server --config path/to/cfg.py
 You can locally test your model using previously recorded observations from the robot (stored under ./captures):
 
 ```bash
-python test_agent.py --config path/to/cfg.py
+python sdk/test_agent.py --config path/to/cfg.py
 ```
 
 ### 3. Actual Competition Execution
 During the on-site evaluation, the organizers will run:
 
 ```bash
-python main.py
+python sdk/main.py
 ```
 
 for each episode, paired with its corresponding natural language instruction.
@@ -41,7 +41,7 @@ for each episode, paired with its corresponding natural language instruction.
 ## 🧩 Data Format
 Action
 ```python
-action = [{'action': int, 'ideal_flag': bool}]
+action = [{'action': [int], 'ideal_flag': bool}]
 ```
 Observation
 ```python
@@ -54,3 +54,7 @@ obs = {
 
 ## 📋 Rules
 Please check out the [onsite competition rules](./onsite_competition_rules_en-US.md) .
+
+
+## 🚀 Code Submission
+Submit a Docker image with your agent server preconfigured and ready to run. During the competition, the robot will connect to a local server over the network. We’ll share additional details soon.
