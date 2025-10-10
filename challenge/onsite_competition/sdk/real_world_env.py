@@ -1,8 +1,10 @@
 from cam import AlignedRealSense
 from control import DiscreteRobotController
 
+from internnav.env import Env
 
-class RealWorldEnv:
+
+class RealWorldEnv(Env):
     def __init__(self):
         self.node = DiscreteRobotController()
         self.cam = AlignedRealSense()

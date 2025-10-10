@@ -46,7 +46,8 @@ if __name__ == "__main__":
         'rgb': np.load('challenge/onsite_competition/captures/sim_rgb.npy'),
         'depth': np.load('challenge/onsite_competition/captures/sim_depth.npy'),
     }
-    print(sim_obs['rgb'].shape, sim_obs['depth'].shape)  # TODO: test dtype (uint8 and float32) and value range
+    print(sim_obs['rgb'].shape, sim_obs['depth'].shape)  # dtype (uint8 and float32) and value range
+    # TODO: crop to 256,256, test with fake_obs_256
 
     # work in progress, baseline model will be updated soon
     # test_agent(cfg_path=cfg_path, obs=fake_obs_256)
