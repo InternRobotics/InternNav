@@ -53,4 +53,4 @@ obs = {
 ```
 
 ## 📋 Rules
-Please check out the onsite competition rules.
+Please check out the [onsite competition rules](./onsite_competition_rules_en-US.md) .

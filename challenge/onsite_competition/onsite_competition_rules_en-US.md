@@ -1,5 +1,7 @@
 
 # Nav Track Onsite Competition Rules
+English Version | [中文版](./onsite_competition_rules_zh-CN.md)
+
 ## 1. Task Description
 This track focuses on building a multimodal mobile robot navigation system with language understanding capabilities. Participants must design a perception–decision pipeline that performs the full process of:
 - Egocentric visual perception,
