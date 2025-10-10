@@ -32,7 +32,7 @@ def test_agent(cfg_path=None, obs=fake_obs_256):
 
     agent = AgentClient(cfg.agent)
     for _ in range(10):
-        action = agent.step(obs)[0]['action']
+        action = agent.step(obs)[0]
         print(f"Action taken: {action}")
         assert action in [0, 1, 2, 3]
 
