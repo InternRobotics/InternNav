@@ -51,3 +51,6 @@ obs = {
     "instruction": str    # Natural language navigation
 }
 ```
+
+## 📋 Rules
+Please check out the onsite competition rules.
