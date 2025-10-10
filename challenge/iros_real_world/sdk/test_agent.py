@@ -32,19 +32,12 @@ def test_agent(cfg_path=None, obs=fake_obs_256):
 
     agent = AgentClient(cfg.agent)
     for _ in range(10):
-        action = agent.step(obs)[0]
+        action = agent.step(obs)[0]['action']
         print(f"Action taken: {action}")
         assert action in [0, 1, 2, 3]
 
 
-# test if obs is alien with simulation
-def test_obs():
-    pass
-
-
 if __name__ == "__main__":
     test_agent(cfg_path='/root/main_repo/InternNav/scripts/eval/configs/h1_cma_cfg.py', obs=fake_obs_256)
-    # test_agent(cfg_path='scripts/eval/configs/h1_cma_cfg.py', obs=fake_obs_640)
-    # test_agent(cfg_path='scripts/eval/configs/challenge_mp3d_cfg.py', obs=fake_obs_256)
-    # test_agent(cfg_path='scripts/eval/configs/challenge_mp3d_cfg.py', obs=fake_obs_640)
+    # test_agent(cfg_path='scripts/eval/configs/h1_internvla_n1_cfg.py', obs=fake_obs_640)
     print("All tests passed!")

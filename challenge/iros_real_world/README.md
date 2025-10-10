@@ -1,33 +1,53 @@
-# IROS On-site Challenge
+# 🧭 IROS On-site Challenge
 
-In this phase, the model will be tested with real robot.
+Welcome to the **IROS Vision-Language Navigation On-site Challenge**!
+In this phase, participants’ models will be deployed on **a real robot** to evaluate performance in real-world conditions.
 
-Install internnav
-```
+---
+
+## ⚙️ Installation
+
+First, install the `InternNav` package:
+
+```bash
 cd /InternNav
 pip install -e .
 ```
 
-start your agent server:
+## 🚀 Running Your Agent
+### 1. Start the Agent Server
+Launch your agent server with the desired configuration file:
 
-```
+```bash
 python -m internnav.agent.utils.server --config path/to/cfg.py
 ```
 
-Test the agent with observation that taken from the robot (`./captures`)
-```
+### 2. Test the Agent with Robot Captures
+You can locally test your model using previously recorded observations from the robot (stored under ./captures):
+
+```bash
 python test_agent.py --config path/to/cfg.py
 ```
 
-In the actual test, we will run `main.py` for each episode with corresponding instruction.
+### 3. Actual Competition Execution
+During the on-site evaluation, the organizers will run:
 
-## format
+```bash
+python main.py
 ```
-action = [int]
 
+for each episode, paired with its corresponding natural language instruction.
+
+## 🧩 Data Format
+Action
+```python
+action = [{'action': int, 'ideal_flag': bool}]
+```
+Observation
+```python
 obs = {
-    "rgb": rgb,
-    "depth": depth,
-    "instruction": str
+    "rgb": rgb,           # RGB image from the robot
+    "depth": depth,       # Depth image (aligned with RGB)
+    "instruction": str    # Natural language navigation
 }
 ```

@@ -52,7 +52,7 @@ def main():
 
         # print("agent step...")
         # action is a integer in [0, 3], agent return [{'action': int, 'ideal_flag': bool}]
-        action = agent.step(obs)[0]  # only take the first env's action integer
+        action = agent.step(obs)[0]['action']  # only take the first env's action integer
 
         # print("env step...")
         env.step(action)
