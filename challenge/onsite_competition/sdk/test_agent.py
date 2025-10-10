@@ -23,15 +23,15 @@ def test_agent(cfg_path=None, obs=None):
 
     agent = AgentClient(cfg.agent)
     for _ in range(10):
-        action = agent.step(obs)[0]['action']  # modify your agent to match the output format
+        action = agent.step([obs])[0]['action']  # modify your agent to match the output format
         print(f"Action taken: {action}")
         assert action in [0, 1, 2, 3]
 
 
 if __name__ == "__main__":
     # use your own path
-    cfg_path = '/root/main_repo/InternNav/scripts/eval/configs/h1_cma_cfg.py'
-    rs_meta_path = './captures/rs_meta.json'
+    cfg_path = '/root/InternNav/scripts/eval/configs/h1_rdp_cfg.py'
+    rs_meta_path = 'challenge/iros_real_world/captures/rs_meta.json'
 
     fake_obs_256 = {
         'rgb': np.zeros((256, 256, 3), dtype=np.uint8),
@@ -41,6 +41,12 @@ if __name__ == "__main__":
     fake_obs_640 = load_obs_from_meta(rs_meta_path)
     fake_obs_640['instruction'] = 'go to the red car'
     print(fake_obs_640['rgb'].shape, fake_obs_640['depth'].shape)
+
+    sim_obs = {
+        'rgb': np.load('challenge/iros_real_world/captures/sim_rgb.npy'),
+        'depth': np.load('challenge/iros_real_world/captures/sim_depth.npy'),
+    }
+    print(sim_obs['rgb'].shape, sim_obs['depth'].shape)  # TODO: test dtype (uint8 and float32) and value range
 
     test_agent(cfg_path=cfg_path, obs=fake_obs_256)
     # test_agent(cfg_path='scripts/eval/configs/h1_internvla_n1_cfg.py', obs=fake_obs_640)

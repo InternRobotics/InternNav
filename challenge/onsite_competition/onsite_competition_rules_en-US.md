@@ -19,9 +19,9 @@ Key Challenges:
 A realistic apartment-like environment will be built, consisting of connected rooms (living room, bedroom, kitchen, corridor, bathroom, etc.) with typical household furniture and decorations.
 
 ### 2.2 Robot
-The competition will use Robot X (provided by the organizers) with Sensor Y configuration. Detailed specifications and open-source navigation resources will be provided.
-- Teams will have an on-site debugging session on October X.
-- Final code must be submitted X days before the competition.
+The competition will use Robot (provided by the organizers) with same RGB-D camera and Sensor configuration. Detailed specifications and open-source navigation resources will be provided.
+- Teams will have an on-site debugging session on October 18.
+- Final code must be submitted 1 days before the competition.
 
 ## 3. Task Setup
 The challenge centers on vision-language fusion for cross-room end-to-end navigation.
@@ -96,3 +96,5 @@ Final results combine online phase and onsite phase scores using a rank-based po
 Points = 100 – 5 × (Rank – 1)
 - Final Score Calculation:
 Final Score = (Online Points × 40%) + (Onsite Points × 60%)
+
+If the final score the same, onsite points break the tie.
