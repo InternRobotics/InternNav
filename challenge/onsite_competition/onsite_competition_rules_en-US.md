@@ -85,6 +85,9 @@ Successfully completing one instruction will add 10 points to the total score, a
 | Minor scrape with obstacle | –2 points (cannot go below 0 for that instruction) |
 | Collision with obstacle | 0 points, navigation terminated for this instruction |
 
+If there is a trend of continuous collisions, the referee has the right to terminate the robot’s current action.
+If the collision occurs only once at the end of a forward movement when approaching an obstacle, it may be considered a minor scrape, with the severity of the impact determined by the on-site referee.
+
 **Success Condition**:
  The goal is defined as a 2m-radius circular area (no wall crossing). The run is considered successful if the robot stops inside this area.
 
