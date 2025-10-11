@@ -8,6 +8,8 @@ In this phase, participants’ models will be deployed on **a real robot** to ev
 ## Robot
 The robot uses a wheeled chassis. The chassis and camera control code can be found in the provided SDK. The camera’s default resolution is 640×480, and the depth and color images are already aligned.
 
+The robot is a agilex (RANGER MINI 3.0)[https://www.agilex.ai/solutions/1] with RGB camera and a LiDAR sensor.
+
 ## ⚙️ Installation
 
 First, install the `InternNav` package:

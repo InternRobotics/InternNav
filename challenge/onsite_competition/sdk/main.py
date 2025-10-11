@@ -3,6 +3,7 @@ import importlib.util
 import sys
 
 from real_world_env import RealWorldEnv
+from stream import app, start_env
 
 from internnav.agent.utils.client import AgentClient
 from internnav.configs.evaluator.default_config import get_config
@@ -21,6 +22,7 @@ def parse_args():
         type=str,
         help='current instruction to follow',
     )
+    parser.add_argument("--tag", type=str, help="tag for the run, saved by the tag name which is team-task-trail")
     return parser.parse_args()
 
 
@@ -32,6 +34,7 @@ def load_eval_cfg(config_path, attr_name='eval_cfg'):
     return getattr(config_module, attr_name)
 
 
+# TODO add logging for each step, saved by the tag name which is team-task-trail
 def main():
     args = parse_args()
     print("--- Loading config from:", args.config, "---")
@@ -43,16 +46,34 @@ def main():
     agent = AgentClient(cfg.agent)
 
     # initialize real world env
-    env = RealWorldEnv(args.instruction)
+    env = RealWorldEnv()
 
-    while True:
-        # print("get observation...")
-        # obs contains {rgb, depth, instruction}
-        obs = env.get_observation()
+    # start stream
+    start_env(env)
+    app.run(host="0.0.0.0", port=8080, threaded=True)
 
-        # print("agent step...")
-        # action is a integer in [0, 3], agent return [{'action': [int], 'ideal_flag': bool}] (same to internvla_n1 agent)
-        action = agent.step(obs)[0]['action'][0]  # only take the first env's action integer
+    try:
+        while True:
+            # print("get observation...")
+            # obs contains {rgb, depth, instruction}
+            obs = env.get_observation()
+            obs["instruction"] = args.instruction
 
-        # print("env step...")
-        env.step(action)
+            # print("agent step...")
+            # action is a integer in [0, 3], agent return [{'action': [int], 'ideal_flag': bool}] (same to internvla_n1 agent)
+            try:
+                action = agent.step(obs)[0]['action'][0]
+                print(f"agent step success, action is {action}")
+            except Exception as e:
+                print(f"agent step error {e}")
+                continue
+
+            # print("env step...")
+            try:
+                env.step(action)
+                print("env step success")
+            except Exception as e:
+                print(f"env step error {e}")
+                continue
+    finally:
+        env.close()
