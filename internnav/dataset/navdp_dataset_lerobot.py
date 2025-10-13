@@ -431,25 +431,26 @@ def navdp_collate_fn(batch):
 
     
 if __name__ == "__main__":
-    # Debug
-    dataset = NavDP_Base_Datset("/path/to/nav_20w_lerobot/",
-                                "/path/to/navdp_trainer/output_test/multiview_dataset_lerobot.json",
-                                8,24,224,trajectory_data_scale=1.0,scene_data_scale=1.0,preload=True)
-    for i in range(200):
-       point_goal,image_goal,pixel_goal,memory_images,depth_image,pred_actions,augment_actions,pred_critic,augment_critic,pixel_flag = dataset.__getitem__(i)
-       pixel_obs = pixel_goal[:,:,0:3] * 255
-       pixel_obs[pixel_goal[:,:,3]==1] = np.array([0,0,255])
-       
-       draw_current_image = image_goal[:,:,3:6].copy()*255
-       draw_current_image = cv2.putText(draw_current_image,"Current-Image",(50,30),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255))
-       
-       draw_goal_image = image_goal[:,:,0:3].copy()*255
-       draw_goal_image = cv2.putText(draw_goal_image,"Image-Goal",(50,30),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255))
-       
-       draw_pixel_image = pixel_obs.copy()
-       draw_pixel_image = cv2.putText(draw_pixel_image,"Pixel-Goal",(50,30),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255))
-       
-       goal_info_image = np.concatenate((draw_current_image,draw_goal_image,draw_pixel_image),axis=1)
-       goal_info_image = cv2.putText(goal_info_image,"PointGoal=[{:.3f}, {:.3f}, {:.3f}]".format(*point_goal),(190,210),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255))
-       cv2.imwrite("./output_test/goal_information.png",goal_info_image)
-       
+    os.makedirs("./navdp_dataset_test/", exist_ok=True)
+    dataset = NavDP_Base_Datset("/shared/smartbot_new/liuyu/vln-n1-minival/",
+                                "./navdp_dataset_test/dataset_lerobot.json",
+                                8,24,224,trajectory_data_scale=0.1,scene_data_scale=0.1,preload=False)
+    
+    for i in range(10):
+        point_goal,image_goal,pixel_goal,memory_images,depth_image,pred_actions,augment_actions,pred_critic,augment_critic,pixel_flag = dataset.__getitem__(i)
+        if pixel_flag == 1.0:
+            pixel_obs = pixel_goal.numpy()[:,:,0:3] * 255
+            pixel_obs[pixel_goal[:,:,3]==1] = np.array([0,0,255])
+        
+            draw_current_image = cv2.cvtColor(image_goal[:,:,3:6].numpy()*255,cv2.COLOR_BGR2RGB)
+            draw_current_image = cv2.putText(draw_current_image,"Current-Image",(50,30),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255))
+        
+            draw_goal_image = cv2.cvtColor(image_goal[:,:,0:3].numpy()*255,cv2.COLOR_BGR2RGB)
+            draw_goal_image = cv2.putText(draw_goal_image,"Image-Goal",(50,30),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255))
+        
+            draw_pixel_image = cv2.cvtColor(pixel_obs.copy(),cv2.COLOR_BGR2RGB)
+            draw_pixel_image = cv2.putText(draw_pixel_image,"Pixel-Goal",(50,30),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255))
+        
+            goal_info_image = np.concatenate((draw_current_image,draw_goal_image,draw_pixel_image),axis=1)
+            goal_info_image = cv2.putText(goal_info_image,"PointGoal=[{:.3f}, {:.3f}, {:.3f}]".format(*point_goal),(190,210),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255))
+            cv2.imwrite("./navdp_dataset_test/goal_information_%d.png"%i,goal_info_image)
