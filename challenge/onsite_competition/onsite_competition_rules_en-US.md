@@ -82,8 +82,7 @@ Successfully completing one instruction will add 10 points to the total score, a
 | Action | Score Impact |
 |:--|:--|
 | Successfully reach goal | +10 points |
-| Minor scrape with obstacle | –2 points (cannot go below 0 for that instruction) |
-| Collision with obstacle | 0 points, navigation terminated for this instruction |
+| Minor scrape more than 5 times or Collision with obstacle | 0 points, navigation terminated for this instruction |
 
 If there is a trend of continuous collisions, the referee has the right to terminate the robot’s current action.
 If the collision occurs only once at the end of a forward movement when approaching an obstacle, it may be considered a minor scrape, with the severity of the impact determined by the on-site referee.
@@ -92,14 +91,9 @@ If the collision occurs only once at the end of a forward movement when approach
  The goal is defined as a 2m-radius circular area (no wall crossing). The run is considered successful if the robot stops inside this area.
 
 **Ranking Rules (Onsite Competition)**:
-- Higher total score ranks higher.
-- Tie-breaker: lower total completion time ranks higher.
+- The final score is the success rate, calculated as the number of successful instructions divided by the total number of instructions.
 
 ## 5.2 Final Results
-Final results combine online phase and onsite phase scores using a rank-based point system:
-- Points per Rank:
-Points = 100 – 5 × (Rank – 1)
+Final results combine online phase and onsite phase scores:
 - Final Score Calculation:
-Final Score = (Online Points × 40%) + (Onsite Points × 60%)
-
-If the final score the same, onsite points break the tie.
+Final Score = (Online SR × 40%) + (Onsite SR × 60%)
