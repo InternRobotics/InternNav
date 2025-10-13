@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import os
+import random
 from scipy.signal import savgol_filter
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from internnav.model.encoder.navdp_backbone import *
@@ -15,16 +16,12 @@ from transformers import PretrainedConfig, PreTrainedModel
 from internnav.configs.model.base_encoders import ModelCfg
 from internnav.configs.trainer.exp import ExpCfg
 
-
-
 class NavDPModelConfig(PretrainedConfig):
     model_type = 'navdp'
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # pass in navdp_exp_cfg
         self.model_cfg = kwargs.get('model_cfg', None)
-
 
     @classmethod
     def from_dict(cls, config_dict):
@@ -89,7 +86,15 @@ class NavDPNet(PreTrainedModel):
         self.scratch=self.config.model_cfg['il']['scratch']
         self.finetune=self.config.model_cfg['il']['finetune']
         self.rgbd_encoder = NavDP_RGBD_Backbone(self.image_size,self.token_dim,memory_size=self.memory_size,finetune=self.finetune,device=self._device)
+        self.pixel_encoder = NavDP_PixelGoal_Backbone(self.image_size,self.token_dim,device=self._device)
+        self.image_encoder = NavDP_ImageGoal_Backbone(self.image_size,self.token_dim,device=self._device)
         self.point_encoder = nn.Linear(3,self.token_dim)
+        
+        if not self.finetune:
+            for p in self.rgbd_encoder.parameters():
+                p.requires_grad = False
+            self.rgbd_encoder.eval()
+            
         decoder_layer = nn.TransformerDecoderLayer(d_model = self.token_dim,
                                                         nhead = self.attention_heads,
                                                         dim_feedforward = 4 * self.token_dim,
@@ -101,7 +106,8 @@ class NavDPNet(PreTrainedModel):
                                              num_layers = self.temporal_depth)
         self.input_embed = nn.Linear(3,self.token_dim)
         
-        self.cond_pos_embed = LearnablePositionalEncoding(self.token_dim, self.memory_size * 16 + 2)
+        
+        self.cond_pos_embed = LearnablePositionalEncoding(self.token_dim, self.memory_size * 16 + 4)
         self.out_pos_embed = LearnablePositionalEncoding(self.token_dim, self.predict_size)
         self.drop = nn.Dropout(self.dropout)
         self.time_emb = SinusoidalPosEmb(self.token_dim)
@@ -114,9 +120,13 @@ class NavDPNet(PreTrainedModel):
                                        prediction_type='epsilon')
         self.tgt_mask = (torch.triu(torch.ones(self.predict_size, self.predict_size)) == 1).transpose(0, 1)
         self.tgt_mask = self.tgt_mask.float().masked_fill(self.tgt_mask == 0, float('-inf')).masked_fill(self.tgt_mask == 1, float(0.0))
-        self.cond_critic_mask = torch.zeros((self.predict_size,2 + self.memory_size * 16))
-        self.cond_critic_mask[:,0:2] = float('-inf')        
         self.tgt_mask = self.tgt_mask.to(self._device)
+        
+        self.cond_critic_mask = torch.zeros((self.predict_size,4 + self.memory_size * 16))
+        self.cond_critic_mask[:,0:4] = float('-inf')        
+        
+        self.pixel_aux_head = nn.Linear(self.token_dim,3)
+        self.image_aux_head = nn.Linear(self.token_dim,3)
     
     def to(self, device, *args, **kwargs):
         # first call the to method of the parent class
@@ -131,10 +141,6 @@ class NavDPNet(PreTrainedModel):
         return self    
 
     def sample_noise(self,action):
-        # device = next(self.parameters()).device
-        # if device is None:
-        #     device = action.device
-        # action = action.to(self._device)
         device = action.device
         noise = torch.randn(action.shape, device=device)
         timesteps = torch.randint(0, self.noise_scheduler.config.num_train_timesteps,(action.shape[0],), device=device).long()
@@ -146,7 +152,7 @@ class NavDPNet(PreTrainedModel):
     def predict_noise(self,last_actions,timestep,goal_embed,rgbd_embed):
         action_embeds = self.input_embed(last_actions)
         time_embeds = self.time_emb(timestep.to(self._device)).unsqueeze(1)
-        cond_embedding = torch.cat([time_embeds,goal_embed,rgbd_embed],dim=1) + self.cond_pos_embed(torch.cat([time_embeds,goal_embed,rgbd_embed],dim=1))
+        cond_embedding = torch.cat([time_embeds,goal_embed,goal_embed,goal_embed,rgbd_embed],dim=1) + self.cond_pos_embed(torch.cat([time_embeds,goal_embed,goal_embed,goal_embed,rgbd_embed],dim=1))
         cond_embedding = cond_embedding.repeat(action_embeds.shape[0],1,1)
         input_embedding = action_embeds + self.out_pos_embed(action_embeds)
         output = self.decoder(tgt = input_embedding,memory = cond_embedding, tgt_mask = self.tgt_mask.to(self._device))
@@ -159,13 +165,13 @@ class NavDPNet(PreTrainedModel):
         nogoal_embed = torch.zeros_like(repeat_rgbd_embed[:,0:1])
         action_embeddings = self.input_embed(predict_trajectory)
         action_embeddings = action_embeddings + self.out_pos_embed(action_embeddings)
-        cond_embeddings = torch.cat([nogoal_embed,nogoal_embed,repeat_rgbd_embed],dim=1) + self.cond_pos_embed(torch.cat([nogoal_embed,nogoal_embed,repeat_rgbd_embed],dim=1))
+        cond_embeddings = torch.cat([nogoal_embed,nogoal_embed,nogoal_embed,nogoal_embed,repeat_rgbd_embed],dim=1) + self.cond_pos_embed(torch.cat([nogoal_embed,nogoal_embed,nogoal_embed,nogoal_embed,repeat_rgbd_embed],dim=1))
         critic_output = self.decoder(tgt = action_embeddings, memory = cond_embeddings, memory_mask = self.cond_critic_mask)
         critic_output = self.layernorm(critic_output)
         critic_output = self.critic_head(critic_output.mean(dim=1))[:,0]
         return critic_output
         
-    def forward(self,goal_point,goal_image,input_images,input_depths,output_actions,augment_actions):
+    def forward(self,goal_point,goal_image,goal_pixel,input_images,input_depths,output_actions,augment_actions):
         # """get device safely"""
         # # get device safely
         # try:
@@ -193,53 +199,61 @@ class NavDPNet(PreTrainedModel):
         input_depths = input_depths.to(device)
 
         ng_noise,ng_time_embed,ng_noisy_action_embed = self.sample_noise(tensor_label_actions)
-        pg_noise,pg_time_embed,pg_noisy_action_embed = self.sample_noise(tensor_label_actions)
-        # ig_noise,ig_time_embed,ig_noisy_action_embed = self.sample_noise(tensor_label_actions)
+        mg_noise,mg_time_embed,mg_noisy_action_embed = self.sample_noise(tensor_label_actions)
 
         rgbd_embed = self.rgbd_encoder(input_images,input_depths)
         pointgoal_embed = self.point_encoder(tensor_point_goal).unsqueeze(1)
         nogoal_embed = torch.zeros_like(pointgoal_embed)
-        # imagegoal_embed = torch.zeros_like(pointgoal_embed)
+        imagegoal_embed = self.image_encoder(goal_image).unsqueeze(1)
+        pixelgoal_embed = self.pixel_encoder(goal_pixel).unsqueeze(1)
+        
+        imagegoal_aux_pred = self.image_aux_head(imagegoal_embed[:,0])
+        pixelgoal_aux_pred = self.pixel_aux_head(pixelgoal_embed[:,0])
 
         label_embed = self.input_embed(tensor_label_actions).detach()
         augment_embed = self.input_embed(tensor_augment_actions).detach()
         
-        cond_pos_embed = self.cond_pos_embed(torch.cat([ng_time_embed,nogoal_embed,rgbd_embed],dim=1))
-        ng_cond_embeddings = self.drop(torch.cat([ng_time_embed,nogoal_embed,rgbd_embed],dim=1) + cond_pos_embed)
-        pg_cond_embeddings = self.drop(torch.cat([pg_time_embed,pointgoal_embed,rgbd_embed],dim=1) + cond_pos_embed)
-        # ig_cond_embeddings = self.drop(torch.cat([ig_time_embed,imagegoal_embed,rgbd_embed],dim=1) + cond_pos_embed)
+        cond_pos_embed = self.cond_pos_embed(torch.cat([ng_time_embed,nogoal_embed,imagegoal_embed,pixelgoal_embed,rgbd_embed],dim=1))
+        ng_cond_embeddings = self.drop(torch.cat([ng_time_embed,nogoal_embed,nogoal_embed,nogoal_embed,rgbd_embed],dim=1) + cond_pos_embed)
+        
+        cand_goal_embed = [pointgoal_embed,imagegoal_embed,pixelgoal_embed]
+        batch_size = pointgoal_embed.shape[0]
+        
+        # Generate deterministic selections for each sample in the batch using vectorized operations
+        batch_indices = torch.arange(batch_size, device=pointgoal_embed.device)
+        pattern_indices = batch_indices % 27  # 3^3 = 27 possible combinations
+        selections_0 = pattern_indices % 3
+        selections_1 = (pattern_indices // 3) % 3  
+        selections_2 = (pattern_indices // 9) % 3
+        goal_embeds = torch.stack(cand_goal_embed, dim=0)  # [3, batch_size, 1, token_dim]
+        selected_goals_0 = goal_embeds[selections_0, torch.arange(batch_size), :, :]  # [batch_size, 1, token_dim]
+        selected_goals_1 = goal_embeds[selections_1, torch.arange(batch_size), :, :]
+        selected_goals_2 = goal_embeds[selections_2, torch.arange(batch_size), :, :]
+        mg_cond_embed_tensor = torch.cat([mg_time_embed, selected_goals_0, selected_goals_1, selected_goals_2, rgbd_embed], dim=1)
+        mg_cond_embeddings = self.drop(mg_cond_embed_tensor + cond_pos_embed)
 
         out_pos_embed = self.out_pos_embed(ng_noisy_action_embed)
         ng_action_embeddings = self.drop(ng_noisy_action_embed + out_pos_embed)
-        pg_action_embeddings = self.drop(pg_noisy_action_embed + out_pos_embed)
-        # ig_action_embeddings = self.drop(ig_noisy_action_embed + out_pos_embed)
+        mg_action_embeddings = self.drop(mg_noisy_action_embed + out_pos_embed)
         label_action_embeddings = self.drop(label_embed + out_pos_embed)
         augment_action_embeddings = self.drop(augment_embed + out_pos_embed)
 
-        # ng_output = self.decoder(tgt = ng_action_embeddings,memory = ng_cond_embeddings, tgt_mask = self.tgt_mask.to(ng_action_embeddings.device))
         ng_output = self.decoder(tgt = ng_action_embeddings,memory = ng_cond_embeddings, tgt_mask = self.tgt_mask)
         ng_output = self.layernorm(ng_output)
         noise_pred_ng = self.action_head(ng_output)
 
-        pg_output = self.decoder(tgt = pg_action_embeddings,memory = pg_cond_embeddings, tgt_mask = self.tgt_mask.to(ng_action_embeddings.device))
-        # pg_output = self.decoder(tgt = pg_action_embeddings,memory = pg_cond_embeddings, tgt_mask = self.tgt_mask)
-        pg_output = self.layernorm(pg_output)
-        noise_pred_pg = self.action_head(pg_output)
-
-        # ig_output = self.decoder(tgt = ig_action_embeddings,memory = ig_cond_embeddings, tgt_mask = self.tgt_mask.to(ng_action_embeddings.device))
-        # ig_output = self.decoder(tgt = ig_action_embeddings,memory = ig_cond_embeddings, tgt_mask = self.tgt_mask)
-        # ig_output = self.layernorm(ig_output)
-        # noise_pred_ig = self.action_head(ig_output)
+        mg_output = self.decoder(tgt = mg_action_embeddings,memory = mg_cond_embeddings, tgt_mask = self.tgt_mask.to(ng_action_embeddings.device))
+        mg_output = self.layernorm(mg_output)
+        noise_pred_mg = self.action_head(mg_output)
 
         cr_label_output = self.decoder(tgt = label_action_embeddings, memory = ng_cond_embeddings, memory_mask = self.cond_critic_mask.to(self._device))
-        # cr_label_output = self.decoder(tgt = label_action_embeddings, memory = ng_cond_embeddings, memory_mask = self.cond_critic_mask)
         cr_label_output = self.layernorm(cr_label_output)
         cr_label_pred = self.critic_head(cr_label_output.mean(dim=1))[:,0]
 
         cr_augment_output = self.decoder(tgt = augment_action_embeddings, memory = ng_cond_embeddings, memory_mask = self.cond_critic_mask.to(self._device))
         cr_augment_output = self.layernorm(cr_augment_output)
         cr_augment_pred = self.critic_head(cr_augment_output.mean(dim=1))[:,0]
-        return noise_pred_ng,noise_pred_pg,cr_label_pred,cr_augment_pred,[ng_noise,pg_noise]
+        return noise_pred_ng,noise_pred_mg,cr_label_pred,cr_augment_pred,[ng_noise,mg_noise],[imagegoal_aux_pred,pixelgoal_aux_pred]
     
     def _get_device(self):
         """Safe get device information"""

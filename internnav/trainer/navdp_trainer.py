@@ -57,6 +57,7 @@ class NavDPTrainer(BaseTrainer):
         inputs_on_device = {
             "batch_pg": inputs["batch_pg"].to(model_device),
             "batch_ig": inputs["batch_ig"].to(model_device),
+            "batch_tg": inputs["batch_tg"].to(model_device),
             "batch_rgb": inputs["batch_rgb"].to(model_device),
             "batch_depth": inputs["batch_depth"].to(model_device),
             "batch_labels": inputs["batch_labels"].to(model_device),
@@ -76,9 +77,10 @@ class NavDPTrainer(BaseTrainer):
         batch_label_critic = inputs["batch_label_critic"]
         batch_augment_critic = inputs["batch_augment_critic"]
         
-        pred_ng, pred_pg, critic_pred, augment_pred, noise = model(
+        pred_ng, pred_mg, critic_pred, augment_pred, noise, aux_pred = model(
                 inputs_on_device["batch_pg"],
                 inputs_on_device["batch_ig"],
+                inputs_on_device["batch_tg"],
                 inputs_on_device["batch_rgb"],
                 inputs_on_device["batch_depth"],
                 inputs_on_device["batch_labels"],
@@ -86,24 +88,22 @@ class NavDPTrainer(BaseTrainer):
             )
         
         ng_action_loss = (pred_ng - noise[0]).square().mean()
-        pg_action_loss = (pred_pg - noise[1]).square().mean()
-        # ig_action_loss = (pred_ig - noise[2]).square().mean()
-        action_loss = 0.5 * pg_action_loss + 0.5 * ng_action_loss
-        critic_loss = (critic_pred - batch_label_critic).square().mean() + \
-                     (augment_pred - batch_augment_critic).square().mean()
-        loss = 0.8 * action_loss + 0.2 * critic_loss
+        mg_action_loss = (pred_mg - noise[1]).square().mean()
+        aux_loss = 0.5*(inputs_on_device["batch_pg"] - aux_pred[0]).square().mean() + 0.5*(inputs_on_device["batch_pg"] - aux_pred[1]).square().mean()
+        action_loss = 0.5 * mg_action_loss + 0.5 * ng_action_loss
+        critic_loss = (critic_pred - batch_label_critic).square().mean() + (augment_pred - batch_augment_critic).square().mean()
+        loss = 0.8 * action_loss + 0.2 * critic_loss + 0.5 * aux_loss
         
         outputs = {
             'pred_ng': pred_ng,
-            'pred_pg': pred_pg,
-            # 'pred_ig': pred_ig,
+            'pred_mg': pred_mg,
             'critic_pred': critic_pred,
             'augment_pred': augment_pred,
             'noise': noise,
             'loss': loss,
             'ng_action_loss': ng_action_loss,
-            'pg_action_loss': pg_action_loss,
-            # 'ig_action_loss': ig_action_loss,
+            'mg_action_loss': mg_action_loss,
+            'aux_loss': aux_loss,
             'critic_loss': critic_loss
         }
         # if self.logger:
@@ -194,3 +194,22 @@ class NavDPTrainer(BaseTrainer):
         )
         # print(loader)
         return loader
+    
+    def save_model(self, output_dir, state_dict=None, **kwargs):
+        """
+        save model to specified directory
+
+        handle DDP wrapped model
+        """
+        # check if it is a DDP wrapped model
+        if hasattr(self.model, 'module'):
+            # get original model
+            model_to_save = self.model.module
+        else:
+            model_to_save = self.model
+
+        # ensure the output directory exists
+        os.makedirs(output_dir, exist_ok=True)
+        torch.save(model_to_save.state_dict(), output_dir+"navdp.ckpt")
+
+        print(f"Saving model to {output_dir} (is DDP: {hasattr(self.model, 'module')})")

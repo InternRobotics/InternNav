@@ -260,6 +260,7 @@ class NavDP_RGBD_Backbone(nn.Module):
         memory_token = self.former_net(former_query,former_token)
         memory_token = self.project_layer(memory_token)
         return memory_token
+    
     def _get_device(self):
         """get device safely"""
         # try to get device through model parameters
@@ -293,6 +294,12 @@ class NavDP_ImageGoal_Backbone(nn.Module):
                  embed_size=512,
                  device='cuda:0'):
         super().__init__()
+        if device is None:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        elif isinstance(device, int):
+            device = torch.device(f"cuda:{device}")
+        elif isinstance(device, str):
+            device = torch.device(device)
         self.device = device
         self.image_size = image_size
         self.embed_size = embed_size
@@ -306,13 +313,43 @@ class NavDP_ImageGoal_Backbone(nn.Module):
                                                             padding = self.imagegoal_encoder.patch_embed.proj.padding)
         self.imagegoal_encoder.train()
         self.project_layer = nn.Linear(384,embed_size)
+        self.to(device)
         
     def forward(self,images):
         assert len(images.shape) == 4 # B,C,H,W
-        tensor_images = torch.as_tensor(images,dtype=torch.float32,device=self.device).permute(0,3,1,2)
+        device = self._get_device()
+        images = images.to(device)
+        tensor_images = torch.as_tensor(images,dtype=torch.float32,device=device).permute(0,3,1,2)
         image_token = self.imagegoal_encoder.get_intermediate_layers(tensor_images)[0].mean(dim=1)
         image_token = self.project_layer(image_token)
         return image_token
+    
+    def _get_device(self):
+        """get device safely"""
+        # try to get device through model parameters
+        try:
+            for param in self.parameters():
+                return param.device
+        except StopIteration:
+            pass
+        
+        # try to get device through buffer
+        try:
+            for buffer in self.buffers():
+                return buffer.device
+        except StopIteration:
+            pass
+        
+        # try to get device through submodule
+        for module in self.children():
+            try:
+                for param in module.parameters():
+                    return param.device
+            except StopIteration:
+                continue
+        
+        # finally revert to default device
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class NavDP_PixelGoal_Backbone(nn.Module):
     def __init__(self,
@@ -320,23 +357,59 @@ class NavDP_PixelGoal_Backbone(nn.Module):
                  embed_size=512,
                  device='cuda:0'):
         super().__init__()
+        if device is None:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        elif isinstance(device, int):
+            device = torch.device(f"cuda:{device}")
+        elif isinstance(device, str):
+            device = torch.device(device)
         self.device = device
         self.image_size = image_size
         self.embed_size = embed_size
         model_configs = {'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]}}
         self.pixelgoal_encoder = DepthAnythingV2(**model_configs['vits'])
         self.pixelgoal_encoder = self.pixelgoal_encoder.pretrained.float()
-        self.pixelgoal_encoder.patch_embed.proj = nn.Conv2d(in_channels=4,
+        self.pixelgoal_encoder.patch_embed.proj = nn.Conv2d(in_channels=7,
                                                             out_channels = self.pixelgoal_encoder.patch_embed.proj.out_channels,
                                                             kernel_size = self.pixelgoal_encoder.patch_embed.proj.kernel_size,
                                                             stride = self.pixelgoal_encoder.patch_embed.proj.stride,
                                                             padding = self.pixelgoal_encoder.patch_embed.proj.padding)
         self.pixelgoal_encoder.train()
         self.project_layer = nn.Linear(384,embed_size)
+        self.to(device)
         
     def forward(self,images):
         assert len(images.shape) == 4 # B,C,H,W
-        tensor_images = torch.as_tensor(images,dtype=torch.float32,device=self.device).permute(0,3,1,2)
+        device = self._get_device()
+        images = images.to(device)
+        tensor_images = torch.as_tensor(images,dtype=torch.float32,device=device).permute(0,3,1,2)
         image_token = self.pixelgoal_encoder.get_intermediate_layers(tensor_images)[0].mean(dim=1)
         image_token = self.project_layer(image_token)
         return image_token
+    
+    def _get_device(self):
+        """get device safely"""
+        # try to get device through model parameters
+        try:
+            for param in self.parameters():
+                return param.device
+        except StopIteration:
+            pass
+        
+        # try to get device through buffer
+        try:
+            for buffer in self.buffers():
+                return buffer.device
+        except StopIteration:
+            pass
+        
+        # try to get device through submodule
+        for module in self.children():
+            try:
+                for param in module.parameters():
+                    return param.device
+            except StopIteration:
+                continue
+        
+        # finally revert to default device
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
