@@ -10,6 +10,7 @@ The system should be capable of handling challenges such as camera shake, height
 
 ---
 ## 🆕 Updates
+- [2025/10/09] Real-world challenge phase is released! check onsite_competition part for the details.
 - We have fixed possible memory leak inside InternUtopia. Please pull the latest image v1.2 to use.
 - For submission, please make sure the image contain `screen`. Quick check: `$ screen --version`.
 
