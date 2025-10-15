@@ -1,12 +1,15 @@
 import argparse
 import importlib.util
 import sys
+import threading
+import time
 
 from real_world_env import RealWorldEnv
-from stream import app, start_env
+from stream import app, set_env
 
-from internnav.agent.utils.client import AgentClient
-from internnav.configs.evaluator.default_config import get_config
+from internnav.configs.agent import AgentCfg
+from internnav.configs.model import internvla_n1_cfg
+from internnav.utils.comm_utils.client import AgentClient
 
 
 def parse_args():
@@ -14,12 +17,13 @@ def parse_args():
     parser.add_argument(
         "--config",
         type=str,
-        default='scripts/eval/configs/h1_cma_cfg.py',
+        default='scripts/eval/configs/h1_internvla_n1_cfg.py',
         help='eval config file path, e.g. scripts/eval/configs/h1_cma_cfg.py',
     )
     parser.add_argument(
         "--instruction",
         type=str,
+        default='go to the red sofa',
         help='current instruction to follow',
     )
     parser.add_argument("--tag", type=str, help="tag for the run, saved by the tag name which is team-task-trail")
@@ -34,46 +38,103 @@ def load_eval_cfg(config_path, attr_name='eval_cfg'):
     return getattr(config_module, attr_name)
 
 
+def confirm(msg: str) -> bool:
+    """
+    Ask user to confirm. Return True if user types 'y' (case-insensitive),
+    False for anything else (including empty input).
+    """
+    try:
+        answer = input(f"{msg} [y/N]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print("\nCancelled.")
+        return False
+    return answer in ("", "y")
+
+
+# start the HTTP server in a background thread (non-blocking)
+def run_server(env):
+    # make env accessible to the server
+    set_env(env)
+    # IMPORTANT: disable reloader so it doesn't spawn another process
+    app.run(host="0.0.0.0", port=8080, threaded=True, use_reloader=False)
+
+
 # TODO add logging for each step, saved by the tag name which is team-task-trail
 def main():
     args = parse_args()
     print("--- Loading config from:", args.config, "---")
-    evaluator_cfg = load_eval_cfg(args.config, attr_name='eval_cfg')
-    cfg = get_config(evaluator_cfg)
-    print(cfg)
+    # evaluator_cfg = load_eval_cfg(args.config, attr_name='eval_cfg')
+    # cfg = get_config(evaluator_cfg)
+    # print(cfg)
+    agent_cfg = AgentCfg(
+        # server_host="192.168.0.2",
+        server_host="192.168.1.63",
+        server_port=8087,
+        model_name='internvla_n1',
+        ckpt_path='',
+        model_settings={
+            'env_num': 1,
+            'sim_num': 1,
+            'model_path': "checkpoints/InternVLA-N1",
+            'camera_intrinsic': [[585.0, 0.0, 320.0], [0.0, 585.0, 240.0], [0.0, 0.0, 1.0]],
+            'width': 640,
+            'height': 480,
+            'hfov': 79,
+            'resize_w': 384,
+            'resize_h': 384,
+            'max_new_tokens': 1024,
+            'num_frames': 32,
+            'num_history': 8,
+            'num_future_steps': 4,
+            'device': 'cuda:0',
+            'predict_step_nums': 32,
+            'continuous_traj': True,
+            # debug
+            'vis_debug': True,  # If vis_debug=True, you can get visualization results
+            'vis_debug_path': './logs/test/vis_debug',
+        },
+    )
+    model_settings = internvla_n1_cfg.model_dump()
 
-    # initialize user agent
-    agent = AgentClient(cfg.agent)
+    model_settings.update(agent_cfg.model_settings)
+    agent_cfg.model_settings = model_settings
+
+    # initialize user agentc
+    agent = AgentClient(agent_cfg)
 
     # initialize real world env
     env = RealWorldEnv()
+    env.step(0)
+    obs = env.get_observation()
 
     # start stream
-    start_env(env)
-    app.run(host="0.0.0.0", port=8080, threaded=True)
+    print("--- start running steam app ---")
 
-    try:
-        while True:
-            # print("get observation...")
-            # obs contains {rgb, depth, instruction}
-            obs = env.get_observation()
-            obs["instruction"] = args.instruction
+    server_thread = threading.Thread(target=run_server, args=(env,), daemon=True)
+    server_thread.start()
+    time.sleep(0.3)  # tiny delay to let the server bind the port
+    print("--- stream app is running on http://0.0.0.0:8080 ---")
 
-            # print("agent step...")
-            # action is a integer in [0, 3], agent return [{'action': [int], 'ideal_flag': bool}] (same to internvla_n1 agent)
-            try:
-                action = agent.step(obs)[0]['action'][0]
-                print(f"agent step success, action is {action}")
-            except Exception as e:
-                print(f"agent step error {e}")
-                continue
+    while True:
+        # print("get observation...")
+        # obs contains {rgb, depth, instruction}
+        obs = env.get_observation()
+        # print(obs)
+        obs["instruction"] = args.instruction
 
-            # print("env step...")
-            try:
-                env.step(action)
-                print("env step success")
-            except Exception as e:
-                print(f"env step error {e}")
-                continue
-    finally:
-        env.close()
+        print("agent step...")
+        # action is a integer in [0, 3], agent return [{'action': [int], 'ideal_flag': bool}] (same to internvla_n1 agent)
+        action = agent.step([obs])[0]['action'][0]
+        print("agent step success, action:", action)
+
+        if confirm(f"Execute this action {action}?"):
+            print("env step...")
+            env.step(action)
+            print("env step success")
+        else:
+            print("Stop requested. Exiting loop.")
+            break
+
+
+if __name__ == "__main__":
+    main()

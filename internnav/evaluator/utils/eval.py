@@ -1,18 +1,16 @@
-import base64
-import pickle
-
-from internnav.evaluator.utils.common import load_scene_usd, load_kujiale_scene_usd
-from internnav.projects.dataloader.resumable import ResumablePathKeyDataloader
-from internnav.projects.internutopia_vln_extension.configs.tasks.vln_eval_task import (
-    VLNEvalTaskCfg,
-)
-from internnav.configs.evaluator import EvalCfg
-from internutopia_extension.configs.robots.h1 import H1RobotCfg
 from internutopia.core.config.robot import ControllerCfg
+from internutopia_extension.configs.robots.h1 import H1RobotCfg
+from internutopia_extension.configs.sensors import RepCameraCfg
+
+from internnav.configs.evaluator import EvalCfg
+from internnav.evaluator.utils.common import load_kujiale_scene_usd, load_scene_usd
+from internnav.projects.dataloader.resumable import ResumablePathKeyDataloader
 from internnav.projects.internutopia_vln_extension.configs.metrics.vln_pe_metrics import (
     VLNPEMetricCfg,
 )
-from internutopia_extension.configs.sensors import RepCameraCfg
+from internnav.projects.internutopia_vln_extension.configs.tasks.vln_eval_task import (
+    VLNEvalTaskCfg,
+)
 
 
 def generate_episode(dataloader: ResumablePathKeyDataloader, config: EvalCfg):
@@ -21,7 +19,7 @@ def generate_episode(dataloader: ResumablePathKeyDataloader, config: EvalCfg):
     eval_path_key_list = dataloader.resumed_path_key_list
     path_key_data = dataloader.path_key_data
     episodes = []
-    
+
     robot = H1RobotCfg(
         **config.task.robot.robot_settings,
         controllers=[ControllerCfg(**cfg.controller_settings) for cfg in config.task.robot.controllers],
@@ -75,9 +73,3 @@ def generate_episode(dataloader: ResumablePathKeyDataloader, config: EvalCfg):
             )
         )
     return episodes
-
-
-def serialize_obs(obs):
-    serialized = pickle.dumps(obs)
-    encoded = base64.b64encode(serialized).decode('utf-8')
-    return encoded

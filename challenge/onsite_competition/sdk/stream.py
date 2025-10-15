@@ -1,13 +1,17 @@
 # stream_server.py
+import signal
+import threading
 import time
+from typing import Optional
 
 import cv2
-from flask import Flask, Response
+import numpy as np
+from flask import Flask, Response, make_response, stream_with_context
 
 app = Flask(__name__)
 
-# 由主程序注入
 _env = None
+_stop = threading.Event()  # graceful stop for Ctrl+C
 
 
 def set_env(env):
@@ -16,23 +20,91 @@ def set_env(env):
     _env = env
 
 
-def _mjpeg_generator(jpeg_quality: int = 80):
+def _encode_jpeg(frame_bgr: np.ndarray, quality: int = 80) -> Optional[bytes]:
+    ok, jpg = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    return jpg.tobytes() if ok else None
+
+
+def _mjpeg_generator(jpeg_quality: int = 80, fps_limit: float = 30.0):
     boundary = b"--frame"
-    while True:
+    min_interval = 1.0 / fps_limit if fps_limit > 0 else 0.0
+
+    last = 0.0
+    while not _stop.is_set():
         if _env is None:
-            time.sleep(0.1)
+            time.sleep(0.05)
             continue
+
         obs = _env.get_observation()
-        if obs is None:
+        if not obs or "rgb" not in obs:
             time.sleep(0.01)
             continue
-        frame_bgr = obs["rgb"]
-        ok, jpg = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality])
-        if not ok:
+
+        frame = obs["rgb"]  # Expect BGR for OpenCV; convert if your source is RGB
+        if frame is None:
+            time.sleep(0.01)
             continue
-        yield (boundary + b"\r\n" b"Content-Type: image/jpeg\r\n\r\n" + jpg.tobytes() + b"\r\n")
+
+        # If your env returns RGB, uncomment the next line:
+        # frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+        jpg = _encode_jpeg(frame, quality=jpeg_quality)
+        if jpg is None:
+            continue
+
+        # multipart chunk
+        yield (
+            boundary + b"\r\n"
+            b"Content-Type: image/jpeg\r\n"
+            b"Cache-Control: no-cache\r\n"
+            b"Pragma: no-cache\r\n\r\n" + jpg + b"\r\n"
+        )
+
+        # simple pacing (prevents 100% CPU + helps Ctrl+C responsiveness)
+        now = time.time()
+        sleep_t = min_interval - (now - last)
+        if sleep_t > 0:
+            time.sleep(sleep_t)
+        last = now
 
 
 @app.route("/stream")
 def stream():
-    return Response(_mjpeg_generator(), mimetype="multipart/x-mixed-replace; boundary=frame")
+    # stream_with_context ensures Flask doesn’t buffer the generator
+    gen = stream_with_context(_mjpeg_generator())
+    resp = Response(gen, mimetype="multipart/x-mixed-replace; boundary=frame", direct_passthrough=True)
+    # extra headers to avoid caching
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Connection"] = "keep-alive"
+    return resp
+
+
+@app.route("/")
+def index():
+    # simple viewer page
+    html = """
+    <!doctype html>
+    <title>MJPEG Stream</title>
+    <style>body{margin:0;background:#111;display:flex;justify-content:center;align-items:center;height:100vh}</style>
+    <img src="/stream" alt="stream" />
+    """
+    r = make_response(html)
+    r.headers["Cache-Control"] = "no-cache"
+    return r
+
+
+def _handle_sigint(sig, frame):
+    _stop.set()
+
+
+def run(host="0.0.0.0", port=8080):
+    # avoid the reloader so Ctrl+C works reliably
+    signal.signal(signal.SIGINT, _handle_sigint)
+    app.run(host=host, port=port, threaded=True, debug=False, use_reloader=False)
+
+
+if __name__ == "__main__":
+    # Example: plug your env here before run()
+    # set_env(MyEnv())
+    run()

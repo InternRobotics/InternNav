@@ -1,6 +1,6 @@
-from internnav.agent.utils.client import AgentClient
 from internnav.configs.evaluator import EvalCfg
 from internnav.env import Env
+from internnav.utils.comm_utils.client import AgentClient
 
 
 class Evaluator:
