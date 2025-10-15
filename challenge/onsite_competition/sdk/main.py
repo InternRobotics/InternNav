@@ -1,11 +1,9 @@
 import argparse
 import importlib.util
 import sys
-import threading
-import time
 
 from real_world_env import RealWorldEnv
-from stream import app, set_env
+from stream import run
 
 from internnav.configs.agent import AgentCfg
 from internnav.configs.model import internvla_n1_cfg
@@ -51,15 +49,6 @@ def confirm(msg: str) -> bool:
     return answer in ("", "y")
 
 
-# start the HTTP server in a background thread (non-blocking)
-def run_server(env):
-    # make env accessible to the server
-    set_env(env)
-    # IMPORTANT: disable reloader so it doesn't spawn another process
-    app.run(host="0.0.0.0", port=8080, threaded=True, use_reloader=False)
-
-
-# TODO add logging for each step, saved by the tag name which is team-task-trail
 def main():
     args = parse_args()
     print("--- Loading config from:", args.config, "---")
@@ -103,17 +92,13 @@ def main():
     agent = AgentClient(agent_cfg)
 
     # initialize real world env
-    env = RealWorldEnv()
+    env = RealWorldEnv(fps=30, duration=0.5, distance=0.0, angle=0)
     env.step(0)
     obs = env.get_observation()
 
     # start stream
     print("--- start running steam app ---")
-
-    server_thread = threading.Thread(target=run_server, args=(env,), daemon=True)
-    server_thread.start()
-    time.sleep(0.3)  # tiny delay to let the server bind the port
-    print("--- stream app is running on http://0.0.0.0:8080 ---")
+    run(env=env)
 
     while True:
         # print("get observation...")

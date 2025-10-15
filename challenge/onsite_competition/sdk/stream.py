@@ -1,5 +1,4 @@
 # stream_server.py
-import signal
 import threading
 import time
 from typing import Optional
@@ -98,10 +97,19 @@ def _handle_sigint(sig, frame):
     _stop.set()
 
 
-def run(host="0.0.0.0", port=8080):
-    # avoid the reloader so Ctrl+C works reliably
-    signal.signal(signal.SIGINT, _handle_sigint)
-    app.run(host=host, port=port, threaded=True, debug=False, use_reloader=False)
+# start the HTTP server in a background thread (non-blocking)
+def run_server(env, host, port):
+    # make env accessible to the server
+    set_env(env)
+    # IMPORTANT: disable reloader so it doesn't spawn another process
+    app.run(host="0.0.0.0", port=8080, threaded=True, use_reloader=False)
+
+
+def run(host="0.0.0.0", port=8080, env=None):
+    server_thread = threading.Thread(target=run_server, args=(env, host, port), daemon=True)
+    server_thread.start()
+    time.sleep(0.3)  # tiny delay to let the server bind the port
+    print(f"--- stream app is running on http://{host}:{port} ---")
 
 
 if __name__ == "__main__":

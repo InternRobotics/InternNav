@@ -8,7 +8,7 @@ from control import DiscreteRobotController
 
 
 class RealWorldEnv:
-    def __init__(self, fps: int = 30):
+    def __init__(self, fps: int = 30, duration: float = 0.5, distance: float = 0.2, angle: int = 15):
         self.node = DiscreteRobotController()
         self.cam = AlignedRealSense()
         self.latest_obs = None
@@ -23,9 +23,9 @@ class RealWorldEnv:
         self.thread.start()
 
         # control setting
-        self.duration = 0.5
-        self.distance = 0.0
-        self.angle = 0
+        self.duration = duration
+        self.distance = distance
+        self.angle = angle
 
     def _capture_loop(self):
         """keep capturing frames"""
