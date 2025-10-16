@@ -38,13 +38,12 @@ The challenge centers on vision-language fusion for cross-room end-to-end naviga
 - A standardized debugging time and environment will be provided onsite. Teams may use model weights different from the online stage and make environment-specific configuration adjustments, but modifications to the core algorithm logic are strictly prohibited.
 
 ### 4.2 Procedure
-Each team will receive 10 fixed-sequence instructions. Start from the first one.
+Each team will receive 10 instructions. Start from any instruction.
 For each instruction:
 - Move the robot to the given starting position.
 - Provide the instruction to the robot and raise your hand to signal the start.
-- If execution fails, teams may retry (up to 3 attempts) or skip the instruction.
-- After 3 failed attempts (timeout, collision, human intervention, etc.), the instruction must be skipped.
-- Skipped instructions cannot be retried later.
+- If execution fails, teams may retry or skip the instruction.
+- Instruction can be repeated if failed (timeout, collision, human intervention, etc.).
 - Before each attempt, the algorithm state must be reset and previous observations cleared.
 
 ### 4.3 Time Limit
@@ -82,7 +81,7 @@ Successfully completing one instruction will be one success, and the completion 
 | Action | Score Impact |
 |:--|:--|
 | Successfully reach goal | success |
-| Minor scrape more than 5 times or Collision with obstacle | fail |
+| Minor scrape or Collision with obstacle | fail |
 
 If there is a trend of continuous collisions, the referee has the right to terminate the robot’s current action, with the severity of the impact determined by the on-site referee.
 

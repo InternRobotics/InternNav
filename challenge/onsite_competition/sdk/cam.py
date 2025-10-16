@@ -99,7 +99,8 @@ class AlignedRealSense:
         if not color or not depth:
             raise RuntimeError("can not align color/depth frame")
 
-        rgb = np.asanyarray(color.get_data())  # HxWx3, uint8 (BGR)
+        bgr = np.asanyarray(color.get_data())  # HxWx3, uint8 (BGR)
+        rgb = bgr[..., ::-1]  # HxWx3, uint8 (convert to RGB)
         depth_raw = np.asanyarray(depth.get_data())  # HxW, uint16
         if depth_raw.shape != rgb.shape[:2]:
             # Extreme fallback (theoretically should be consistent after alignment).
