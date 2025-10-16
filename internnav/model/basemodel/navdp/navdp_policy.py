@@ -52,7 +52,7 @@ class NavDPNet(PreTrainedModel):
             pass
         else:
             incompatible_keys, _ = model.load_state_dict(
-                torch.load(pretrained_model_name_or_path)['state_dict'], strict=False
+                torch.load(pretrained_model_name_or_path), strict=False
             )
             if len(incompatible_keys) > 0:
                 print(f'Incompatible keys: {incompatible_keys}')
@@ -66,13 +66,12 @@ class NavDPNet(PreTrainedModel):
             self.model_config = ModelCfg(**config.model_cfg['model'])
         else:
             self.model_config = config
-
         self.config.model_cfg['il']
-
         self._device = torch.device(f"cuda:{config.model_cfg['local_rank']}")
         self.image_size = self.config.model_cfg['il']['image_size']
         self.memory_size = self.config.model_cfg['il']['memory_size']
         self.predict_size = self.config.model_cfg['il']['predict_size']
+        self.pixel_channel = self.config.model_cfg['il']['pixel_channel']
         self.temporal_depth = self.config.model_cfg['il']['temporal_depth']
         self.attention_heads = self.config.model_cfg['il']['heads']
         self.input_channels = self.config.model_cfg['il']['channels']
@@ -83,7 +82,7 @@ class NavDPNet(PreTrainedModel):
         self.rgbd_encoder = NavDP_RGBD_Backbone(
             self.image_size, self.token_dim, memory_size=self.memory_size, finetune=self.finetune, device=self._device
         )
-        self.pixel_encoder = NavDP_PixelGoal_Backbone(self.image_size, self.token_dim, device=self._device)
+        self.pixel_encoder = NavDP_PixelGoal_Backbone(self.image_size, self.token_dim, pixel_channel=self.pixel_channel, device=self._device)
         self.image_encoder = NavDP_ImageGoal_Backbone(self.image_size, self.token_dim, device=self._device)
         self.point_encoder = nn.Linear(3, self.token_dim)
 

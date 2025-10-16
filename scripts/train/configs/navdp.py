@@ -51,6 +51,7 @@ navdp_exp_cfg = ExpCfg(
         dataset_navdp='data/datasets/navdp_dataset_lerobot.json',
         root_dir='data/datasets/InternData-N1/vln_n1/traj_data',
         image_size=224,
+        pixel_channel=7,
         scene_scale=1.0,
         preload=False,
         random_digit=False,

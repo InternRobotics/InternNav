@@ -187,6 +187,7 @@ def main(config, model_class, model_config_class):
                                     config.il.batch_size,
                                     config.il.image_size,
                                     config.il.scene_scale,
+                                    pixel_channel=config.il.pixel_channel,
                                     preload = config.il.preload,
                                     random_digit = config.il.random_digit,
                                     prior_sample = config.il.prior_sample)
