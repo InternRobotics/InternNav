@@ -465,7 +465,7 @@ class VLNEvaluator:
                         image = image.resize((self.args.resize_w, self.args.resize_h))
                         rgb_list.append(image)
 
-                        if self.args.mode == 'dual-system':
+                        if self.args.mode == 'dual_system':
                             down_observations = env.step(5)
                             down_observations = env.step(5)
 
@@ -586,7 +586,7 @@ class VLNEvaluator:
                                 depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0).to(self.device)
                                 
                                 with torch.no_grad():
-                                    dp_actions = self.model.generate_traj(traj_latents, images_dp, depths_dp) 
+                                    dp_actions = self.model.generate_traj(traj_latents, images_dp, depths_dp, use_async=True) 
                             
                                 random_choice = np.random.choice(dp_actions.shape[0])
                                 if self.args.continuous_traj:
@@ -635,7 +635,7 @@ class VLNEvaluator:
                                 
                                 depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0).to(self.device)
                                 with torch.no_grad():
-                                    dp_actions = self.model.generate_traj(traj_latents, images_dp, depths_dp)
+                                    dp_actions = self.model.generate_traj(traj_latents, images_dp, depths_dp, use_async=True)
 
                                 random_choice = np.random.choice(dp_actions.shape[0])
                                 if self.args.continuous_traj:
