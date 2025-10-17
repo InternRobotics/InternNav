@@ -3,10 +3,8 @@ import importlib.util
 import sys
 
 from real_world_env import RealWorldEnv
-from stream import run
+from stream import run, set_instruction
 
-from internnav.configs.agent import AgentCfg
-from internnav.configs.model import internvla_n1_cfg
 from internnav.utils.comm_utils.client import AgentClient
 
 
@@ -15,16 +13,16 @@ def parse_args():
     parser.add_argument(
         "--config",
         type=str,
-        default='scripts/eval/configs/h1_internvla_n1_cfg.py',
+        default='challenge/onsite_competition/configs/h1_internvla_n1_cfg.py',
         help='eval config file path, e.g. scripts/eval/configs/h1_cma_cfg.py',
     )
     parser.add_argument(
         "--instruction",
         type=str,
-        default='go to the red sofa',
+        default='Go straight and pass the sofa and turn right into the hallway. Keep walking down, pass the kitchen and the bathroom, then enter the study room at the far end on the right with a desk, stop next to the white shelf.',
         help='current instruction to follow',
     )
-    parser.add_argument("--tag", type=str, help="tag for the run, saved by the tag name which is team-task-trail")
+    parser.add_argument("--uninteractive_mode", action='store_true', help="whether to confirm each step")
     return parser.parse_args()
 
 
@@ -49,50 +47,40 @@ def confirm(msg: str) -> bool:
     return answer in ("", "y")
 
 
+def get_instruction() -> int:
+    try:
+        import json
+
+        instruction_lst = json.load(open("challenge/onsite_competition/instructions.json"))
+        print("Available instructions:")
+        for i, item in enumerate(instruction_lst):
+            print(f"{i}: {item['instruction_title']}")
+        answer = input("input instruction id: ").strip().lower()
+        answer = int(answer)
+    except (EOFError, KeyboardInterrupt):
+        print("\nCancelled.")
+        sys.exit()
+    return instruction_lst[answer]['instruction'][0]
+
+
+def action_to_word(action: int) -> str:
+    action = max(0, min(3, action))
+    wl = ["stand still", "move forward", "turn left", "turn right"]
+    return wl[action]
+
+
 def main():
     args = parse_args()
     print("--- Loading config from:", args.config, "---")
-    # evaluator_cfg = load_eval_cfg(args.config, attr_name='eval_cfg')
-    # cfg = get_config(evaluator_cfg)
-    # print(cfg)
-    agent_cfg = AgentCfg(
-        # server_host="192.168.0.2",
-        server_host="192.168.1.63",
-        server_port=8087,
-        model_name='internvla_n1',
-        ckpt_path='',
-        model_settings={
-            'env_num': 1,
-            'sim_num': 1,
-            'model_path': "checkpoints/InternVLA-N1",
-            'camera_intrinsic': [[585.0, 0.0, 320.0], [0.0, 585.0, 240.0], [0.0, 0.0, 1.0]],
-            'width': 640,
-            'height': 480,
-            'hfov': 79,
-            'resize_w': 384,
-            'resize_h': 384,
-            'max_new_tokens': 1024,
-            'num_frames': 32,
-            'num_history': 8,
-            'num_future_steps': 4,
-            'device': 'cuda:0',
-            'predict_step_nums': 32,
-            'continuous_traj': True,
-            # debug
-            'vis_debug': True,  # If vis_debug=True, you can get visualization results
-            'vis_debug_path': './logs/test/vis_debug',
-        },
-    )
-    model_settings = internvla_n1_cfg.model_dump()
+    cfg = load_eval_cfg(args.config, attr_name='eval_cfg')
+    agent_cfg = cfg.agent
 
-    model_settings.update(agent_cfg.model_settings)
-    agent_cfg.model_settings = model_settings
-
-    # initialize user agentc
+    # initialize user's agent
     agent = AgentClient(agent_cfg)
 
     # initialize real world env
-    env = RealWorldEnv(fps=30, duration=0.5, distance=0.0, angle=0)
+    env = RealWorldEnv(fps=30, duration=0.1, distance=0.3, angle=15, move_speed=0.5, turn_speed=0.5)
+    env.reverse()  # reverse move direction if using a rear camera
     env.step(0)
     obs = env.get_observation()
 
@@ -101,24 +89,31 @@ def main():
     run(env=env)
 
     while True:
-        # print("get observation...")
-        # obs contains {rgb, depth, instruction}
-        obs = env.get_observation()
-        # print(obs)
-        obs["instruction"] = args.instruction
+        instruction = get_instruction()
+        print("\nNew instruction:", instruction)
+        set_instruction(instruction)
 
-        print("agent step...")
-        # action is a integer in [0, 3], agent return [{'action': [int], 'ideal_flag': bool}] (same to internvla_n1 agent)
-        action = agent.step([obs])[0]['action'][0]
-        print("agent step success, action:", action)
+        while True:
+            # print("get observation...")
+            # obs contains {rgb, depth, instruction}
+            obs = env.get_observation()
+            # print(obs)
+            obs["instruction"] = instruction
 
-        if confirm(f"Execute this action {action}?"):
-            print("env step...")
-            env.step(action)
-            print("env step success")
-        else:
-            print("Stop requested. Exiting loop.")
-            break
+            print("agent step...")
+            # action is a integer in [0, 3], agent return [{'action': [int], 'ideal_flag': bool}] (same to internvla_n1 agent)
+            action = agent.step([obs])[0]['action'][0]
+            print("agent step success, action:", action)
+
+            if args.uninteractive_mode or confirm(f"Execute this action [{action_to_word(action)}]?"):
+                print("env step...")
+                env.step(action)
+                print("env step success")
+            else:
+                print("Stop requested. Exiting loop.")
+                print("agent reset...")
+                agent.reset()
+                break
 
 
 if __name__ == "__main__":
