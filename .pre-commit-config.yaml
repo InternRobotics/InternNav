@@ -14,7 +14,7 @@ repos:
           "--exclude=__init__.py",
         ]
   - repo: https://github.com/PyCQA/flake8
-    rev: 4.0.1
+    rev: 6.0.0
     hooks:
       - id: flake8
   - repo: https://github.com/PyCQA/isort
@@ -30,6 +30,7 @@ repos:
     hooks:
       - id: codespell
         args: ['--ignore-words-list=ro']
+        exclude: '\.ipynb$'
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v3.1.0
     hooks:

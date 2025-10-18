@@ -27,6 +27,7 @@ class InternVLAN1AsyncAgent:
     def __init__(self, args):
         self.device = torch.device(args.device)
         self.save_dir = "test_data/" + datetime.now().strftime("%Y%m%d_%H%M%S")
+        print(f"args.model_path{args.model_path}")
         self.model = InternVLAN1ForCausalLM.from_pretrained(
             args.model_path,
             torch_dtype=torch.bfloat16,
@@ -42,6 +43,7 @@ class InternVLAN1AsyncAgent:
         self.resize_w = args.resize_w
         self.resize_h = args.resize_h
         self.num_history = args.num_history
+        self.PLAN_STEP_GAP = args.plan_step_gap
 
         prompt = "You are an autonomous navigation assistant. Your task is to <instruction>. Where should you go next to stay on track? Please output the next waypoint's coordinates in the image. Please output STOP when you have successfully completed the task."
         answer = ""
@@ -91,6 +93,12 @@ class InternVLAN1AsyncAgent:
         self.llm_output = ""
         self.past_key_values = None
 
+        self.output_action = None
+        self.output_latent = None
+        self.output_pixel = None
+        self.pixel_goal_rgb = None
+        self.pixel_goal_depth = None
+
         self.save_dir = "test_data/" + datetime.now().strftime("%Y%m%d_%H%M%S")
         os.makedirs(self.save_dir, exist_ok=True)
 
@@ -118,9 +126,8 @@ class InternVLAN1AsyncAgent:
 
     def step(self, rgb, depth, pose, instruction, intrinsic, look_down=False):
         dual_sys_output = S2Output()
-        PLAN_STEP_GAP = 8
         no_output_flag = self.output_action is None and self.output_latent is None
-        if (self.episode_idx - self.last_s2_idx > PLAN_STEP_GAP) or look_down or no_output_flag:
+        if (self.episode_idx - self.last_s2_idx > self.PLAN_STEP_GAP) or look_down or no_output_flag:
             self.output_action, self.output_latent, self.output_pixel = self.step_s2(
                 rgb, depth, pose, instruction, intrinsic, look_down
             )
@@ -152,7 +159,7 @@ class InternVLAN1AsyncAgent:
             )
             trajectories = self.step_s1(self.output_latent, rgbs, depths)
 
-            dual_sys_output.output_action = traj_to_actions(trajectories)
+            dual_sys_output.output_trajectory = traj_to_actions(trajectories, use_discrate_action=False)
 
         return dual_sys_output
 
