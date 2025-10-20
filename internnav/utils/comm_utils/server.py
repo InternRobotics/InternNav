@@ -31,6 +31,7 @@ class AgentServer:
             ('/init', self.init_agent, ['POST'], status.HTTP_201_CREATED),
             ('/{agent_name}/step', self.step_agent, ['POST'], None),
             ('/{agent_name}/reset', self.reset_agent, ['POST'], None),
+            # TODO: Add stop server route
         ]
 
         for path, handler, methods, status_code in route_config:

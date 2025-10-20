@@ -4,11 +4,20 @@ import time
 from cam import AlignedRealSense
 from control import DiscreteRobotController
 
-from internnav.env import Env
+# from internnav.env import Env
 
 
-class RealWorldEnv(Env):
-    def __init__(self, fps: int = 30):
+class RealWorldEnv:
+    def __init__(
+        self,
+        fps: int = 30,
+        duration: float = 0.5,
+        distance: float = 0.25,
+        angle: int = 15,
+        turn_speed: float = 0.5,
+        move_speed: float = 0.3,
+    ):
+
         self.node = DiscreteRobotController()
         self.cam = AlignedRealSense()
         self.latest_obs = None
@@ -21,6 +30,16 @@ class RealWorldEnv(Env):
         # 启动采集线程
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
+
+        # control setting
+        self.duration = duration
+        self.distance = distance
+        self.angle = angle
+        self.turn_speed = turn_speed  # rad/s
+        self.move_speed = move_speed  # m/s
+
+    def reverse(self):
+        self.distance = -self.distance
 
     def _capture_loop(self):
         """keep capturing frames"""
@@ -52,13 +71,13 @@ class RealWorldEnv(Env):
             3: turn right
         """
         if action == 0:
-            self.node.stand_still()
+            self.node.stand_still(self.duration)
         elif action == 1:
-            self.node.move_forward()
+            self.node.move_feedback(self.distance, self.move_speed)
         elif action == 2:
-            self.node.turn_left()
+            self.node.turn(self.angle, self.turn_speed)
         elif action == 3:
-            self.node.turn_right()
+            self.node.turn(self.angle, -self.turn_speed)
 
     def close(self):
         self.stop_flag.set()

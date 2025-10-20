@@ -1,9 +1,16 @@
+import base64
+import pickle
 from typing import Any, Dict, List, Optional
 
 import requests
 
 from internnav.configs.agent import AgentCfg, InitRequest, ResetRequest, StepRequest
-from internnav.evaluator.utils.eval import serialize_obs
+
+
+def serialize_obs(obs):
+    serialized = pickle.dumps(obs)
+    encoded = base64.b64encode(serialized).decode('utf-8')
+    return encoded
 
 
 class AgentClient:
