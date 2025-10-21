@@ -28,9 +28,7 @@ MAP_ORACLE_WAYPOINT = 13
 MAP_SHORTEST_PATH_WAYPOINT = 14
 
 TOP_DOWN_MAP_COLORS = np.full((256, 3), 150, dtype=np.uint8)
-TOP_DOWN_MAP_COLORS[15:] = cv2.applyColorMap(
-    np.arange(241, dtype=np.uint8), cv2.COLORMAP_JET
-).squeeze(1)[:, ::-1]
+TOP_DOWN_MAP_COLORS[15:] = cv2.applyColorMap(np.arange(241, dtype=np.uint8), cv2.COLORMAP_JET).squeeze(1)[:, ::-1]
 TOP_DOWN_MAP_COLORS[MAP_INVALID_POINT] = [255, 255, 255]  # White
 TOP_DOWN_MAP_COLORS[MAP_VALID_POINT] = [150, 150, 150]  # Light Grey
 TOP_DOWN_MAP_COLORS[MAP_BORDER_INDICATOR] = [50, 50, 50]  # Grey
@@ -73,9 +71,7 @@ def colorize_top_down_map(
         # Only desaturate valid points as only valid points get revealed
         desat_mask = top_down_map != MAP_INVALID_POINT
 
-        _map[desat_mask] = (
-            _map * fog_of_war_desat_values[fog_of_war_mask]
-        ).astype(np.uint8)[desat_mask]
+        _map[desat_mask] = (_map * fog_of_war_desat_values[fog_of_war_mask]).astype(np.uint8)[desat_mask]
 
     return _map
 
@@ -205,9 +201,7 @@ def draw_reference_path(
         pt_from = pt_to
 
     for pt in shortest_path_points:
-        drawpoint(
-            img, (pt[1], pt[0]), MAP_SHORTEST_PATH_WAYPOINT, meters_per_px
-        )
+        drawpoint(img, (pt[1], pt[0]), MAP_SHORTEST_PATH_WAYPOINT, meters_per_px)
 
 
 def draw_straight_shortest_path_points(
@@ -219,10 +213,7 @@ def draw_straight_shortest_path_points(
     """Draws the shortest path from start to goal assuming a standard
     discrete action space.
     """
-    shortest_path_points = [
-        habitat_maps.to_grid(p[2], p[0], img.shape[0:2], sim)[::-1]
-        for p in shortest_path_points
-    ]
+    shortest_path_points = [habitat_maps.to_grid(p[2], p[0], img.shape[0:2], sim)[::-1] for p in shortest_path_points]
 
     habitat_maps.draw_path(
         img,
@@ -232,9 +223,7 @@ def draw_straight_shortest_path_points(
     )
 
 
-def draw_source_and_target(
-    img: np.ndarray, sim: Simulator, episode: VLNEpisode, meters_per_px: float
-) -> None:
+def draw_source_and_target(img: np.ndarray, sim: Simulator, episode: VLNEpisode, meters_per_px: float) -> None:
     s_x, s_y = habitat_maps.to_grid(
         episode.start_position[2],
         episode.start_position[0],
@@ -285,18 +274,14 @@ def get_nearest_node(graph: nx.Graph, current_position: List[float]) -> str:
     for node in graph:
         node_pos = graph.nodes[node]["position"]
         node_pos = np.take(node_pos, (0, 2))
-        cur_dist = np.linalg.norm(
-            np.array(node_pos) - np.array(current_position), ord=2
-        )
+        cur_dist = np.linalg.norm(np.array(node_pos) - np.array(current_position), ord=2)
         if cur_dist < dist:
             dist = cur_dist
             nearest = node
     return nearest
 
 
-def update_nearest_node(
-    graph: nx.Graph, nearest_node: str, current_position: np.ndarray
-) -> str:
+def update_nearest_node(graph: nx.Graph, nearest_node: str, current_position: np.ndarray) -> str:
     """Determine the closest MP3D node to the agent's current position as
     given by a [x,z] position vector. The selected node must be reachable
     from the previous MP3D node as specified in the nav-graph edges.
@@ -309,9 +294,7 @@ def update_nearest_node(
     for node in [nearest_node] + [e[1] for e in graph.edges(nearest_node)]:
         node_pos = graph.nodes[node]["position"]
         node_pos = np.take(node_pos, (0, 2))
-        cur_dist = np.linalg.norm(
-            np.array(node_pos) - np.array(current_position), ord=2
-        )
+        cur_dist = np.linalg.norm(np.array(node_pos) - np.array(current_position), ord=2)
         if cur_dist < dist:
             dist = cur_dist
             nearest = node
@@ -325,18 +308,14 @@ def draw_mp3d_nodes(
     graph: nx.Graph,
     meters_per_px: float,
 ) -> None:
-    n = get_nearest_node(
-        graph, (episode.start_position[0], episode.start_position[2])
-    )
+    n = get_nearest_node(graph, (episode.start_position[0], episode.start_position[2]))
     starting_height = graph.nodes[n]["position"][1]
     for node in graph:
         pos = graph.nodes[node]["position"]
 
         # no obvious way to differentiate between floors. Use this for now.
         if abs(pos[1] - starting_height) < 1.0:
-            r_x, r_y = habitat_maps.to_grid(
-                pos[2], pos[0], img.shape[0:2], sim
-            )
+            r_x, r_y = habitat_maps.to_grid(pos[2], pos[0], img.shape[0:2], sim)
 
             # only paint if over a valid point
             if img[r_x, r_y]:
