@@ -40,7 +40,7 @@ eval_cfg = EvalCfg(
         model_settings={},
     ),
     env=EnvCfg(
-        env_type='vln_multi',
+        env_type='internutopia',
         env_settings={
             'use_fabric': False,
             'headless': True,  # display option: set to False will open isaac-sim interactive window
@@ -51,7 +51,7 @@ eval_cfg = EvalCfg(
         task_settings={
             'env_num': 2,
             'use_distributed': True,  # Ray distributed framework
-            'proc_num': 8,
+            'proc_num': 4,
         },
         scene=SceneCfg(
             scene_type='mp3d',
