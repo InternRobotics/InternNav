@@ -15,7 +15,7 @@ eval_cfg = EvalCfg(
         model_settings={},
     ),
     env=EnvCfg(
-        env_type='vln_pe',
+        env_type='internutopia',
         env_settings={
             'use_fabric': False,
             'headless': True,
@@ -34,7 +34,7 @@ eval_cfg = EvalCfg(
         ),
         robot_name='h1',
         robot_usd_path='data/Embodiments/vln-pe/h1/h1_vln_pointcloud.usd',
-        camera_resolution=[256,256], # (W,H)
+        camera_resolution=[256, 256],  # (W,H)
         camera_prim_path='torso_link/h1_pano_camera_0',
     ),
     dataset=EvalDatasetCfg(

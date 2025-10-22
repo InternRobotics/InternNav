@@ -56,11 +56,12 @@ class EvalDatasetCfg(BaseModel):
 
 
 class EvalCfg(BaseModel):
+    eval_type: Optional[str] = None
+    eval_settings: Optional[Dict[str, Any]] = {}
     agent: Optional[AgentCfg] = None
     env: EnvCfg
     task: TaskCfg
     dataset: EvalDatasetCfg
-    eval_settings: Optional[Dict[str, Any]] = {}
 
 
 __all__ = [

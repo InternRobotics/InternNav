@@ -22,6 +22,8 @@ class Agent:
         """
 
         def decorator(agent_class):
+            if agent_type in cls.agents:
+                raise ValueError(f"Agent {agent_type} already registered.")
             cls.agents[agent_type] = agent_class
 
         return decorator

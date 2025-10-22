@@ -15,7 +15,6 @@ from internnav.evaluator.utils.eval import generate_episode
 from internnav.projects.dataloader.resumable import ResumablePathKeyDataloader
 from internnav.utils import common_log_util, progress_log_multi_util
 from internnav.utils.common_log_util import common_logger as log
-from internnav.utils.visualize_util import VisualizeUtil
 
 
 class runner_status_code(Enum):
@@ -26,21 +25,31 @@ class runner_status_code(Enum):
     STOP = 4
 
 
-def transform_action_batch(origin, flash=False):
+def transform_action_batch(actions, flash=False):
     transformed_actions = []
-    for _, a in enumerate([*map(lambda a: a[0], origin)]):
-        if a == 0:
+    for action in actions:
+        if 'ideal_flag' in action.keys():
+            ideal_flag = action['ideal_flag']
+            if flash:
+                assert ideal_flag is True
+        else:
+            ideal_flag = False
+        if not ideal_flag:
+            transformed_actions.append({'h1': {'vln_dp_move_by_speed': action['action'][0]}})
+            continue
+        a = action['action']
+        if a == 0 or a == [0] or a == [[0]]:
             transformed_actions.append({'h1': {'stop': []}})
-        elif a == -1:
+        elif a == -1 or a == [-1] or a == [[-1]]:
             transformed_actions.append({'h1': {'stand_still': []}})
         else:
-            action_name = f"move_by_{'discrete' if not flash else 'flash'}"
-            transformed_actions.append({'h1': {action_name: [a]}})
+            move = f"move_by_{'discrete' if not flash else 'flash'}"
+            transformed_actions.append({'h1': {move: a}})  # discrete e.g. [3]
     return transformed_actions
 
 
-@Evaluator.register('vln_pe')
-class VlnPeEvaluator(Evaluator):
+@Evaluator.register('vln_multi')
+class VlnMultiEvaluator(Evaluator):
     def __init__(self, config: EvalCfg):
         self.task_name = config.task.task_name
         if not Path(get_lmdb_path(self.task_name)).exists():
@@ -52,15 +61,12 @@ class VlnPeEvaluator(Evaluator):
         progress_log_multi_util.init(self.task_name, self.dataloader.size)
         self.total_path_num = self.dataloader.size
         progress_log_multi_util.progress_logger_multi.info(
-            f'start eval dataset: {self.task_name}, total_path:{self.dataloader.size}'  # noqa: E501
+            f'start eval dataset: {self.task_name}, total_path: {self.dataloader.size}'  # noqa: E501
         )
-        self.vis_output = config.eval_settings['vis_output']
-        self.visualize_util = VisualizeUtil(self.task_name, fps=6)
-
         # generate episode
         episodes = generate_episode(self.dataloader, config)
         if len(episodes) == 0:
-            log.info("No more episodes to evaluate. Episodes are saved in data/sample_episodes/")
+            log.info("No more episodes to evaluate")
             sys.exit(0)
         config.task.task_settings.update({'episodes': episodes})
         self.env_num = config.task.task_settings['env_num']
@@ -88,7 +94,6 @@ class VlnPeEvaluator(Evaluator):
         set_seed_model(0)
         self.data_collector = DataCollector(self.dataloader.lmdb_path)
         self.robot_flash = config.task.robot_flash
-        self.save_to_json = config.eval_settings['save_to_json']
 
     @property
     def ignore_obs_attr(self):
@@ -136,7 +141,7 @@ class VlnPeEvaluator(Evaluator):
         obs = self.remove_obs_attr(obs)
         if not np.logical_and.reduce(self.runner_status == runner_status_code.WARM_UP):
             action = self.agent.step(obs)
-            log.info(f'get {len(action)} actions :{action}')
+            log.info(f'now action: {len(action)}, {action}, fake_obs_index: {fake_obs_index}')
             action = transform_action_batch(action, self.robot_flash)
         # change warm_up
         action = np.array(action)
@@ -153,17 +158,21 @@ class VlnPeEvaluator(Evaluator):
 
     def env_step(self, action):
         start_time = time()
+        # stop_count = [0 for _ in range(self.env_num * self.sim_num)]
         while True:
-            # Stop requires special handling and also requires 50 steps to be taken
+            # stop action maybe also need 50 steps
             self.runner_status[
                 np.logical_and(self.runner_status == runner_status_code.NORMAL, action == {'h1': {'stop': []}})
             ] = runner_status_code.STOP
+            print(action)
+            t0 = time()
             obs, reward, terminated, truncated, info = self.env.step(action=action.tolist())
+            print(f"inner one step time {time() - t0}")
             obs = self._obs_remove_robot_name(obs)
             finish_status = np.logical_or(
                 np.array([ob['finish_action'] for ob in obs]),
                 np.array(terminated),
-            )
+            )  # strong condition
 
             if (
                 np.logical_and.reduce(np.array(finish_status)[self.runner_status == runner_status_code.NORMAL])
@@ -171,10 +180,11 @@ class VlnPeEvaluator(Evaluator):
             ) or np.logical_and.reduce(np.array(finish_status)):
                 self.runner_status[self.runner_status == runner_status_code.STOP] = runner_status_code.NORMAL
                 break
+            if __debug__ and np.logical_or.reduce(np.array(finish_status)):
+                print(f'finish_status: {finish_status}')
         end_time = time()
         duration = round(end_time - start_time, 2)
-        log.debug(f'env step duration: {duration}s')
-
+        log.info(f'env step time: {duration}s')
         return obs, terminated
 
     def terminate_ops(self, obs_ls, reset_infos, terminated_ls):
@@ -182,7 +192,7 @@ class VlnPeEvaluator(Evaluator):
         if np.logical_or.reduce(finish_warmup_ls):
             self.agent.reset(np.where(finish_warmup_ls)[0].tolist())
             self.runner_status[finish_warmup_ls] = runner_status_code.NORMAL
-            log.debug(f'env{np.where(finish_warmup_ls)[0].tolist()}: states switch to NORMAL.')
+            log.info(f'env{np.where(finish_warmup_ls)[0].tolist()}: states switch to NORMAL.')
         # if no need reset, return False
         if not self._need_reset(terminated_ls):
             return False, reset_infos
@@ -192,7 +202,9 @@ class VlnPeEvaluator(Evaluator):
             if terminated and self.runner_status[env_id] != runner_status_code.TERMINATED:
                 obs = obs_ls[env_id]
                 reset_info = reset_infos[env_id]
-                log.info(f"{self.now_path_key(reset_info)}: {json.dumps(obs['metrics'], indent=4)}")
+                if not __debug__:
+                    pass
+                log.info(json.dumps(obs['metrics']))
                 self.data_collector.save_eval_result(
                     key=self.now_path_key(reset_info),
                     result=obs['metrics'][list(obs['metrics'].keys())[0]][0]['fail_reason'],
@@ -204,34 +216,24 @@ class VlnPeEvaluator(Evaluator):
                     step_count=obs['metrics'][list(obs['metrics'].keys())[0]][0]['steps'],
                     result=obs['metrics'][list(obs['metrics'].keys())[0]][0]['fail_reason'],
                 )
-                if self.vis_output:
-                    self.visualize_util.trace_end(
-                        trajectory_id=self.now_path_key(reset_info),
-                        result=obs['metrics'][list(obs['metrics'].keys())[0]][0]['fail_reason'],
-                    )
-                if self.save_to_json:
-                    self.result_logger.write_now_result_json()
                 self.result_logger.write_now_result()
                 self.runner_status[env_id] = runner_status_code.NOT_RESET
-                log.debug(f'env{env_id}: states switch to NOT_RESET.')
-
-        # need this status to reset
-        reset_env_ids = np.where(self.runner_status == runner_status_code.NOT_RESET)[0].tolist()
-
+                log.info(f'env{env_id}: states switch to NOT_RESET.')
+        reset_env_ids = np.where(self.runner_status == runner_status_code.NOT_RESET)[  # need this status to reset
+            0
+        ].tolist()
         if len(reset_env_ids) > 0:
-            log.debug(f'env{reset_env_ids}: start new episode!')
+            log.info(f'env{reset_env_ids}: start new episode!')
             obs, new_reset_infos = self.env.reset(reset_env_ids)
             self.runner_status[reset_env_ids] = runner_status_code.WARM_UP
-            log.debug(f'env{reset_env_ids}: states switch to WARM UP.')
+            log.info(f'env{reset_env_ids}: states switch to WARM UP.')
             # modify original reset_info
             reset_infos = np.array(reset_infos)
-            reset_infos[reset_env_ids] = (
-                new_reset_infos if len(new_reset_infos) > 0 else None
-            )  # If there is only one reset and no new_deset_infos, return an empty array
+            reset_infos[reset_env_ids] = new_reset_infos if len(new_reset_infos) > 0 else None
             self.runner_status[
                 np.vectorize(lambda x: x)(reset_infos) == None  # noqa: E711
             ] = runner_status_code.TERMINATED
-            log.debug(f'env{np.vectorize(lambda x: x)(reset_infos) == None}: states switch to TERMINATED.')
+            log.info(f'env{np.vectorize(lambda x: x)(reset_infos) == None}: states switch to TERMINATED.')
             reset_infos = reset_infos.tolist()
 
         if np.logical_and.reduce(self.runner_status == runner_status_code.TERMINATED):
@@ -243,14 +245,10 @@ class VlnPeEvaluator(Evaluator):
             progress_log_multi_util.trace_start(
                 trajectory_id=self.now_path_key(reset_info),
             )
-            if self.vis_output:
-                self.visualize_util.trace_start(
-                    trajectory_id=self.now_path_key(reset_info), reference_path=reset_info.data['reference_path']
-                )
         return False, reset_infos
 
     def eval(self):
-        print('--- VlnPeEvaluator start ---')
+        print('--- VlnMultiEvaluator start ---')
         obs, reset_info = self.env.reset()
         print('obs:', obs)
         for info in reset_info:
@@ -259,10 +257,6 @@ class VlnPeEvaluator(Evaluator):
             progress_log_multi_util.trace_start(
                 trajectory_id=self.now_path_key(info),
             )
-            if self.vis_output:
-                self.visualize_util.trace_start(
-                    trajectory_id=self.now_path_key(info), reference_path=info.data['reference_path']
-                )
         log.info('start new episode!')
 
         obs = self.warm_up()
@@ -283,20 +277,7 @@ class VlnPeEvaluator(Evaluator):
             env_term, reset_info = self.terminate_ops(obs, reset_info, terminated)
             if env_term:
                 break
-
-            # save step obs
-            if self.vis_output:
-                if self.config.task.task_settings['use_distributed']:
-                    raise Exception('visualization not support distributed mode!')
-
-                for ob, info, act in zip(obs, reset_info, action):
-                    if info is None or 'rgb' not in ob or ob['fail_reason']:
-                        continue
-                    self.visualize_util.save_observation(
-                        trajectory_id=self.now_path_key(info), obs=ob, action=act[self.robot_name]
-                    )
-
         self.env.close()
         progress_log_multi_util.report()
 
-        print('--- VlnPeEvaluator end ---')
+        print('--- VlnMultiEvaluator end ---')

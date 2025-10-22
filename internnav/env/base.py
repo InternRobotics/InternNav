@@ -39,6 +39,8 @@ class Env:
         """
 
         def decorator(env_class):
+            if env_type in cls.envs:
+                raise ValueError(f"Env {env_type} already registered.")
             cls.envs[env_type] = env_class
 
         return decorator

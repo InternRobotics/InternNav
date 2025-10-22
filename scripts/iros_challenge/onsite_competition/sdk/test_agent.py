@@ -5,7 +5,7 @@ import numpy as np
 from save_obs import load_obs_from_meta
 
 from internnav.agent.utils.client import AgentClient
-from internnav.configs.evaluator.default_config import get_config
+from internnav.configs.evaluator.vln_default_config import get_config
 
 
 def load_eval_cfg(config_path, attr_name='eval_cfg'):

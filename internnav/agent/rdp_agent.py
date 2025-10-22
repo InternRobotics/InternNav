@@ -25,7 +25,6 @@ from internnav.model.utils.feature_extract import (
     extract_image_features,
     extract_instruction_tokens,
 )
-from internnav.utils import common_log_util
 from internnav.utils.common_log_util import common_logger as log
 
 
@@ -348,5 +347,12 @@ class RdpAgent(Agent):
         start = time.time()
         action = self.inference(obs)
         end = time.time()
-        print(f'总时间： {round(end-start,4)}s')
-        return action
+        print(f'总时间： {round(end-start, 4)}s')
+
+        # convert from [[a1],[a2]] to [{'action': [a1],'ideal_flag':True}, {'action': [a2],'ideal_flag':True}]
+        actions = []
+        for a in action:
+            if not isinstance(a, list):
+                a = [a]
+            actions.append({'action': a, 'ideal_flag': True})
+        return actions

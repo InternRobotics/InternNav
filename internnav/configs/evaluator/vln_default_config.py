@@ -1,17 +1,11 @@
-import sys
 import os
-import numpy as np
-from pydantic import BaseModel
-from internutopia.core.config.distribution import RayDistributionCfg
-from internnav.configs.model import cma_cfg, rdp_cfg, seq2seq_cfg, internvla_n1_cfg
+import sys
 
-from internnav.projects.internutopia_vln_extension.configs.controllers.stand_still import (
-    StandStillControllerCfg,
-)
-from internnav.projects.internutopia_vln_extension.configs.robots.h1 import (
-    vln_move_by_speed_cfg as h1_vln_move_by_speed_cfg,
-)
-from internnav.projects.internutopia_vln_extension.configs.sensors.vln_camera import VLNCameraCfg
+import numpy as np
+from internutopia.core.config.distribution import RayDistributionCfg
+from internutopia_extension.configs.sensors import RepCameraCfg
+from pydantic import BaseModel
+
 from internnav.configs.evaluator import (
     ControllerCfg,
     EnvCfg,
@@ -23,7 +17,7 @@ from internnav.configs.evaluator import (
     SensorCfg,
     TaskCfg,
 )
-from internnav.configs.model import cma_cfg, rdp_cfg, seq2seq_cfg
+from internnav.configs.model import cma_cfg, internvla_n1_cfg, rdp_cfg, seq2seq_cfg
 from internnav.projects.internutopia_vln_extension.configs.controllers.discrete_controller import (
     DiscreteControllerCfg,
 )
@@ -34,10 +28,14 @@ from internnav.projects.internutopia_vln_extension.configs.metrics.vln_pe_metric
     VLNPEMetricCfg,
 )
 from internnav.projects.internutopia_vln_extension.configs.robots.h1 import (
-    vln_move_by_speed_cfg as h1_vln_move_by_speed_cfg, vln_move_by_flash_cfg
+    vln_move_by_flash_cfg,
 )
-from internnav.projects.internutopia_vln_extension.configs.sensors.vln_camera import VLNCameraCfg
-from internutopia_extension.configs.sensors import RepCameraCfg
+from internnav.projects.internutopia_vln_extension.configs.robots.h1 import (
+    vln_move_by_speed_cfg as h1_vln_move_by_speed_cfg,
+)
+from internnav.projects.internutopia_vln_extension.configs.sensors.vln_camera import (
+    VLNCameraCfg,
+)
 
 cfg = EvalCfg(
     agent=None,
@@ -78,10 +76,8 @@ cfg = EvalCfg(
             'retry_list': [],
         },
     ),
-    eval_settings={
-        'save_to_json': True,
-        'vis_output': True
-    },
+    eval_type='vln_multi',
+    eval_settings={'save_to_json': True, 'vis_output': True},
 )
 
 
@@ -114,7 +110,7 @@ def validate_eval_config(eval_cfg: BaseModel):
     if none_fields:
         error_msg = 'Evaluation config validation failed!\nNone values found in:\n'
         for field in none_fields:
-            error_msg += f'  - {field}\n'
+            error_msg += f' - {field}\n'
         raise ValueError(error_msg)
 
     print('Evaluation config validation passed!')
@@ -154,7 +150,7 @@ def merge_models(base_model, update_model):
     try:
         validate_eval_config(base_dict)
     except ValueError as e:
-        print(f'❌ Configuration Error:\n{e}')
+        print(f'❌ Configuration Error: \n{e}')
         sys.exit(1)
     return base_dict
 
@@ -165,7 +161,9 @@ def get_config(evaluator_cfg: EvalCfg):
         move_by_speed_cfg = h1_vln_move_by_speed_cfg.model_dump()
         robot_type = 'VLNH1Robot'
         robot_usd_path = evaluator_cfg.task.robot_usd_path
-        move_by_speed_cfg["policy_weights_path"] = os.path.dirname(robot_usd_path) + '/policy/move_by_speed/h1_loco_jit_policy.pt'
+        move_by_speed_cfg["policy_weights_path"] = (
+            os.path.dirname(robot_usd_path) + '/policy/move_by_speed/h1_loco_jit_policy.pt'
+        )
         camera_resolution = evaluator_cfg.task.camera_resolution
         robot_offset = np.array([0.0, 0.0, 1.05])
         camera_prim_path = evaluator_cfg.task.camera_prim_path
@@ -219,10 +217,7 @@ def get_config(evaluator_cfg: EvalCfg):
 
     # add the flash controller in, by flash flag.
     if evaluator_cfg.task.robot_flash:
-        robot.controllers.append(
-            ControllerCfg(
-                controller_settings=vln_move_by_flash_cfg.model_dump())
-        )
+        robot.controllers.append(ControllerCfg(controller_settings=vln_move_by_flash_cfg.model_dump()))
 
     if evaluator_cfg.task.robot_flash or evaluator_cfg.eval_settings.get('vis_output', True):
         topdown_camera = SensorCfg(
@@ -257,7 +252,7 @@ def get_config(evaluator_cfg: EvalCfg):
         {'robot_offset': robot_offset, 'task_name': evaluator_cfg.task.task_name}
     )
 
-    #switch scene
+    # switch scene
     if evaluator_cfg.task.scene.scene_type == 'mp3d':
         evaluator_cfg.task.scene = SceneCfg(
             scene_type='mp3d',

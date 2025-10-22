@@ -29,7 +29,7 @@ from internnav.configs.evaluator import (
     SceneCfg,
     TaskCfg,
 )
-from internnav.configs.evaluator.default_config import get_config
+from internnav.configs.evaluator.vln_default_config import get_config
 from internnav.evaluator import Evaluator
 
 eval_cfg = EvalCfg(
@@ -40,7 +40,7 @@ eval_cfg = EvalCfg(
         model_settings={},
     ),
     env=EnvCfg(
-        env_type='vln_pe',
+        env_type='vln_multi',
         env_settings={
             'use_fabric': False,
             'headless': True,  # display option: set to False will open isaac-sim interactive window
