@@ -19,7 +19,6 @@ import time
 from enum import Enum
 from pathlib import Path
 
-from evaluator.utils.vln_default_config import get_config
 from test_server import start_server, stop_server
 
 from internnav.configs.agent import AgentCfg
@@ -31,6 +30,7 @@ from internnav.configs.evaluator import (
     TaskCfg,
 )
 from internnav.evaluator import Evaluator
+from internnav.evaluator.utils.vln_default_config import get_config
 
 eval_cfg = EvalCfg(
     agent=AgentCfg(

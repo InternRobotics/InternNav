@@ -21,6 +21,7 @@ class CmaAgent(Agent):
     )
 
     def __init__(self, agent_config: AgentCfg):
+
         super().__init__(agent_config)
         self._model_settings = ModelCfg(**agent_config.model_settings)
         model_settings = self._model_settings

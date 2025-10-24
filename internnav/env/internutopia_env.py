@@ -7,11 +7,17 @@ from internnav.env import base
 @base.Env.register('internutopia')
 class InternutopiaEnv(base.Env):
     def __init__(self, env_config: EnvCfg, task_config: TaskCfg):
-        from internutopia.core.config import Config, SimConfig
-        from internutopia.core.config.distribution import RayDistributionCfg
-        from internutopia.core.vec_env import Env
+        try:
+            from internutopia.core.config import Config, SimConfig
+            from internutopia.core.config.distribution import RayDistributionCfg
+            from internutopia.core.vec_env import Env
 
-        from internnav.env.utils.internutopia_extension import import_extensions
+            from internnav.env.utils.internutopia_extension import import_extensions
+        except ImportError as e:
+            raise RuntimeError(
+                "InternUtopia modules could not be imported. "
+                "Make sure both repositories are installed and on PYTHONPATH."
+            ) from e
 
         super().__init__(env_config, task_config)
         env_settings = self.env_config.env_settings
