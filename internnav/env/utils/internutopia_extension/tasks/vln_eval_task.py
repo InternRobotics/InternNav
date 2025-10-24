@@ -1,10 +1,8 @@
 from internutopia.core.task import BaseTask
 
 from internnav.evaluator.utils.common import set_seed
-from internnav.projects.internutopia_vln_extension.configs.tasks.vln_eval_task import (
-    VLNEvalTaskCfg,
-)
 
+from ..configs.tasks.vln_eval_task import VLNEvalTaskCfg
 from .utils import DoneChecker
 
 

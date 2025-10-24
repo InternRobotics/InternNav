@@ -19,14 +19,10 @@ from internnav.configs.evaluator import (
     TaskCfg,
 )
 from internnav.configs.model import cma_cfg, internvla_n1_cfg, rdp_cfg, seq2seq_cfg
-from internnav.env.utils.internutopia_extension.configs.controllers.discrete_controller import (
+from internnav.env.utils.internutopia_extension.configs.controllers import (
     DiscreteControllerCfg,
-)
-from internnav.env.utils.internutopia_extension.configs.controllers.flash_controller import (
-    VlnMoveByFlashControllerCfg,
-)
-from internnav.env.utils.internutopia_extension.configs.controllers.stand_still import (
     StandStillControllerCfg,
+    VlnMoveByFlashControllerCfg,
 )
 from internnav.env.utils.internutopia_extension.configs.metrics.vln_pe_metrics import (
     VLNPEMetricCfg,

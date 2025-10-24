@@ -1,9 +1,8 @@
 from internnav.evaluator.utils.common import check_robot_fall
 from internnav.evaluator.utils.stuck_checker import StuckChecker
-from internnav.projects.internutopia_vln_extension.configs.tasks.vln_eval_task import (
-    VLNEvalTaskCfg,
-)
 from internnav.utils.common_log_util import common_logger as log
+
+from ..configs.tasks.vln_eval_task import VLNEvalTaskCfg
 
 
 def get_action_state(obs, action_name):

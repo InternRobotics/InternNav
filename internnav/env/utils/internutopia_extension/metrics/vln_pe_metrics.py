@@ -1,12 +1,8 @@
 import numpy as np
 from internutopia.core.task.metric import BaseMetric
 
-from internnav.projects.internutopia_vln_extension.configs.metrics.vln_pe_metrics import (
-    VLNPEMetricCfg,
-)
-from internnav.projects.internutopia_vln_extension.configs.tasks.vln_eval_task import (
-    VLNEvalTaskCfg,
-)
+from ..configs.metrics.vln_pe_metrics import VLNPEMetricCfg
+from ..configs.tasks.vln_eval_task import VLNEvalTaskCfg
 
 XY_DISTANCE_CLOSE_THRESHHOLD = 1.0
 
