@@ -16,8 +16,8 @@ from fastapi import APIRouter, BackgroundTasks, FastAPI, HTTPException, status
 from pydantic import BaseModel
 from transformers import AutoProcessor
 
+from internnav.env.utils.habitat_extensions.evaluator_single import VLNEvaluator
 from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
-from internnav.projects.habitat_extensions.evaluator_single import VLNEvaluator
 from internnav.utils.dist import *
 
 PROJECT_ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

@@ -6,8 +6,8 @@ import numpy as np
 import torch
 from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 
+from internnav.evaluator.habitat_vln_evaluator import VLNEvaluator
 from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
-from internnav.projects.habitat_extensions.evaluator import VLNEvaluator
 from internnav.utils.dist import *
 
 

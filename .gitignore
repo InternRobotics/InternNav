@@ -132,8 +132,8 @@ data
 kujiale_data
 interiornav_data
 images/
-internutopia
-internutopia_extension
+# internutopia
+# internutopia_extension
 *.pyc
 
 pre-commit*

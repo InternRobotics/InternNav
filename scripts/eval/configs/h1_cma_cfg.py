@@ -11,7 +11,7 @@ eval_cfg = EvalCfg(
     agent=AgentCfg(
         server_port=8087,
         model_name='cma',
-        ckpt_path='checkpoints/r2r/fine_tuned/cma',
+        ckpt_path='checkpoints/r2r/fine_tuned/cma_plus',
         model_settings={},
     ),
     env=EnvCfg(

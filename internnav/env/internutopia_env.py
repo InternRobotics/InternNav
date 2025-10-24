@@ -11,7 +11,7 @@ class InternutopiaEnv(base.Env):
         from internutopia.core.config.distribution import RayDistributionCfg
         from internutopia.core.vec_env import Env
 
-        from internnav.projects.internutopia_vln_extension import import_extensions
+        from internnav.env.utils.internutopia_extension import import_extensions
 
         super().__init__(env_config, task_config)
         env_settings = self.env_config.env_settings
@@ -25,6 +25,8 @@ class InternutopiaEnv(base.Env):
         if 'distribution_config' in env_settings:
             distribution_config = RayDistributionCfg(**env_settings['distribution_config'])
             config = config.distribute(distribution_config)
+
+        # register all extensions
         import_extensions()
 
         self.env = Env(config)

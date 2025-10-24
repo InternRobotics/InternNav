@@ -5,10 +5,9 @@ import torch
 from gym import spaces
 
 from internnav.agent.base import Agent
+from internnav.agent.utils.common import batch_obs, set_seed_model
 from internnav.configs.agent import AgentCfg
 from internnav.configs.model.base_encoders import ModelCfg
-from internnav.evaluator.utils.common import set_seed_model
-from internnav.evaluator.utils.models import batch_obs
 from internnav.model import get_config, get_policy
 
 
