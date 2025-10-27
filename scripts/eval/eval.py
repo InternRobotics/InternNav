@@ -5,8 +5,8 @@ sys.path.append('.')
 import argparse
 import importlib.util
 
+from internnav.configs.evaluator.vln_default_config import get_config
 from internnav.evaluator import Evaluator
-from internnav.evaluator.utils.vln_default_config import get_config
 
 # This file is the main file
 
