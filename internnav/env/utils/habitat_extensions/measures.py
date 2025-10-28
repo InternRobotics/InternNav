@@ -1,19 +1,12 @@
 from typing import Any, List, Union
 
 import numpy as np
-
-# from dtw import dtw
-# from fastdtw import fastdtw
-# from habitat.config import Config
 from habitat.core.embodied_task import EmbodiedTask, Measure
 from habitat.core.registry import registry
 from habitat.core.simulator import Simulator
 from habitat.core.utils import try_cv2_import
 from habitat.tasks.nav.nav import DistanceToGoal
 from numpy import ndarray
-
-# from utils import maps
-# from habitat_extensions.task import RxRVLNCEDatasetV1
 
 cv2 = try_cv2_import()
 
@@ -137,6 +130,23 @@ class StepsTaken(Measure):
     def update_metric(self, *args: Any, **kwargs: Any):
         self._metric += 1.0
 
+
+# import gzip
+# import json
+# import pickle
+# from dtw import dtw
+# from fastdtw import fastdtw
+# from habitat.config import Config
+# from utils import maps
+# from habitat_extensions.task import RxRVLNCEDatasetV1
+# from habitat.tasks.nav.nav import DistanceToGoal, Success
+# from habitat.tasks.utils import cartesian_to_polar
+# from habitat.utils.geometry_utils import quaternion_rotate_vector
+# from habitat.utils.visualizations import fog_of_war
+# from habitat.utils.visualizations import maps as habitat_maps
+# from habitat.core.dataset import Episode
+# from habitat.core.embodied_task import Action, EmbodiedTask, Measure
+# from habitat.core.logging import logger
 
 # @registry.register_measure
 # class WaypointRewardMeasure(Measure):

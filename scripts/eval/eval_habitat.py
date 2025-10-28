@@ -6,6 +6,8 @@ import numpy as np
 import torch
 from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 
+# Import for Habitat registry side effects — do not remove
+import internnav.env.utils.habitat_extensions.measures  # noqa: F401
 from internnav.evaluator.habitat_vln_evaluator import VLNEvaluator
 from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
 from internnav.utils.dist import *
