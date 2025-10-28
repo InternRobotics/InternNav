@@ -10,7 +10,7 @@ import importlib.util
 import os
 import sys
 
-from internnav.utils.comm_utils.server import AgentServer
+from internnav.utils import AgentServer
 
 
 # import all agents to register them

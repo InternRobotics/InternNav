@@ -1,9 +1,66 @@
 ansi2txt==0.2.0
+anyio==4.6.2.post1        # async基础
+
+
+coloredlogs==15.0.1
 coverage==7.5.4
+
+fastapi==0.110.0
+
+
+filelock==3.15.4
+fsspec==2024.10.0          # 统一文件后端 (本地/remote)
+gpustat==1.1.1            # 监控GPU（你很可能在日志里展示它）
+
+
+gunicorn==22.0.0
+gym>=0.22.0,<=0.26.2
+gym-notices==0.0.8
+gymnasium==0.29.1
+httpx==0.25.2             # async client, FastAPI 内常见
+imageio==2.22.2
+imageio-ffmpeg==0.6.0
+ipdb==0.13.13              # 你经常手动调试
+
+jsonschema==4.24.1
+jsonschema-specifications==2025.4.1
 msgpack-numpy==0.4.8
-pydantic>2.0
+
+
+
+numpy==1.26.0
+nvsmi==0.4.2              # NVIDIA-SMI wrapper
+
+
+opencv-python-headless==4.9.0.80
+packaging==23.0
+pillow==11.0.0
+portalocker==2.7.0
+propcache==0.3.2           # 你依赖里有，用于属性cache
+psutil==5.9.8             # 资源/监控
+pydantic==2.11.7
+pydantic_core==2.33.2
+
 pytest==7.3.1
 pytest-cov==4.1.0
 pytest-timeout==2.4.0
+python-dateutil==2.9.0
+python-multipart==0.0.9   # FastAPI 上传/表单需要
+PyYAML==6.0.1
+
+ray==2.47.1
+referencing==0.36.2
 requests==2.32.3
+rich==14.0.0               # 你经常用漂亮打印/日志
+rpds-py==0.26.0
+sentry-sdk==2.33.0         # 你可能在核心服务里打error telemetry
+setproctitle==1.3.6       # 给worker命名
+sniffio==1.3.1            # async基础
+starlette==0.36.3
+termcolor==3.1.0
 tomli==2.0.1
+tqdm==4.67.1
+typing_extensions==4.14.1
+tyro==0.9.26               # 你之前的 eval loop/agent args parser
+uvicorn==0.29.0
+watchdog==4.0.0            # 你之前提过自动刷新/热重启server

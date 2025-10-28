@@ -105,6 +105,7 @@ def load_obs_from_meta(meta_path: str, nan_for_zeros: bool = False) -> Dict:
     paths = meta.get("paths", {})
     rgb_path = _resolve(base, paths.get("rgb"))
     depth_mm_path = _resolve(base, paths.get("depth_mm"))
+    print(rgb_path, depth_mm_path)
 
     # 读 RGB（保存时就是 BGR，OpenCV 读回来仍是 BGR）
     rgb = None
@@ -133,6 +134,7 @@ def load_obs_from_meta(meta_path: str, nan_for_zeros: bool = False) -> Dict:
         "timestamp_s": float(meta.get("timestamp_s", 0.0)),
         "intrinsics": meta.get("intrinsics", {}),
     }
+    print(obs)
     return obs
 
 
