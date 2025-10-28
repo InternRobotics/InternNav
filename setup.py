@@ -76,6 +76,11 @@ setuptools.setup(
         # envs
         "isaac": isaac_requires,
         "habitat": [],
+        "demo": [
+            "gradio==5.45",
+            "hf-xet==1.1.5",
+            "huggingface-hub==0.33.4",
+        ],
         # models
         "internvla_n1": n1_requires,
         "baseline": model_requires,

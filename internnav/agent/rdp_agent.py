@@ -18,7 +18,6 @@ from internnav.model.basemodel.rdp.utils import (
     quat_to_euler_angles,
     to_local_coords_batch,
 )
-from internnav.model.utils.bert_token import BertTokenizer
 from internnav.model.utils.feature_extract import (
     extract_image_features,
     extract_instruction_tokens,
@@ -66,6 +65,8 @@ class RdpAgent(Agent):
 
         if self.use_clip_encoders:
             if self._model_settings.text_encoder.type == 'roberta':
+                from internnav.model.utils.bert_token import BertTokenizer
+
                 self.bert_tokenizer = BertTokenizer(
                     max_length=self._model_settings.instruction_encoder.max_length,
                     load_model=self._model_settings.instruction_encoder.load_model,

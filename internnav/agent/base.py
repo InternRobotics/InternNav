@@ -10,10 +10,10 @@ class Agent:
         self.config = config
 
     def step(self, obs: Dict[str, Any]):
-        pass
+        raise NotImplementedError("This function is not implemented yet.")
 
     def reset(self):
-        pass
+        raise NotImplementedError("This function is not implemented yet.")
 
     @classmethod
     def register(cls, agent_type: str):
