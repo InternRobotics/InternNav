@@ -1,12 +1,3 @@
-import os
-
-import numpy as np
-import torch
-from gym import spaces
-
-from internnav.utils.common_log_util import common_logger as logger
-
-
 def get_policy(policy_name):
     if policy_name == 'CMA_CLIP_Policy':
         from .basemodel.cma.cma_clip_policy import CMA_CLIP_Net, CMACLIPModelConfig

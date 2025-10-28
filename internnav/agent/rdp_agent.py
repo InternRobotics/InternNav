@@ -9,7 +9,6 @@ from internnav.agent.utils.common import batch_obs, set_seed_model
 from internnav.configs.agent import AgentCfg
 from internnav.configs.model.base_encoders import ModelCfg
 from internnav.model import get_config, get_policy
-from internnav.model.basemodel.LongCLIP.model import longclip
 from internnav.model.basemodel.rdp.utils import (
     FixedLengthStack,
     compute_actions,
@@ -74,6 +73,8 @@ class RdpAgent(Agent):
                 )
                 self.use_bert = True
             elif self._model_settings.text_encoder.type == 'clip-long':
+                from internnav.model.basemodel.LongCLIP.model import longclip
+
                 self.bert_tokenizer = longclip.tokenize
                 self.use_bert = True
                 self.is_clip_long = True
