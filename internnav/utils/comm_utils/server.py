@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 import base64
-import importlib.util
 import pickle
-import sys
 from typing import Dict
 
 import uvicorn
@@ -73,38 +71,9 @@ class AgentServer:
 
     def run(self, reload=False):
         uvicorn.run(
-            '__main__:server.app',
+            self.app,
             host=self.host,
             port=self.port,
             reload=reload,
             reload_dirs=['./internnav/agent/', './internnav/model/'],
         )
-
-
-def load_eval_cfg(config_path):
-    spec = importlib.util.spec_from_file_location('eval_config_module', config_path)
-    config_module = importlib.util.module_from_spec(spec)
-    sys.modules['eval_config_module'] = config_module
-    spec.loader.exec_module(config_module)
-    return getattr(config_module, 'eval_cfg')
-
-
-import argparse
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--host', type=str, default='localhost')
-parser.add_argument(
-    '--config',
-    type=str,
-    default='scripts/eval/configs/h1_cma_cfg.py',
-    help='eval config file path, e.g. scripts/eval/configs/h1_cma_cfg.py',
-)
-parser.add_argument('--reload', action='store_true')
-args = parser.parse_args()
-eval_cfg = load_eval_cfg(args.config)
-args.port = eval_cfg.agent.server_port
-
-server = AgentServer(args.host, args.port)
-
-if __name__ == '__main__':
-    server.run(args.reload)
