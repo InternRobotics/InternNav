@@ -13,7 +13,7 @@ from internnav.evaluator.utils.config import get_lmdb_path
 from internnav.evaluator.utils.data_collector import DataCollector
 from internnav.evaluator.utils.dataset import ResultLogger, split_data
 from internnav.evaluator.utils.eval import generate_episode
-from internnav.projects.dataloader.resumable import ResumablePathKeyDataloader
+from internnav.dataloader.resumable_loader import ResumablePathKeyDataloader
 from internnav.utils import common_log_util, progress_log_multi_util
 from internnav.utils.common_log_util import common_logger as log
 

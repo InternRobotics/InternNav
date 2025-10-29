@@ -10,7 +10,7 @@ from internnav.env.utils.internutopia_extension.configs.tasks.vln_eval_task impo
     VLNEvalTaskCfg,
 )
 from internnav.evaluator.utils.common import load_kujiale_scene_usd, load_scene_usd
-from internnav.projects.dataloader.resumable import ResumablePathKeyDataloader
+from internnav.dataloader.resumable_loader import ResumablePathKeyDataloader
 
 
 def generate_episode(dataloader: ResumablePathKeyDataloader, config: EvalCfg):
