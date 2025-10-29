@@ -16,7 +16,7 @@ def parse_args():
     parser.add_argument(
         "--config",
         type=str,
-        default='scripts/eval/configs/h1_cma_cfg.py',
+        default='scripts/eval/configs/h1_rdp_cfg.py',
         help='eval config file path, e.g. scripts/eval/configs/h1_cma_cfg.py',
     )
     return parser.parse_args()
