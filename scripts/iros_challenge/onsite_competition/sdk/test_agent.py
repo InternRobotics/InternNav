@@ -1,6 +1,10 @@
 import importlib.util
 import sys
 
+sys.path.append('.')
+sys.path.append('./src/diffusion-policy/')
+
+
 import numpy as np
 from save_obs import load_obs_from_meta
 

@@ -41,6 +41,7 @@ def parse_args():
 
 
 def main():
+    print("adadasdadasdsadas")
     args = parse_args()
 
     init_distributed_mode(args)
