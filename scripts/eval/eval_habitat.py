@@ -1,6 +1,9 @@
 import argparse
 import json
 import os
+import sys
+
+sys.path.append('./src/diffusion-policy')
 
 import numpy as np
 import torch
@@ -41,7 +44,6 @@ def parse_args():
 
 
 def main():
-    print("adadasdadasdsadas")
     args = parse_args()
 
     init_distributed_mode(args)
