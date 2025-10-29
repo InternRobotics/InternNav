@@ -87,9 +87,9 @@ class NavDPNet(PreTrainedModel):
         self.point_encoder = nn.Linear(3, self.token_dim)
 
         if not self.finetune:
-            for p in self.rgbd_encoder.parameters():
+            for p in self.rgbd_encoder.rgb_model.parameters():
                 p.requires_grad = False
-            self.rgbd_encoder.eval()
+            self.rgbd_encoder.rgb_model.eval()
 
         decoder_layer = nn.TransformerDecoderLayer(
             d_model=self.token_dim,
@@ -348,3 +348,7 @@ class NavDPNet(PreTrainedModel):
             negative_trajectory = torch.cumsum(naction / 4.0, dim=1)[(critic_values).argsort()[0:8]]
             positive_trajectory = torch.cumsum(naction / 4.0, dim=1)[(-critic_values).argsort()[0:8]]
             return negative_trajectory, positive_trajectory
+
+
+# if __name__ == "__main__":
+#     policy = NavDPNet(config=)
