@@ -52,12 +52,11 @@ with open('requirements/internvla_n1.txt', 'r') as f:
 
 setuptools.setup(
     name='internnav',
-    version='0.0.1',
+    version='0.1.2',
     packages=setuptools.find_packages(),
     author='OpenRobotLab',
     author_email='OpenRobotLab@pjlab.org.cn',
     license='Apache 2.0',
-    # readme='README.md',
     description='InternNav: A benchmark evaluation framework for navigation tasks',
     long_description=long_description,
     long_description_content_type='text/markdown',
