@@ -10,10 +10,10 @@ class Agent:
         self.config = config
 
     def step(self, obs: Dict[str, Any]):
-        pass
+        raise NotImplementedError("This function is not implemented yet.")
 
     def reset(self):
-        pass
+        raise NotImplementedError("This function is not implemented yet.")
 
     @classmethod
     def register(cls, agent_type: str):
@@ -22,6 +22,8 @@ class Agent:
         """
 
         def decorator(agent_class):
+            if agent_type in cls.agents:
+                raise ValueError(f"Agent {agent_type} already registered.")
             cls.agents[agent_type] = agent_class
 
         return decorator

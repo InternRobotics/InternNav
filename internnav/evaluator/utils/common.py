@@ -6,7 +6,6 @@ import os
 from collections import defaultdict
 
 import numpy as np
-from internutopia.core.util import is_in_container
 from PIL import Image, ImageDraw
 from scipy.ndimage import binary_dilation
 
@@ -243,6 +242,8 @@ def load_data(dataset_root_dir, split, filter_same_trajectory=True, filter_stair
 
 def load_scene_usd(mp3d_data_dir, scan):
     """Load scene USD based on the scan"""
+    from internutopia.core.util import is_in_container
+
     find_flag = False
     for root, dirs, files in os.walk(os.path.join(mp3d_data_dir, scan)):
         target_file_name = 'fixed_docker.usd' if is_in_container() else 'fixed.usd'

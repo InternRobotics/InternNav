@@ -5,10 +5,9 @@ import torch
 from gym import spaces
 
 from internnav.agent.base import Agent
+from internnav.agent.utils.common import batch_obs, set_seed_model
 from internnav.configs.agent import AgentCfg
 from internnav.configs.model.base_encoders import ModelCfg
-from internnav.evaluator.utils.common import set_seed_model
-from internnav.evaluator.utils.models import batch_obs
 from internnav.model import get_config, get_policy
 
 
@@ -22,6 +21,7 @@ class CmaAgent(Agent):
     )
 
     def __init__(self, agent_config: AgentCfg):
+
         super().__init__(agent_config)
         self._model_settings = ModelCfg(**agent_config.model_settings)
         model_settings = self._model_settings
@@ -119,7 +119,7 @@ class CmaAgent(Agent):
             dtype=torch.bool,
         )
         end = time.time()
-        print(f'CmaAgent step time: {round(end-start,4)}s')
+        print(f'CmaAgent step time: {round(end-start, 4)}s')
         return actions.cpu().numpy().tolist()
 
     def step(self, obs):
@@ -127,5 +127,12 @@ class CmaAgent(Agent):
         start = time.time()
         action = self.inference(obs)
         end = time.time()
-        print(f'Time: {round(end-start,4)}s')
-        return action
+        print(f'Time: {round(end-start, 4)}s')
+
+        # convert from [[x],[y]] to [{'action': [x],'ideal_flag':True}, {'action': [y],'ideal_flag':True}]
+        actions = []
+        for a in action:
+            if not isinstance(a, list):
+                a = [a]
+            actions.append({'action': a, 'ideal_flag': True})
+        return actions

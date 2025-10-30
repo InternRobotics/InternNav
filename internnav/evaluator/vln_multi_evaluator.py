@@ -2,6 +2,7 @@ import sys
 from enum import Enum
 from pathlib import Path
 from time import time
+from typing import Dict, List
 
 import numpy as np
 
@@ -25,29 +26,6 @@ class runner_status_code(Enum):
     STOP = 4
 
 
-def transform_action_batch(actions, flash=False):
-    transformed_actions = []
-    for action in actions:
-        if 'ideal_flag' in action.keys():
-            ideal_flag = action['ideal_flag']
-            if flash:
-                assert ideal_flag is True
-        else:
-            ideal_flag = False
-        if not ideal_flag:
-            transformed_actions.append({'h1': {'vln_dp_move_by_speed': action['action'][0]}})
-            continue
-        a = action['action']
-        if a == 0 or a == [0] or a == [[0]]:
-            transformed_actions.append({'h1': {'stop': []}})
-        elif a == -1 or a == [-1] or a == [[-1]]:
-            transformed_actions.append({'h1': {'stand_still': []}})
-        else:
-            move = f"move_by_{'discrete' if not flash else 'flash'}"
-            transformed_actions.append({'h1': {move: a}})  # discrete e.g. [3]
-    return transformed_actions
-
-
 @Evaluator.register('vln_multi')
 class VlnMultiEvaluator(Evaluator):
     def __init__(self, config: EvalCfg):
@@ -61,7 +39,7 @@ class VlnMultiEvaluator(Evaluator):
         progress_log_multi_util.init(self.task_name, self.dataloader.size)
         self.total_path_num = self.dataloader.size
         progress_log_multi_util.progress_logger_multi.info(
-            f'start eval dataset: {self.task_name}, total_path:{self.dataloader.size}'  # noqa: E501
+            f'start eval dataset: {self.task_name}, total_path: {self.dataloader.size}'  # noqa: E501
         )
         # generate episode
         episodes = generate_episode(self.dataloader, config)
@@ -130,6 +108,28 @@ class VlnMultiEvaluator(Evaluator):
         ]
         return obs
 
+    def _transform_action_batch(self, actions: List[Dict], flash=False):
+        transformed_actions = []
+        for action in actions:
+            if 'ideal_flag' in action.keys():
+                ideal_flag = action['ideal_flag']
+                if flash:
+                    assert ideal_flag is True
+            else:
+                ideal_flag = False
+            if not ideal_flag:
+                transformed_actions.append({'h1': {'vln_dp_move_by_speed': action['action'][0]}})
+                continue
+            a = action['action']
+            if a == 0 or a == [0] or a == [[0]]:
+                transformed_actions.append({'h1': {'stop': []}})
+            elif a == -1 or a == [-1] or a == [[-1]]:
+                transformed_actions.append({'h1': {'stand_still': []}})
+            else:
+                move = f"move_by_{'discrete' if not flash else 'flash'}"
+                transformed_actions.append({'h1': {move: a}})  # discrete e.g. [3]
+        return transformed_actions
+
     def get_action(self, obs, action):
         # process obs
         obs = np.array(obs)
@@ -141,8 +141,8 @@ class VlnMultiEvaluator(Evaluator):
         obs = self.remove_obs_attr(obs)
         if not np.logical_and.reduce(self.runner_status == runner_status_code.WARM_UP):
             action = self.agent.step(obs)
-            log.info(f'now action:{len(action)} ,{action}, fake_obs_index:{fake_obs_index}')
-            action = transform_action_batch(action, self.robot_flash)
+            log.info(f'now action: {len(action)}, {action}, fake_obs_index: {fake_obs_index}')
+            action = self._transform_action_batch(action, self.robot_flash)
         # change warm_up
         action = np.array(action)
         action[self.runner_status == runner_status_code.WARM_UP] = {'h1': {'stand_still': []}}
