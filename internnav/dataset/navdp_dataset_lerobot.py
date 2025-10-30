@@ -70,6 +70,8 @@ class NavDP_Base_Datset(Dataset):
 
         if preload is False:
             for group_dir in self.dataset_dirs:  # gibson_zed, 3dfront ...
+                if 'fixed' in group_dir:
+                    continue
                 all_scene_dirs = np.array([p for p in os.listdir(os.path.join(root_dirs, group_dir))])
                 select_scene_dirs = all_scene_dirs[
                     np.arange(0, all_scene_dirs.shape[0], 1 / self.scene_scale_size).astype(np.int32)
@@ -81,6 +83,9 @@ class NavDP_Base_Datset(Dataset):
                     ]
                     for traj_dir in tqdm(select_traj_dirs):
                         entire_task_dir = os.path.join(root_dirs, group_dir, scene_dir, traj_dir)
+                        video_dir = os.path.join(entire_task_dir, "videos/")
+                        if not os.path.exists(video_dir):
+                            continue
                         rgb_dir = os.path.join(entire_task_dir, "videos/chunk-000/observation.images.rgb/")
                         depth_dir = os.path.join(entire_task_dir, "videos/chunk-000/observation.images.depth/")
                         data_path = os.path.join(
@@ -116,11 +121,11 @@ class NavDP_Base_Datset(Dataset):
                 json.dump(save_dict, f, indent=4)
         else:
             load_dict = json.load(open(preload_path, 'r'))
-            self.trajectory_dirs = load_dict['trajectory_dirs'] * 50
-            self.trajectory_data_dir = load_dict['trajectory_data_dir'] * 50
-            self.trajectory_rgb_path = load_dict['trajectory_rgb_path'] * 50
-            self.trajectory_depth_path = load_dict['trajectory_depth_path'] * 50
-            self.trajectory_afford_path = load_dict['trajectory_afford_path'] * 50
+            self.trajectory_dirs = load_dict['trajectory_dirs'] #* 50
+            self.trajectory_data_dir = load_dict['trajectory_data_dir']  #* 50
+            self.trajectory_rgb_path = load_dict['trajectory_rgb_path'] #* 50
+            self.trajectory_depth_path = load_dict['trajectory_depth_path']#* 50
+            self.trajectory_afford_path = load_dict['trajectory_afford_path'] #* 50
 
     def __len__(self):
         return len(self.trajectory_dirs)
@@ -192,23 +197,26 @@ class NavDP_Base_Datset(Dataset):
         return np.array(trajectory_path.points), trajectory_path
 
     def process_obstacle_points(self, index, path_points):
-        trajectory_pcd = self.load_pointcloud(self.trajectory_afford_path[index])
-        trajectory_color = np.array(trajectory_pcd.colors)
-        trajectory_points = np.array(trajectory_pcd.points)
-        color_distance = np.abs(trajectory_color - np.array([0, 0, 0.5])).sum(axis=-1)  # the obstacles are save in blue
-        path_lower_bound = path_points.min(axis=0)
-        path_upper_bound = path_points.max(axis=0)
-        condition_x = (trajectory_points[:, 0] >= path_lower_bound[0] - 2.0) & (
-            trajectory_points[:, 0] <= path_upper_bound[0] + 2.0
-        )
-        condition_y = (trajectory_points[:, 1] >= path_lower_bound[1] - 2.0) & (
-            trajectory_points[:, 1] <= path_upper_bound[1] + 2.0
-        )
-        select_index = np.where((color_distance < 0.05) & condition_x & condition_y)[0]
-        trajectory_obstacle = o3d.geometry.PointCloud()
-        trajectory_obstacle.points = o3d.utility.Vector3dVector(np.asarray(trajectory_pcd.points)[select_index])
-        trajectory_obstacle.colors = o3d.utility.Vector3dVector(np.asarray(trajectory_pcd.colors)[select_index])
-        return np.array(trajectory_obstacle.points), trajectory_obstacle
+        try:
+            trajectory_pcd = self.load_pointcloud(self.trajectory_afford_path[index])
+            trajectory_color = np.array(trajectory_pcd.colors)
+            trajectory_points = np.array(trajectory_pcd.points)
+            color_distance = np.abs(trajectory_color - np.array([0, 0, 0.5])).sum(axis=-1)  # the obstacles are save in blue
+            path_lower_bound = path_points.min(axis=0)
+            path_upper_bound = path_points.max(axis=0)
+            condition_x = (trajectory_points[:, 0] >= path_lower_bound[0] - 2.0) & (
+                trajectory_points[:, 0] <= path_upper_bound[0] + 2.0
+            )
+            condition_y = (trajectory_points[:, 1] >= path_lower_bound[1] - 2.0) & (
+                trajectory_points[:, 1] <= path_upper_bound[1] + 2.0
+            )
+            select_index = np.where((color_distance < 0.05) & condition_x & condition_y)[0]
+            trajectory_obstacle = o3d.geometry.PointCloud()
+            trajectory_obstacle.points = o3d.utility.Vector3dVector(np.asarray(trajectory_pcd.points)[select_index])
+            trajectory_obstacle.colors = o3d.utility.Vector3dVector(np.asarray(trajectory_pcd.colors)[select_index])
+            return np.array(trajectory_obstacle.points), trajectory_obstacle
+        except:
+            return np.zeros((0,3)), None
 
     def process_memory(self, rgb_paths, depth_paths, start_step, memory_digit=1):
         memory_index = np.arange(start_step - (self.memory_size - 1) * memory_digit, start_step + 1, memory_digit)
@@ -548,7 +556,8 @@ class NavDP_Base_Datset(Dataset):
             augment_critic,
             float(pixel_flag),
         )
-
+        
+        
 
 def navdp_collate_fn(batch):
 
@@ -569,17 +578,17 @@ def navdp_collate_fn(batch):
 if __name__ == "__main__":
     os.makedirs("./navdp_dataset_test/", exist_ok=True)
     dataset = NavDP_Base_Datset(
-        "/shared/smartbot_new/liuyu/vln-n1-minival/",
-        "./navdp_dataset_test/dataset_lerobot.json",
+        "/shared/smartbot_new/liuyu/vln-n1",
+        "/shared/smartbot_new/caiwenzhe/InternNav/internnav/dataset/navdp_dataset_test/dataset_lerobot_balanced.json",
         8,
         24,
         224,
-        trajectory_data_scale=0.1,
-        scene_data_scale=0.1,
-        preload=False,
+        trajectory_data_scale=1.0,
+        scene_data_scale=1.0,
+        preload=True,
     )
-
-    for i in range(10):
+    from tqdm import tqdm
+    for i in tqdm(range(dataset.__len__())):
         (
             point_goal,
             image_goal,

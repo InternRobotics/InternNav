@@ -15,7 +15,7 @@ from transformers import TrainerCallback, TrainingArguments
 
 from internnav.dataset.cma_lerobot_dataset import CMALerobotDataset, cma_collate_fn
 from internnav.dataset.navdp_dataset_lerobot import NavDP_Base_Datset, navdp_collate_fn
-from internnav.dataset.rdp_lerobot_dataset import RDP_LerobotDataset, rdp_collate_fn
+# from internnav.dataset.rdp_lerobot_dataset import RDP_LerobotDataset, rdp_collate_fn
 from internnav.model import (
     CMAModelConfig,
     CMANet,
@@ -258,7 +258,6 @@ def main(config, model_class, model_config_class):
             disable_tqdm=True,
             log_level="info",
         )
-
         # Create the trainer
         trainer = policy_trainer(
             config=config, model=model, args=training_args, train_dataset=train_dataset, data_collator=collate_fn
