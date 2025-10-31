@@ -1,5 +1,5 @@
 #!/bin/bash
-
+unset https_proxy http_proxy
 source /root/miniconda3/etc/profile.d/conda.sh
 conda activate internutopia
 

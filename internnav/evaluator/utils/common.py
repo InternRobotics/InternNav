@@ -241,10 +241,10 @@ def load_data(dataset_root_dir, split, filter_same_trajectory=True, filter_stair
     return data
 
 
-def load_scene_usd(mp3d_data_dir, scan):
+def load_scene_usd(data_dir, scan):
     """Load scene USD based on the scan"""
     find_flag = False
-    for root, dirs, files in os.walk(os.path.join(mp3d_data_dir, scan)):
+    for root, dirs, files in os.walk(os.path.join(data_dir, scan)):
         target_file_name = 'fixed_docker.usd' if is_in_container() else 'fixed.usd'
         for file in files:
             if file == target_file_name:

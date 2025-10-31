@@ -33,12 +33,8 @@ def generate_episode(dataloader: ResumablePathKeyDataloader, config: EvalCfg):
         data['path_key'] = path_key
         data['name'] = dataloader.task_name
 
-        if config.task.scene.scene_type == 'kujiale':
-            load_scene_func = load_kujiale_scene_usd
-            scene_scale = (1, 1, 1)
-        else:
-            load_scene_func = load_scene_usd
-            scene_scale = (1, 1, 1)
+        load_scene_func = load_kujiale_scene_usd if config.task.scene.scene_type == 'kujiale' else load_scene_usd
+        scene_scale = (1, 1, 1)
 
         robot_flash = getattr(config.task, "robot_flash", False)
         one_step_stand_still = getattr(config.task, "one_step_stand_still", False)
