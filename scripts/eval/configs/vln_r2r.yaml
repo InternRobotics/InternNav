@@ -69,9 +69,9 @@ habitat:
       look_down:
         type: LookDownAction
         agent_index: 0
-        
+
   dataset:
     type: R2RVLN-v1
     split: val_seen
-    scenes_dir: data/scene_data/
+    scenes_dir: data/scene_data/mp3d_ce
     data_path: data/vln_ce/raw_data/r2r/{split}/{split}.json.gz
