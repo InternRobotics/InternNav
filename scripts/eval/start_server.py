@@ -5,25 +5,13 @@ sys.path.append('.')
 sys.path.append('./src/diffusion-policy')
 
 import argparse
-import glob
 import importlib
 import importlib.util
-import os
 import sys
 
+# Import for agent registry side effects — do not remove
+from internnav.agent import Agent  # noqa: F401
 from internnav.utils import AgentServer
-
-
-# import all agents to register them
-def auto_register_agents(agent_dir: str):
-    # Get all Python files in the agents directory
-    agent_modules = glob.glob(os.path.join(agent_dir, '*.py'))
-
-    # Import each module to trigger the registration
-    for module in agent_modules:
-        if not module.endswith('__init__.py'):  # Avoid importing __init__.py itself
-            module_name = os.path.basename(module)[:-3]  # Remove the .py extension
-            importlib.import_module(f'internnav.agent.{module_name}')  # Replace 'agents' with your module's package
 
 
 def load_eval_cfg(config_path, attr_name='eval_cfg'):
@@ -36,9 +24,6 @@ def load_eval_cfg(config_path, attr_name='eval_cfg'):
 
 if __name__ == '__main__':
     print("Starting Agent Server...")
-
-    print("Registering agents...")
-    auto_register_agents('internnav/agent')
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', type=str, default='localhost')
