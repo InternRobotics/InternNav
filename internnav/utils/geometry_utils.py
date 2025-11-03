@@ -1,6 +1,5 @@
 import base64
 import math
-import os
 import pickle
 
 import numpy as np

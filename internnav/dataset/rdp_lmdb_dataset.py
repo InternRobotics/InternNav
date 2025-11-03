@@ -1,3 +1,4 @@
+import copy
 import random
 from collections import defaultdict
 
@@ -5,7 +6,6 @@ import lmdb
 import msgpack_numpy
 import numpy as np
 import torch
-import copy
 from PIL import Image
 from torchvision.transforms import (
     CenterCrop,
@@ -26,8 +26,8 @@ except ImportError:
 from internnav.dataset.base import BaseDataset, ObservationsDict, _block_shuffle
 from internnav.evaluator.utils.common import norm_depth
 from internnav.model.basemodel.LongCLIP.model import longclip
-from internnav.model.basemodel.rdp.utils import get_delta, normalize_data, to_local_coords
 from internnav.model.utils.feature_extract import extract_instruction_tokens
+from internnav.utils.geometry_utils import get_delta, normalize_data, to_local_coords
 
 
 def _convert_image_to_rgb(image):
@@ -466,12 +466,7 @@ def rdp_collate_fn(global_batch_size=None):
         observations_batch = ObservationsDict(observations_batch)
         # Expand B to match the flattened batch size
         B_expanded = B.repeat(observations_batch['prev_actions'].shape[0]).view(-1, 1)
-            
-        return (
-            observations_batch,
-            observations_batch['prev_actions'],
-            not_done_masks_batch.view(-1, 1),
-            B_expanded
-        )
-    
+
+        return (observations_batch, observations_batch['prev_actions'], not_done_masks_batch.view(-1, 1), B_expanded)
+
     return _rdp_collate_fn

@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw
 from scipy.ndimage import binary_dilation
 
 from internnav.utils.common_log_util import common_logger as log
+from internnav.utils.geometry_utils import quat_to_euler_angles
 
 
 def create_robot_mask(topdown_global_map_camera, mask_size=20):
@@ -343,7 +344,6 @@ def draw_trajectory(array, obs_lst, reference_path):
     import matplotlib.pyplot as plt
     import numpy as np
     from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-    from omni.isaac.core.utils.rotations import quat_to_euler_angles
 
     from internnav.evaluator.utils.path_plan import world_to_pixel
 
