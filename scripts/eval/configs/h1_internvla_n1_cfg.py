@@ -3,7 +3,7 @@ from internnav.configs.agent import AgentCfg
 from internnav.configs.evaluator import (
     EnvCfg,
     EvalCfg,
-    EvalDatasetCfg,
+    EpisodeCfg,
     SceneCfg,
     TaskCfg,
 )
@@ -60,7 +60,7 @@ eval_cfg = EvalCfg(
         camera_prim_path='torso_link/h1_1_25_down_30',
         one_step_stand_still=True,  # For dual-system, please keep this param True.
     ),
-    dataset=EvalDatasetCfg(
+    dataset=EpisodeCfg(
         dataset_type="mp3d",
         dataset_settings={
             'base_data_dir': 'data/vln_pe/raw_data/r2r',

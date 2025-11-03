@@ -9,11 +9,11 @@ from internnav import PROJECT_ROOT_PATH
 from internnav.evaluator.utils.common import load_data
 from internnav.evaluator.utils.config import get_lmdb_path, get_lmdb_prefix
 
-from internnav.configs.evaluator import EvalDatasetCfg
+from internnav.configs.evaluator import EpisodeCfg
 from .config import Config
 
 
-def split_data(dataset_cfg: EvalDatasetCfg):
+def split_data(dataset_cfg: EpisodeCfg):
     if isinstance(dataset_cfg.dataset_settings, dict):
         config = Config(**dataset_cfg.dataset_settings)
     run_type = config.run_type
@@ -110,7 +110,7 @@ def split_data(dataset_cfg: EvalDatasetCfg):
 
 
 class ResultLogger:
-    def __init__(self, dataset_cfg: EvalDatasetCfg):
+    def __init__(self, dataset_cfg: EpisodeCfg):
         if isinstance(dataset_cfg.dataset_settings, dict):
             config = Config(**dataset_cfg.dataset_settings)
         self.name = config.task_name

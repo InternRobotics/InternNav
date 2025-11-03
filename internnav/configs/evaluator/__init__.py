@@ -50,7 +50,7 @@ class TaskCfg(BaseModel):
     camera_prim_path: Optional[str] = None
 
 
-class EvalDatasetCfg(BaseModel):
+class EpisodeCfg(BaseModel):
     dataset_type: Optional[str] = None
     dataset_settings: Dict[str, Any]
 
@@ -61,7 +61,7 @@ class EvalCfg(BaseModel):
     agent: Optional[AgentCfg] = None
     env: EnvCfg
     task: TaskCfg
-    dataset: EvalDatasetCfg
+    dataset: EpisodeCfg
 
 
 __all__ = [
@@ -72,6 +72,6 @@ __all__ = [
     'RobotCfg',
     'SceneCfg',
     'MetricCfg',
-    'EvalDatasetCfg',
+    'EpisodeCfg',
     'EvalCfg',
 ]
