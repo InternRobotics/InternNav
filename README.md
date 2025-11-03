@@ -33,9 +33,9 @@ The toolbox supports the most comprehensive 6 datasets \& benchmarks and 10+ pop
 
 The toolbox supports the most advanced high-quality navigation dataset, InternData-N1, which includes 3k+ scenes and 830k VLN data covering diverse embodiments and scenes, and the first dual-system navigation foundation model with leading performance on all the benchmarks and zero-shot generalization capability in the real world, InternVLA-N1.
 
-## 🔥
+## 🔥 News
 - [2025/10] Add a simple [inference-only demo](scripts/notebooks/inference_only_demo.ipynb) of InternVLA-N1.
-- [2025/10] InternVLA-N1 [technique report](https://internrobotics.github.io/internvla-n1.github.io/static/pdfs/InternVLA_N1.pdf) is released. Please check our [homepage](https://internrobotics.github.io/internvla-n1.github.io/).
+- [2025/10] InternVLA-N1 [technical report](https://internrobotics.github.io/internvla-n1.github.io/static/pdfs/InternVLA_N1.pdf) is released. Please check our [homepage](https://internrobotics.github.io/internvla-n1.github.io/).
 - [2025/09] Real-world deployment code of InternVLA-N1 is released.
 - [2025/07] We are hosting 🏆IROS 2025 Grand Challenge, stay tuned at [official website](https://internrobotics.shlab.org.cn/challenge/2025/).
 - [2025/07] InternNav v0.1.1 released.
@@ -181,7 +181,6 @@ Please refer to the [documentation](https://internrobotics.github.io/user_guide/
 
 
 **NOTE:**
-- The detailed benchmark results of other baselines will be updated in the next few days.
 - VLN-CE RxR benchmark and StreamVLN will be supported soon.
 
 ## 🔧 Customization

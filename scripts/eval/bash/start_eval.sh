@@ -29,14 +29,14 @@ mkdir -p logs
 SERVER_LOG="logs/${CONFIG_PREFIX}_server.log"
 EVAL_LOG="logs/${CONFIG_PREFIX}_eval.log"
 
-processes=$(ps -ef | grep 'internnav/agent/utils/server.py' | grep -v grep | awk '{print $2}')
+processes=$(ps -ef | grep 'scripts/eval/start_server.py' | grep -v grep | awk '{print $2}')
 if [ -n "$processes" ]; then
     for pid in $processes; do
         kill -9 $pid
         echo "kill: $pid"
     done
 fi
-python internnav/agent/utils/server.py --config $CONFIG > "$SERVER_LOG" 2>&1 &
+python scripts/eval/start_server.py --config $CONFIG > "$SERVER_LOG" 2>&1 &
 
 
 RETRY_LIMIT=5

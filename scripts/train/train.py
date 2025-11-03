@@ -1,7 +1,7 @@
 import os
 import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+sys.path.append('./src/diffusion-policy')
 import logging
 import sys
 from datetime import datetime
@@ -16,13 +16,7 @@ from transformers import TrainerCallback, TrainingArguments
 from internnav.dataset.cma_lerobot_dataset import CMALerobotDataset, cma_collate_fn
 from internnav.dataset.navdp_dataset_lerobot import NavDP_Base_Datset, navdp_collate_fn
 from internnav.dataset.rdp_lerobot_dataset import RDP_LerobotDataset, rdp_collate_fn
-from internnav.model.basemodel.cma.cma_policy import CMAModelConfig, CMANet
-from internnav.model.basemodel.navdp.navdp_policy import NavDPModelConfig, NavDPNet
-from internnav.model.basemodel.rdp.rdp_policy import RDPModelConfig, RDPNet
-from internnav.model.basemodel.seq2seq.seq2seq_policy import (
-    Seq2SeqModelConfig,
-    Seq2SeqNet,
-)
+from internnav.model import get_config, get_policy
 from internnav.model.utils.logger import MyLogger
 from internnav.model.utils.utils import load_dataset
 from internnav.trainer import CMATrainer, NavDPTrainer, RDPTrainer
@@ -67,14 +61,18 @@ class CheckpointFormatCallback(TrainerCallback):
 
 def _make_dir(config):
     config.tensorboard_dir = config.tensorboard_dir % config.name
+    config.tensorboard_dir = config.tensorboard_dir % config.name
     config.checkpoint_folder = config.checkpoint_folder % config.name
     config.log_dir = config.log_dir % config.name
     config.output_dir = config.output_dir % config.name
     if not os.path.exists(config.tensorboard_dir):
         os.makedirs(config.tensorboard_dir, exist_ok=True)
+        os.makedirs(config.tensorboard_dir, exist_ok=True)
     if not os.path.exists(config.checkpoint_folder):
         os.makedirs(config.checkpoint_folder, exist_ok=True)
+        os.makedirs(config.checkpoint_folder, exist_ok=True)
     if not os.path.exists(config.log_dir):
+        os.makedirs(config.log_dir, exist_ok=True)
         os.makedirs(config.log_dir, exist_ok=True)
 
 
@@ -100,21 +98,25 @@ def main(config, model_class, model_config_class):
             world_size = int(os.getenv('WORLD_SIZE', '1'))
             rank = int(os.getenv('RANK', '0'))
 
+
             # Set CUDA device for each process
             device_id = local_rank
             torch.cuda.set_device(device_id)
             device = torch.device(f'cuda:{device_id}')
             print(f"World size: {world_size}, Local rank: {local_rank}, Global rank: {rank}")
 
+
             # Initialize distributed training environment
             if world_size > 1:
                 try:
+                    dist.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank)
                     dist.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank)
                     print("Distributed initialization SUCCESS")
                 except Exception as e:
                     print(f"Distributed initialization FAILED: {str(e)}")
                     world_size = 1
 
+            print("=" * 50)
             print("=" * 50)
             print("After distributed init:")
             print(f"LOCAL_RANK: {local_rank}")
@@ -144,10 +146,13 @@ def main(config, model_class, model_config_class):
                     print(f"Buffer {name} is on wrong device {buffer.device}, should be moved to {device}")
                     buffer.data = buffer.data.to(device)
 
+
             # If distributed training, wrap the model with DDP
             if world_size > 1:
                 model = torch.nn.parallel.DistributedDataParallel(
-                    model, device_ids=[local_rank], output_device=local_rank, find_unused_parameters=True
+                    model, device_ids=[local_rank], 
+                    output_device=local_rank,
+                    find_unused_parameters=True
                 )
         # ------------ load logger ------------
         train_logger_filename = os.path.join(config.log_dir, 'train.log')
@@ -157,9 +162,14 @@ def main(config, model_class, model_config_class):
                 level=logging.INFO,
                 format_str='%(asctime)-15s %(message)s',
                 filename=train_logger_filename,
+                name='train',
+                level=logging.INFO,
+                format_str='%(asctime)-15s %(message)s',
+                filename=train_logger_filename,
             )
         else:
             # Other processes use console logging
+            train_logger = MyLogger(name='train', level=logging.INFO, format_str='%(asctime)-15s %(message)s')
             train_logger = MyLogger(name='train', level=logging.INFO, format_str='%(asctime)-15s %(message)s')
         transformers_logger = logging.getLogger("transformers")
         if transformers_logger.hasHandlers():
@@ -170,6 +180,18 @@ def main(config, model_class, model_config_class):
 
         # ------------ load dataset ------------
         if config.model_name == "navdp":
+            train_dataset_data = NavDP_Base_Datset(
+                config.il.root_dir,
+                config.il.dataset_navdp,
+                config.il.memory_size,
+                config.il.predict_size,
+                config.il.batch_size,
+                config.il.image_size,
+                config.il.scene_scale,
+                preload=config.il.preload,
+                random_digit=config.il.random_digit,
+                prior_sample=config.il.prior_sample,
+            )
             train_dataset_data = NavDP_Base_Datset(
                 config.il.root_dir,
                 config.il.dataset_navdp,
@@ -217,6 +239,7 @@ def main(config, model_class, model_config_class):
                 config.il.lerobot_features_dir,
                 dataset_data=train_dataset_data,
                 batch_size=config.il.batch_size,
+                batch_size=config.il.batch_size,
             )
             collate_fn = rdp_collate_fn(global_batch_size=global_batch_size)
         elif config.model_name == 'navdp':
@@ -232,6 +255,7 @@ def main(config, model_class, model_config_class):
             deepspeed='',
             gradient_checkpointing=False,
             bf16=False,  # fp16=False,
+            bf16=False,  # fp16=False,
             tf32=False,
             per_device_train_batch_size=config.il.batch_size,
             gradient_accumulation_steps=1,
@@ -243,6 +267,7 @@ def main(config, model_class, model_config_class):
             logging_steps=10.0,
             num_train_epochs=config.il.epochs,
             save_strategy='epoch',  # no
+            save_strategy='epoch',  # no
             save_steps=config.il.save_interval_epochs,
             save_total_limit=8,
             report_to=config.il.report_to,
@@ -253,6 +278,7 @@ def main(config, model_class, model_config_class):
             torch_compile_mode=None,
             dataloader_drop_last=True,
             disable_tqdm=True,
+            log_level="info",
             log_level="info",
         )
 
@@ -273,13 +299,16 @@ def main(config, model_class, model_config_class):
     except Exception as e:
         import traceback
 
+
         print(f"Unhandled exception: {str(e)}")
         print("Stack trace:")
         traceback.print_exc()
 
+
         # If distributed environment, ensure all processes exit
         if dist.is_initialized():
             dist.destroy_process_group()
+
 
         raise
 
@@ -298,18 +327,20 @@ if __name__ == '__main__':
 
     # Select configuration based on model_name
     supported_cfg = {
-        'seq2seq': [seq2seq_exp_cfg, Seq2SeqNet, Seq2SeqModelConfig],
-        'seq2seq_plus': [seq2seq_plus_exp_cfg, Seq2SeqNet, Seq2SeqModelConfig],
-        'cma': [cma_exp_cfg, CMANet, CMAModelConfig],
-        'cma_plus': [cma_plus_exp_cfg, CMANet, CMAModelConfig],
-        'rdp': [rdp_exp_cfg, RDPNet, RDPModelConfig],
-        'navdp': [navdp_exp_cfg, NavDPNet, NavDPModelConfig],
+        'seq2seq': [seq2seq_exp_cfg, "Seq2Seq_Policy"],
+        'seq2seq_plus': [seq2seq_plus_exp_cfg, 'Seq2Seq_Policy'],
+        'cma': [cma_exp_cfg, "CMA_Policy"],
+        'cma_plus': [cma_plus_exp_cfg, "CMA_Policy"],
+        'rdp': [rdp_exp_cfg, "RDP_Policy"],
+        'navdp': [navdp_exp_cfg, "NavDP_Policy"],
     }
 
     if config.model_name not in supported_cfg:
         raise ValueError(f'Invalid model name: {config.model_name}. Supported models are: {list(supported_cfg.keys())}')
 
-    exp_cfg, model_class, model_config_class = supported_cfg[config.model_name]
+    exp_cfg, policy_name = supported_cfg[config.model_name]
+    model_class, model_config_class = get_policy(policy_name), get_config(policy_name)
+
     exp_cfg.name = config.name
     exp_cfg.num_gpus = len(exp_cfg.torch_gpu_ids)
     exp_cfg.world_size = exp_cfg.num_gpus
