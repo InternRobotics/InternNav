@@ -34,15 +34,15 @@ class VlnMultiEvaluator(Evaluator):
             split_data(config.dataset)
         self.result_logger = ResultLogger(config.dataset)
         common_log_util.init(self.task_name)
-        self.dataloader = ResumablePathKeyDataloader(config.dataset.dataset_type, **config.dataset.dataset_settings)
+        self.episode_iterator = ResumablePathKeyDataloader(config.dataset.dataset_type, **config.dataset.dataset_settings)
         self.dataset_name = Path(config.dataset.dataset_settings['base_data_dir']).name
-        progress_log_multi_util.init(self.task_name, self.dataloader.size)
-        self.total_path_num = self.dataloader.size
+        progress_log_multi_util.init(self.task_name, self.episode_iterator.size)
+        self.total_path_num = self.episode_iterator.size
         progress_log_multi_util.progress_logger_multi.info(
-            f'start eval dataset: {self.task_name}, total_path: {self.dataloader.size}'  # noqa: E501
+            f'start eval dataset: {self.task_name}, total_path: {self.episode_iterator.size}'  # noqa: E501
         )
         # generate episode
-        episodes = generate_episode(self.dataloader, config)
+        episodes = generate_episode(self.episode_iterator, config)
         if len(episodes) == 0:
             log.info("No more episodes to evaluate")
             sys.exit(0)
@@ -70,7 +70,7 @@ class VlnMultiEvaluator(Evaluator):
         self.robot_name = config.task.robot_name
         super().__init__(config)
         set_seed_model(0)
-        self.data_collector = DataCollector(self.dataloader.lmdb_path)
+        self.data_collector = DataCollector(self.episode_iterator.lmdb_path)
         self.robot_flash = config.task.robot_flash
 
     @property

@@ -5,7 +5,8 @@ from internnav.evaluator.utils.config import get_lmdb_path
 
 from .data_reviser import revise_one_data, skip_list
 
-from internnav.evaluator.utils.common import load_data
+# from internnav.evaluator.utils.common import load_data
+from internnav.evaluator.utils.common import get_load_func
 
 
 class BasePathKeyDataloader:
@@ -24,12 +25,11 @@ class BasePathKeyDataloader:
         self.path_key_split = {}
 
         for split_data_type in split_data_types:
-            load_data_map = load_data(
+            load_data_map = get_load_func(dataset_type)(
                 base_data_dir,
                 split_data_type,
                 filter_same_trajectory=filter_same_trajectory,
                 filter_stairs=filter_stairs,
-                dataset_type=dataset_type,
             )
             for scan, path_list in load_data_map.items():
                 for path in path_list:

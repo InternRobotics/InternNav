@@ -170,75 +170,142 @@ def transform_rotation_z_90degrees(rotation):
     return revised_rotation
 
 
-def load_data(dataset_root_dir, split, filter_same_trajectory=True, filter_stairs=True, dataset_type='mp3d'):
-    with gzip.open(os.path.join(dataset_root_dir, split, f"{split}.json.gz"), 'rt', encoding='utf-8') as f:
-        data = json.load(f)['episodes']
+def _transform_mp3d_coords(start_position, start_rotation, reference_path):
+    """Apply the MP3D-specific coordinate system transformation."""
+    x, z, y = start_position
+    new_pos = [x, -y, z]
 
-    if dataset_type == 'mp3d':
-        scenes = list(set([x['scene_id'] for x in data]))  # e.g. 'mp3d/zsNo4HB9uLZ/zsNo4HB9uLZ.glb'
-    elif dataset_type == 'kujiale':
-        scenes = list(set([x['scan'] for x in data]))
-    else:
-        raise Exception(f"Unsupported dataset type {dataset_type}, please update cfg to contain valid dataset_type")
-    scenes.sort()
+    # Rotation: quaternion [w, x, y, z] → transformed as [-z, x, y, -w] (90° around Z)
+    r1, r2, r3, r4 = start_rotation  # original: [w, x, y, z] ?
+    new_rot = [-r4, r1, r3, -r2]      # adjust according to your transform_rotation_z_90degrees impl
+
+    new_path = [[x, -y, z] for x, z, y in reference_path]
+    return new_pos, new_rot, new_path
+
+def _load_common(split, episodes, scene_key, scan_extractor,
+                 transform_fn=None,
+                 filter_same_trajectory=True, filter_stairs=True):
+    """
+    Shared loading & filtering logic.
+    - scene_key: key in episode dict that identifies the scene ('scene_id' or 'scan')
+    - scan_extractor: callable that returns the scan name from a scene identifier
+    - transform_fn: optional callable (start_pos, start_rot, ref_path) → transformed versions
+    """
+    # Group episodes by scan
     new_data = {}
-    for scene in scenes:
-        if dataset_type == 'mp3d':
-            scene_data = [x for x in data if x['scene_id'] == scene]
-            scan = scene.split('/')[1]  # e.g. 'zsNo4HB9uLZ'
-        else:
-            scene_data = [x for x in data if x['scan'] == scene]
-            scan = scene
-        new_scene_data = []
-        for item in scene_data:
-            new_item = copy.deepcopy(item)
-            new_item['scan'] = scan
-            new_item['original_start_position'] = item['start_position']
-            new_item['original_start_rotation'] = item['start_rotation']
-            if dataset_type == 'mp3d':
-                x, z, y = item['start_position']
-                new_item['start_position'] = [x, -y, z]
-                r1, r2, r3, r4 = item['start_rotation']
-                new_item['start_rotation'] = transform_rotation_z_90degrees([-r4, r1, r3, -r2])
-                new_item['reference_path'] = [[x, -y, z] for x, z, y in item['reference_path']]
-            new_scene_data.append(new_item)
+    for ep in episodes:
+        scene = ep[scene_key]
+        scan = scan_extractor(scene)
 
-        new_data[scan] = new_scene_data
+        new_ep = copy.deepcopy(ep)
+        new_ep['scan'] = scan
+        new_ep['original_start_position'] = ep['start_position']
+        new_ep['original_start_rotation'] = ep['start_rotation']
+
+        if transform_fn:
+            pos, rot, path = transform_fn(ep['start_position'],
+                                          ep['start_rotation'],
+                                          ep.get('reference_path', []))
+            new_ep['start_position'] = pos
+            new_ep['start_rotation'] = rot
+            new_ep['reference_path'] = path
+        else:
+            # Kujiale uses the raw coordinates
+            new_ep['reference_path'] = ep.get('reference_path', [])
+
+        new_data.setdefault(scan, []).append(new_ep)
 
     data = copy.deepcopy(new_data)
     new_data = defaultdict(list)
 
-    # filter_same_trajectory
+    # ------------------- filter_same_trajectory -------------------
     if filter_same_trajectory:
-        total_count = 0
-        remaining_count = 0
-        trajectory_list = []
-        for scan, data_item in data.items():
-            for item in data_item:
+        total_count = remaining_count = 0
+        seen_trajectories = set()
+        for scan, items in data.items():
+            for item in items:
                 total_count += 1
-                if item['trajectory_id'] in trajectory_list:
+                if item['trajectory_id'] in seen_trajectories:
                     continue
+                seen_trajectories.add(item['trajectory_id'])
                 remaining_count += 1
-                trajectory_list.append(item['trajectory_id'])
                 new_data[scan].append(item)
-        log.info(f'[split:{split}]filter_same_trajectory remain: [ {remaining_count} / {total_count} ]')
+        log.info(f'[split:{split}] filter_same_trajectory remain: [{remaining_count} / {total_count}]')
         data = new_data
         new_data = defaultdict(list)
 
+    # ------------------- filter_stairs -------------------
     if filter_stairs:
-        total_count = 0
-        remaining_count = 0
-        for scan, data_item in data.items():
-            for item in data_item:
+        total_count = remaining_count = 0
+        for scan, items in data.items():
+            for item in items:
                 total_count += 1
                 if has_stairs(item) or different_height(item):
                     continue
                 remaining_count += 1
                 new_data[scan].append(item)
-        log.info(f'[split:{split}]filter_stairs remain: [ {remaining_count} / {total_count} ]')
+        log.info(f'[split:{split}] filter_stairs remain: [{remaining_count} / {total_count}]')
         data = new_data
 
-    return data
+    return dict(data)  # convert back to regular dict
+
+
+# ----------------------------------------------------------------------
+# Public API
+# ----------------------------------------------------------------------
+def get_load_func(dataset_type: str):
+    if dataset_type == 'mp3d':
+        return load_mp3d
+    elif dataset_type == 'kujiale':
+        return load_kujiale
+    else:
+        raise NotImplementedError(f'Unknown dataset type: {dataset_type}. Please use mp3d/kujiale, or implement a new loader.')
+
+def load_mp3d(dataset_root_dir,
+              split,
+              filter_same_trajectory=True,
+              filter_stairs=True):
+    """Load and preprocess MP3D episodes."""
+    path = os.path.join(dataset_root_dir, split, f"{split}.json.gz")
+    with gzip.open(path, 'rt', encoding='utf-8') as f:
+        episodes = json.load(f)['episodes']
+
+    def scan_extractor(scene_id):
+        # scene_id example: 'mp3d/zsNo4HB9uLZ/zsNo4HB9uLZ.glb'
+        return scene_id.split('/')[1]
+
+    return _load_common(
+        split=split,
+        episodes=episodes,
+        scene_key='scene_id',
+        scan_extractor=scan_extractor,
+        transform_fn=_transform_mp3d_coords,
+        filter_same_trajectory=filter_same_trajectory,
+        filter_stairs=filter_stairs,
+    )
+
+
+def load_kujiale(dataset_root_dir,
+                 split,
+                 filter_same_trajectory=True,
+                 filter_stairs=True):
+    """Load and preprocess Kujiale episodes."""
+    path = os.path.join(dataset_root_dir, split, f"{split}.json.gz")
+    with gzip.open(path, 'rt', encoding='utf-8') as f:
+        episodes = json.load(f)['episodes']
+
+    def scan_extractor(scan):
+        return scan  # already the scan name
+
+    return _load_common(
+        split=split,
+        episodes=episodes,
+        scene_key='scan',
+        scan_extractor=scan_extractor,
+        transform_fn=None,  # no coordinate flip needed
+        filter_same_trajectory=filter_same_trajectory,
+        filter_stairs=filter_stairs,
+    )
 
 
 def load_scene_usd(data_dir, scan):

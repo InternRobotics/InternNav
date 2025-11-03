@@ -6,7 +6,7 @@ import lmdb
 import msgpack_numpy
 
 from internnav import PROJECT_ROOT_PATH
-from internnav.evaluator.utils.common import load_data
+from internnav.evaluator.utils.common import get_load_func
 from internnav.evaluator.utils.config import get_lmdb_path, get_lmdb_prefix
 
 from internnav.configs.evaluator import EpisodeCfg
@@ -43,12 +43,11 @@ def split_data(dataset_cfg: EpisodeCfg):
 
     dataset_type = dataset_cfg.dataset_type
     for split_data_type in split_data_types:
-        data_map = load_data(
+        data_map = get_load_func(dataset_type)(
             base_data_dir,
             split_data_type,
             filter_same_trajectory=filter_same_trajectory,
             filter_stairs=filter_stairs,
-            dataset_type=dataset_type,
         )
         for scan, path_list in data_map.items():
             path_key_list = []
@@ -132,12 +131,11 @@ class ResultLogger:
     ):
         split_map = {}
         for split_data_type in split_data_types:
-            load_data_map = load_data(
+            load_data_map = get_load_func(dataset_type)(
                 base_data_dir,
                 split_data_type,
                 filter_same_trajectory=False,
                 filter_stairs=filter_stairs,
-                dataset_type=dataset_type,
             )
             path_key_list = []
             for scan, path_list in load_data_map.items():
