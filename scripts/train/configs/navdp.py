@@ -29,7 +29,7 @@ navdp_exp_cfg = ExpCfg(
     ),
     il=IlCfg(
         epochs=1000,
-        batch_size=16,
+        batch_size=32,
         lr=1e-4,
         num_workers=8,
         weight_decay=1e-4,  # TODO
@@ -57,6 +57,7 @@ navdp_exp_cfg = ExpCfg(
         prior_sample=False,
         memory_size=8,
         predict_size=24,
+        pixel_channel=4,
         temporal_depth=16,
         heads=8,
         token_dim=384,

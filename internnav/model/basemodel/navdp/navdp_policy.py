@@ -7,7 +7,13 @@ from transformers import PretrainedConfig, PreTrainedModel
 
 from internnav.configs.model.base_encoders import ModelCfg
 from internnav.configs.trainer.exp import ExpCfg
-from internnav.model.encoder.navdp_backbone import *
+from internnav.model.encoder.navdp_backbone import (
+    LearnablePositionalEncoding,
+    NavDP_ImageGoal_Backbone,
+    NavDP_PixelGoal_Backbone,
+    NavDP_RGBD_Backbone,
+    SinusoidalPosEmb,
+)
 
 
 class NavDPModelConfig(PretrainedConfig):
@@ -324,7 +330,7 @@ class NavDPNet(PreTrainedModel):
                 naction = self.noise_scheduler.step(model_output=noise_pred, timestep=k, sample=naction).prev_sample
 
             critic_values = self.predict_critic(naction, rgbd_embed)
-            all_trajectory = torch.cumsum(naction / 4.0, dim=1)
+            # all_trajectory = torch.cumsum(naction / 4.0, dim=1)
 
             negative_trajectory = torch.cumsum(naction / 4.0, dim=1)[(critic_values).argsort()[0:8]]
             positive_trajectory = torch.cumsum(naction / 4.0, dim=1)[(-critic_values).argsort()[0:8]]
@@ -343,7 +349,7 @@ class NavDPNet(PreTrainedModel):
                 naction = self.noise_scheduler.step(model_output=noise_pred, timestep=k, sample=naction).prev_sample
 
             critic_values = self.predict_critic(naction, rgbd_embed)
-            all_trajectory = torch.cumsum(naction / 4.0, dim=1)
+            # all_trajectory = torch.cumsum(naction / 4.0, dim=1)
 
             negative_trajectory = torch.cumsum(naction / 4.0, dim=1)[(critic_values).argsort()[0:8]]
             positive_trajectory = torch.cumsum(naction / 4.0, dim=1)[(-critic_values).argsort()[0:8]]
