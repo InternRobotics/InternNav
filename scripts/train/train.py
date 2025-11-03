@@ -16,13 +16,7 @@ from transformers import TrainerCallback, TrainingArguments
 from internnav.dataset.cma_lerobot_dataset import CMALerobotDataset, cma_collate_fn
 from internnav.dataset.navdp_dataset_lerobot import NavDP_Base_Datset, navdp_collate_fn
 from internnav.dataset.rdp_lerobot_dataset import RDP_LerobotDataset, rdp_collate_fn
-from internnav.model.basemodel.cma.cma_policy import CMAModelConfig, CMANet
-from internnav.model.basemodel.navdp.navdp_policy import NavDPModelConfig, NavDPNet
-from internnav.model.basemodel.rdp.rdp_policy import RDPModelConfig, RDPNet
-from internnav.model.basemodel.seq2seq.seq2seq_policy import (
-    Seq2SeqModelConfig,
-    Seq2SeqNet,
-)
+from internnav.model import get_config, get_policy
 from internnav.model.utils.logger import MyLogger
 from internnav.model.utils.utils import load_dataset
 from internnav.trainer import CMATrainer, NavDPTrainer, RDPTrainer
@@ -297,18 +291,20 @@ if __name__ == '__main__':
 
     # Select configuration based on model_name
     supported_cfg = {
-        'seq2seq': [seq2seq_exp_cfg, Seq2SeqNet, Seq2SeqModelConfig],
-        'seq2seq_plus': [seq2seq_plus_exp_cfg, Seq2SeqNet, Seq2SeqModelConfig],
-        'cma': [cma_exp_cfg, CMANet, CMAModelConfig],
-        'cma_plus': [cma_plus_exp_cfg, CMANet, CMAModelConfig],
-        'rdp': [rdp_exp_cfg, RDPNet, RDPModelConfig],
-        'navdp': [navdp_exp_cfg, NavDPNet, NavDPModelConfig],
+        'seq2seq': [seq2seq_exp_cfg, "Seq2Seq_Policy"],
+        'seq2seq_plus': [seq2seq_plus_exp_cfg, 'Seq2Seq_Policy'],
+        'cma': [cma_exp_cfg, "CMA_Policy"],
+        'cma_plus': [cma_plus_exp_cfg, "CMA_Policy"],
+        'rdp': [rdp_exp_cfg, "RDP_Policy"],
+        'navdp': [navdp_exp_cfg, "NavDP_Policy"],
     }
 
     if config.model_name not in supported_cfg:
         raise ValueError(f'Invalid model name: {config.model_name}. Supported models are: {list(supported_cfg.keys())}')
 
-    exp_cfg, model_class, model_config_class = supported_cfg[config.model_name]
+    exp_cfg, policy_name = supported_cfg[config.model_name]
+    model_class, model_config_class = get_policy(policy_name), get_config(policy_name)
+
     exp_cfg.name = config.name
     exp_cfg.num_gpus = len(exp_cfg.torch_gpu_ids)
     exp_cfg.world_size = exp_cfg.num_gpus
