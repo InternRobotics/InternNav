@@ -16,13 +16,10 @@ from transformers import TrainerCallback, TrainingArguments
 from internnav.dataset.cma_lerobot_dataset import CMALerobotDataset, cma_collate_fn
 from internnav.dataset.navdp_dataset_lerobot import NavDP_Base_Datset, navdp_collate_fn
 from internnav.dataset.rdp_lerobot_dataset import RDP_LerobotDataset, rdp_collate_fn
-from internnav.model import (
-    CMAModelConfig,
-    CMANet,
-    NavDPModelConfig,
-    NavDPNet,
-    RDPModelConfig,
-    RDPNet,
+from internnav.model.basemodel.cma.cma_policy import CMAModelConfig, CMANet
+from internnav.model.basemodel.navdp.navdp_policy import NavDPModelConfig, NavDPNet
+from internnav.model.basemodel.rdp.rdp_policy import RDPModelConfig, RDPNet
+from internnav.model.basemodel.seq2seq.seq2seq_policy import (
     Seq2SeqModelConfig,
     Seq2SeqNet,
 )
