@@ -511,6 +511,10 @@ class NavDP_Base_Datset(Dataset):
             camera_intrinsic,
             trajectory_base_extrinsic,
         )
+        # pixel channel == 7 represents the navdp works pixel navigation under asynchronous pace,
+        # pixel_mask (1), the history image with the assigned pixel goal (3), current image (3)
+        # if pixel_channel == 4, pixel goal is assigned at current frame, therefore,
+        # only pixel_mask (1) and current image (3) are needed
         if self.pixel_channel == 7:
             pixel_goal = np.concatenate((pixel_goal, memory_images[-1]), axis=-1)
 

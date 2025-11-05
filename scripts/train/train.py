@@ -104,7 +104,6 @@ def main(config, model_class, model_config_class):
             if world_size > 1:
                 try:
                     dist.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank)
-                    dist.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank)
                     print("Distributed initialization SUCCESS")
                 except Exception as e:
                     print(f"Distributed initialization FAILED: {str(e)}")
