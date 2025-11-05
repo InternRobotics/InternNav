@@ -1,11 +1,9 @@
+import copy
 import random
 from collections import defaultdict
 
-import lmdb
-import msgpack_numpy
 import numpy as np
 import torch
-import copy
 from PIL import Image
 from torchvision.transforms import (
     CenterCrop,
@@ -26,8 +24,8 @@ except ImportError:
 from internnav.dataset.base import BaseDataset, ObservationsDict, _block_shuffle
 from internnav.evaluator.utils.common import norm_depth
 from internnav.model.basemodel.LongCLIP.model import longclip
-from internnav.model.basemodel.rdp.utils import get_delta, normalize_data, to_local_coords
 from internnav.model.utils.feature_extract import extract_instruction_tokens
+from internnav.utils.geometry_utils import get_delta, normalize_data, to_local_coords
 from internnav.utils.lerobot_as_lmdb import LerobotAsLmdb
 
 
@@ -174,14 +172,12 @@ class RDP_LerobotDataset(BaseDataset):
                         data['camera_info'][self.camera_name]['rgb'] = data['camera_info'][self.camera_name]['rgb'][
                             :-drop_last_frame_nums
                         ]
-                        data['camera_info'][self.camera_name]['depth'] = data['camera_info'][self.camera_name][
-                            'depth'
-                        ][:-drop_last_frame_nums]
-                        data['robot_info']['yaw'] = data['robot_info']['yaw'][:-drop_last_frame_nums]
-                        data['robot_info']['position'] = data['robot_info']['position'][:-drop_last_frame_nums]
-                        data['robot_info']['orientation'] = data['robot_info']['orientation'][
+                        data['camera_info'][self.camera_name]['depth'] = data['camera_info'][self.camera_name]['depth'][
                             :-drop_last_frame_nums
                         ]
+                        data['robot_info']['yaw'] = data['robot_info']['yaw'][:-drop_last_frame_nums]
+                        data['robot_info']['position'] = data['robot_info']['position'][:-drop_last_frame_nums]
+                        data['robot_info']['orientation'] = data['robot_info']['orientation'][:-drop_last_frame_nums]
                         data['progress'] = data['progress'][:-drop_last_frame_nums]
                         data['step'] = data['step'][:-drop_last_frame_nums]
 
@@ -192,7 +188,7 @@ class RDP_LerobotDataset(BaseDataset):
                     if yaw > np.pi:
                         yaw -= 2 * np.pi
                     yaws[yaw_i] = yaw
-                
+
                 episodes_in_json = data_to_load['episodes_in_json']
 
                 instructions = [
@@ -220,7 +216,6 @@ class RDP_LerobotDataset(BaseDataset):
                 new_preload = extract_instruction_tokens(
                     new_preload, self.bert_tokenizer, is_clip_long=self.is_clip_long
                 )
-
 
             # process the instruction
             # copy the instruction to each step
@@ -447,12 +442,7 @@ def rdp_collate_fn(global_batch_size=None):
         observations_batch = ObservationsDict(observations_batch)
         # Expand B to match the flattened batch size
         B_expanded = B.repeat(observations_batch['prev_actions'].shape[0]).view(-1, 1)
-            
-        return (
-            observations_batch,
-            observations_batch['prev_actions'],
-            not_done_masks_batch.view(-1, 1),
-            B_expanded
-        )
-    
+
+        return (observations_batch, observations_batch['prev_actions'], not_done_masks_batch.view(-1, 1), B_expanded)
+
     return _rdp_collate_fn
