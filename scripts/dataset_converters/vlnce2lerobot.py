@@ -1,48 +1,46 @@
 #!/usr/bin/env python
 
-import json
-import shutil
-import os
 import glob
-import tqdm
-import numpy as np
-import cv2
-import tyro
-import datasets
-import logging
-import threading
-import sys
-import datetime
-
-from pathlib import Path
-from loguru import logger
+import json
+import os
+import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Iterator, Dict, Any, List, Tuple, Generator
-from datasets import concatenate_datasets
+from pathlib import Path
+from typing import Any, Dict, Iterator, Tuple
 
-from lerobot.common.datasets.utils import embed_images, hf_transform_to_torch
-from lerobot.common.datasets.lerobot_dataset import LeRobotDataset, LeRobotDatasetMetadata
-from lerobot.common.datasets.compute_stats import aggregate_stats
+import cv2
+import datasets
+import numpy as np
+import torch
+import torchvision
+import tqdm
+from datasets import concatenate_datasets
+from lerobot.common.datasets.compute_stats import (
+    aggregate_stats,
+    auto_downsample_height_width,
+    get_feature_stats,
+    sample_indices,
+)
+from lerobot.common.datasets.lerobot_dataset import (
+    LeRobotDataset,
+    LeRobotDatasetMetadata,
+)
 from lerobot.common.datasets.utils import (
     check_timestamps_sync,
+    embed_images,
     get_episode_data_index,
+    hf_transform_to_torch,
     validate_episode_buffer,
     validate_frame,
     write_episode,
     write_episode_stats,
     write_info,
 )
-from lerobot.common.datasets.compute_stats import auto_downsample_height_width, get_feature_stats, sample_indices
 from lerobot.common.datasets.video_utils import get_safe_default_codec
-
-import open3d as o3d
-import numpy as np
-from plyfile import PlyData
-
-import torch
-import torchvision
+from loguru import logger
 
 LEROBOT_HOME = Path(os.environ.get("LEROBOT_HOME", "/shared/smartbot_new/liuyu/"))
+
 
 def sample_images(input):
     if type(input) is str:
@@ -76,17 +74,20 @@ def sample_images(input):
 
     return images
 
+
 def compute_episode_stats(episode_data: dict[str, list[str] | np.ndarray], features: dict) -> dict:
     """calculate episode statistics"""
     ep_stats = {}
     for key, data in episode_data.items():
         if key not in features:  # skip non-feature data
             continue
-            
+
         if features[key]["dtype"] == "string":
             continue
         elif features[key]["dtype"] in ["image", "video"]:
-            if isinstance(data, (str, list)) and all(isinstance(item, str) for item in (data if isinstance(data, list) else [data])):
+            if isinstance(data, (str, list)) and all(
+                isinstance(item, str) for item in (data if isinstance(data, list) else [data])
+            ):
                 # string path, skip stats calculation
                 continue
             # ensure data is in the correct shape
@@ -99,7 +100,7 @@ def compute_episode_stats(episode_data: dict[str, list[str] | np.ndarray], featu
             # for non-image/video data, ensure it's a 2D array [N, D]
             ep_ft_array = np.array(data)
             if ep_ft_array.ndim == 1:
-                if key == "episode_index":  
+                if key == "episode_index":
                     ep_ft_array = ep_ft_array.reshape(-1, 1)
                 else:
                     feature_shape = features[key]["shape"]
@@ -107,7 +108,7 @@ def compute_episode_stats(episode_data: dict[str, list[str] | np.ndarray], featu
                         ep_ft_array = ep_ft_array.reshape(-1, np.prod(feature_shape))
                     else:
                         ep_ft_array = ep_ft_array.reshape(-1, 1)
-            
+
             axes_to_reduce = (0,)  # calculate stats on the first dimension
             keepdims = True
 
@@ -116,15 +117,13 @@ def compute_episode_stats(episode_data: dict[str, list[str] | np.ndarray], featu
 
             if features[key]["dtype"] in ["image", "video"]:
                 value_norm = 1.0 if "depth" in key else 255.0
-                ep_stats[key] = {
-                    k: v if k == "count" else np.squeeze(v / value_norm) 
-                    for k, v in ep_stats[key].items()
-                }
+                ep_stats[key] = {k: v if k == "count" else np.squeeze(v / value_norm) for k, v in ep_stats[key].items()}
         except Exception as e:
-            logger.warning(f"Failed to calculate stats for feature {key}: {e}")   
+            logger.warning(f"Failed to calculate stats for feature {key}: {e}")
             continue
 
     return ep_stats
+
 
 class NavDatasetMetadata(LeRobotDatasetMetadata):
     def get_data_file_path(self, ep_index: int) -> Path:
@@ -133,9 +132,9 @@ class NavDatasetMetadata(LeRobotDatasetMetadata):
 
     def get_video_file_path(self, ep_index: int, key: str) -> Path:
         chunk = self.get_episode_chunk(ep_index)
-        video_key = key.split(".")[-1]  
+        video_key = key.split(".")[-1]
         return Path("videos") / f"chunk-{chunk:03d}" / video_key
-    
+
     def save_episode(
         self,
         episode_index: int,
@@ -171,6 +170,7 @@ class NavDatasetMetadata(LeRobotDatasetMetadata):
         self.episodes_stats[episode_index] = episode_stats
         self.stats = aggregate_stats([self.stats, episode_stats]) if self.stats else episode_stats
         write_episode_stats(episode_index, episode_stats, self.root)
+
 
 class NavDataset(LeRobotDataset):
     @classmethod
@@ -294,7 +294,6 @@ class NavDataset(LeRobotDataset):
 
                 video_path = self.root / self.meta.get_video_file_path(episode_index, key)
                 video_path.parent.mkdir(parents=True, exist_ok=True)
-                
 
                 source_dir = Path(source_path)
                 if source_dir.exists():
@@ -307,7 +306,7 @@ class NavDataset(LeRobotDataset):
 
         ep_stats = compute_episode_stats(episode_buffer, self.features)
         self._save_episode_table(episode_buffer, episode_index)
-        
+
         self.meta.save_episode(episode_index, episode_length, episode_tasks, ep_stats)
 
         ep_data_index = get_episode_data_index(self.meta.episodes, [episode_index])
@@ -337,25 +336,18 @@ class NavDataset(LeRobotDataset):
 def get_streamvln_features() -> Dict[str, Dict]:
     """
     define the feature structure of StreamVLN dataset
-    
+
     Args:
         img_size: image size (height, width)
-        
+
     Returns:
         feature definition dictionary
     """
     return {
-        "observation.images.rgb": {
-            "dtype": "image",
-            "shape": (480, 640, 3),
-            "names": ["height", "width", "channel"]
-        },
-        "action": {
-            "dtype": "int64",
-            "shape": (1,),
-            "names": ["action_index"]
-        },
+        "observation.images.rgb": {"dtype": "image", "shape": (480, 640, 3), "names": ["height", "width", "channel"]},
+        "action": {"dtype": "int64", "shape": (1,), "names": ["action_index"]},
     }
+
 
 def load_streamvln_episode(
     ann: Dict[str, Any],
@@ -365,20 +357,20 @@ def load_streamvln_episode(
 ) -> Iterator[Dict[str, Any]]:
     """
     load StreamVLN episode data, return an iterator in LeRobot format
-    
+
     Args:
         ann: single annotation dictionary
         dataset_name: dataset name (EnvDrop/R2R/RxR)
         data_dir: data root directory
         img_size: output image size (height, width)
-        
+
     Yields:
         a dictionary of LeRobot format data for each frame
     """
     try:
         ann_id = ann["id"]
         video_path = ann["video"]
-        
+
         # parse scene ID and episode ID
         parts = video_path.split("/")[-1].split("_")
         scene_id = parts[0]
@@ -386,57 +378,53 @@ def load_streamvln_episode(
         # fix path parsing logic
         # original format: "video": "images/17DRP5sb8fy_envdrop_111702"
         # actual path: images/17DRP5sb8fy/rgb
- 
+
         # src_image_dir = data_dir / dataset_name / "images" / "rgb" /scene_id
-        
+
         # build source image directory
         src_image_dir = data_dir / dataset_name / video_path / "rgb"
-        
+
         # get all image files
-        image_files = sorted(
-            glob.glob(str(src_image_dir / "*.jpg"))
-            
-        )
+        image_files = sorted(glob.glob(str(src_image_dir / "*.jpg")))
         if not image_files:
             logger.warning(f"No image files found in {src_image_dir}")
             return
-        
+
         # get actions and instructions
         actions = np.array(ann.get("actions", []), dtype=np.int64)
         instructions = ann.get("instructions", [])
         instruction = json.dumps({"instruction": instructions[0]}) if instructions else "Navigation task"
-        
+
         # build file path mapping
-        files = {
-            "observation.images.rgb": str(src_image_dir)
-        }
-        
+        files = {"observation.images.rgb": str(src_image_dir)}
+
         for frame_idx, img_path in enumerate(image_files):
             img = cv2.imread(img_path)
             if img is None:
                 continue
-                
+
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            
-            action_value = -1  
+
+            action_value = -1
             if frame_idx < len(actions):
                 action_value = actions[frame_idx]
-            
+
             action = np.array([action_value], dtype=np.int64)
-            
+
             yield {
                 'observation': {
                     'images.rgb': img,
                 },
                 'action': action,
                 'language_instruction': instruction,
-                'files': files
+                'files': files,
             }
-            
+
     except Exception as e:
         logger.error(f"Failed to load episode {ann_id}: {str(e)}", exc_info=True)
         return
-    
+
+
 def process_episode(
     ann: Dict[str, Any],
     dataset_name: str,
@@ -450,10 +438,10 @@ def process_episode(
         video_path = ann["video"]
         parts = video_path.split("/")[-1].split("_")
         scene_id = parts[0]
-        ep_id = parts[-1] if len(parts) > 2 else "000000" 
+        ep_id = parts[-1] if len(parts) > 2 else "000000"
 
         output_path = LEROBOT_HOME / repo_name / dataset_name.lower() / scene_id / ep_id
-        
+
         if output_path.exists():
             return (episode_id, True, "Skipped, already exists")
 
@@ -473,22 +461,22 @@ def process_episode(
         episode_iterator = load_streamvln_episode(ann, dataset_name, data_dir)
         frame_count = 0
         files = {}
-        
+
         for step_data in episode_iterator:
             if frame_count == 0:
                 files = step_data.pop('files', {})
             else:
                 step_data.pop('files', {})
-            
+
             dataset.add_frame(
                 frame={
                     "observation.images.rgb": step_data["observation"]["images.rgb"],
                     "action": step_data["action"],
                 },
-                task=step_data["language_instruction"]
+                task=step_data["language_instruction"],
             )
             frame_count += 1
-        
+
         if frame_count > 0:
             dataset.save_episode(files=files)
             message = f"Successfully processed: {episode_id}, {frame_count} frames"
@@ -496,11 +484,12 @@ def process_episode(
         else:
             message = f"No frames were processed, skipping: {episode_id}"
             return (episode_id, False, message)
-            
+
     except Exception as e:
         message = f"Failed to process episode: {str(e)}"
         logger.error(message, exc_info=True)
         return (ann.get('id', 'unknown'), False, message)
+
 
 def process_dataset(
     dataset_name: str,
@@ -509,13 +498,12 @@ def process_dataset(
     # img_size: Tuple[int, int],
     push_to_hub: bool,
     num_threads: int = 10,
-    start_idx: int = 0,  
-    end_idx: int | None = None  
-
+    start_idx: int = 0,
+    end_idx: int | None = None,
 ) -> Tuple[int, int]:
     """
     process the entire dataset
-    
+
     Args:
         dataset_name: dataset name
         data_dir: data root directory
@@ -523,7 +511,7 @@ def process_dataset(
         img_size: image size
         push_to_hub: whether to push to Hub
         num_threads: number of threads
-        
+
     Returns:
         (total_episodes, success_episodes)
     """
@@ -532,19 +520,19 @@ def process_dataset(
     if not ann_file.exists():
         logger.error(f"Annotation file not found: {ann_file}")
         return 0, 0
-    
+
     with open(ann_file, "r") as f:
         annotations = json.load(f)
-    
+
     total = len(annotations)
     end_idx = end_idx if end_idx is not None else total
-    selected_anns = annotations[start_idx:end_idx]  
+    selected_anns = annotations[start_idx:end_idx]
     selected_count = len(selected_anns)
-    
+
     if selected_count == 0:
         logger.warning(f"No episodes found in the index range [{start_idx}, {end_idx})")
         return 0, 0
-    
+
     logger.info(
         f"Start processing dataset: {dataset_name} "
         f"(Total episodes: {total}, processing range: [{start_idx}, {end_idx}), actual processing: {selected_count})"
@@ -564,17 +552,20 @@ def process_dataset(
             ): ann['id']
             for ann in selected_anns
         }
-        
-        progress_bar = tqdm.tqdm(as_completed(futures), total=len(selected_anns), desc=f"处理 {dataset_name} [{start_idx}:{end_idx}]")
+
+        progress_bar = tqdm.tqdm(
+            as_completed(futures), total=len(selected_anns), desc=f"处理 {dataset_name} [{start_idx}:{end_idx}]"
+        )
         for future in progress_bar:
             _, success, message = future.result()
             if success:
                 success_count += 1
-            progress_bar.set_postfix_str(f"Success: {success_count}/{selected_count} "
-                f"({success_count/selected_count:.1%})"
+            progress_bar.set_postfix_str(
+                f"Success: {success_count}/{selected_count} " f"({success_count/selected_count:.1%})"
             )
-    
+
     return selected_count, success_count
+
 
 def main(
     data_dir: str,
@@ -586,11 +577,11 @@ def main(
     num_threads: int = 10,
     start_index: int = None,
     end_index: int = None,
-    datasets: str = None
+    datasets: str = None,
 ):
     """
     main function
-    
+
     Args:
         data_dir: data root directory
         repo_name: output dataset name
@@ -603,9 +594,9 @@ def main(
     data_path = Path(data_dir)
     if not data_path.exists():
         raise ValueError(f"Data directory does not exist: {data_dir}")
-    
+
     # datasets_to_process = ["R2R", "EnvDrop", "RxR"]
-    
+
     total_episodes = 0
     success_episodes = 0
     dataset_name = datasets
@@ -619,11 +610,11 @@ def main(
         push_to_hub=push_to_hub,
         num_threads=num_threads,
         start_idx=start_index,
-        end_idx=end_index
+        end_idx=end_index,
     )
     total_episodes += total
     success_episodes += success
-    
+
     logger.info("=" * 50)
     logger.info("Conversion completed!")
     logger.info(f"Total episodes: {total_episodes}")
@@ -631,8 +622,10 @@ def main(
     logger.info(f"Failed: {total_episodes - success_episodes}")
     logger.info("=" * 50)
 
+
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Convert StreamVLN dataset to LeRobot format")
     parser.add_argument("--data_dir", type=str, default="/path/to/streamvln", help="StreamVLN data root directory")
     parser.add_argument("--repo_name", type=str, default="vln_ce_lerobot", help="Output dataset name")
@@ -641,11 +634,10 @@ if __name__ == "__main__":
     parser.add_argument("--num_threads", type=int, default=10, help="Number of threads")
     parser.add_argument("--start_index", type=int, default=0, help="Start index (inclusive)")
     parser.add_argument("--end_index", type=int, default=2000, help="End index (exclusive)")
-    parser.add_argument("--datasets", type=str, default="RxR", 
-                      help="List of datasets to process")
-    
+    parser.add_argument("--datasets", type=str, default="RxR", help="List of datasets to process")
+
     args = parser.parse_args()
-    
+
     main(
         data_dir=args.data_dir,
         repo_name=args.repo_name,
@@ -654,5 +646,5 @@ if __name__ == "__main__":
         num_threads=args.num_threads,
         start_index=args.start_index,
         end_index=args.end_index,
-        datasets=args.datasets
+        datasets=args.datasets,
     )

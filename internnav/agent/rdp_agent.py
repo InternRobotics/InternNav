@@ -9,8 +9,12 @@ from internnav.agent.utils.common import batch_obs, set_seed_model
 from internnav.configs.agent import AgentCfg
 from internnav.configs.model.base_encoders import ModelCfg
 from internnav.model import get_config, get_policy
-from internnav.model.basemodel.LongCLIP.model import longclip
-from internnav.model.basemodel.rdp.utils import (
+from internnav.model.utils.feature_extract import (
+    extract_image_features,
+    extract_instruction_tokens,
+)
+from internnav.utils.common_log_util import common_logger as log
+from internnav.utils.geometry_utils import (
     FixedLengthStack,
     compute_actions,
     get_delta,
@@ -19,12 +23,6 @@ from internnav.model.basemodel.rdp.utils import (
     quat_to_euler_angles,
     to_local_coords_batch,
 )
-from internnav.model.utils.bert_token import BertTokenizer
-from internnav.model.utils.feature_extract import (
-    extract_image_features,
-    extract_instruction_tokens,
-)
-from internnav.utils.common_log_util import common_logger as log
 
 
 @Agent.register('rdp')
@@ -67,6 +65,8 @@ class RdpAgent(Agent):
 
         if self.use_clip_encoders:
             if self._model_settings.text_encoder.type == 'roberta':
+                from internnav.model.utils.bert_token import BertTokenizer
+
                 self.bert_tokenizer = BertTokenizer(
                     max_length=self._model_settings.instruction_encoder.max_length,
                     load_model=self._model_settings.instruction_encoder.load_model,
@@ -74,6 +74,8 @@ class RdpAgent(Agent):
                 )
                 self.use_bert = True
             elif self._model_settings.text_encoder.type == 'clip-long':
+                from internnav.model.basemodel.LongCLIP.model import longclip
+
                 self.bert_tokenizer = longclip.tokenize
                 self.use_bert = True
                 self.is_clip_long = True

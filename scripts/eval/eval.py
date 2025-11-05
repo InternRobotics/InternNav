@@ -5,8 +5,8 @@ sys.path.append('.')
 import argparse
 import importlib.util
 
+from internnav.configs.evaluator.vln_default_config import get_config
 from internnav.evaluator import Evaluator
-from internnav.evaluator.utils.vln_default_config import get_config
 
 # This file is the main file
 
@@ -16,7 +16,7 @@ def parse_args():
     parser.add_argument(
         "--config",
         type=str,
-        default='scripts/eval/configs/h1_cma_cfg.py',
+        default='scripts/eval/configs/h1_rdp_cfg.py',
         help='eval config file path, e.g. scripts/eval/configs/h1_cma_cfg.py',
     )
     return parser.parse_args()

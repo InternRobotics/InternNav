@@ -150,3 +150,5 @@ logs/
 /results/
 checkpoints
 internnav/model/basemodel/LongCLIP/
+.gradio/
+result/

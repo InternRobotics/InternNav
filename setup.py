@@ -38,17 +38,25 @@ if os.path.exists(readme_filepath):
     long_description = io.open(readme_filepath, 'r', encoding='utf-8').read()
     long_description = parse_readme(long_description)
 
-with open('requirements/eval.txt', 'r') as f:
+with open('requirements/core_requirements.txt', 'r') as f:
     install_requires = f.read().splitlines()
+
+with open('requirements/model_requirements.txt', 'r') as f:
+    model_requires = f.read().splitlines()
+
+with open('requirements/isaac_requirements.txt', 'r') as f:
+    isaac_requires = f.read().splitlines()
+
+with open('requirements/internvla_n1.txt', 'r') as f:
+    n1_requires = f.read().splitlines()
 
 setuptools.setup(
     name='internnav',
     version='0.0.1',
     packages=setuptools.find_packages(),
-    author='OpenRobotLab',
-    author_email='OpenRobotLab@pjlab.org.cn',
+    author='Intern Robotics',
+    author_email='embodiedai@pjlab.org.cn',
     license='Apache 2.0',
-    readme='README.md',
     description='InternNav: A benchmark evaluation framework for navigation tasks',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -63,4 +71,18 @@ setuptools.setup(
     ],
     install_requires=install_requires,
     include_package_data=True,
+    extras_require={
+        # envs
+        "isaac": isaac_requires,
+        "habitat": [],
+        "demo": [
+            "gradio==5.45",
+            "hf-xet==1.1.5",
+            "huggingface-hub==0.33.4",
+        ],
+        # models
+        "internvla_n1": n1_requires,
+        "baseline": model_requires,
+        "model": model_requires,
+    },
 )

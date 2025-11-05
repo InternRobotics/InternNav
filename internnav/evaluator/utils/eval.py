@@ -1,14 +1,4 @@
-from internutopia.core.config.robot import ControllerCfg
-from internutopia_extension.configs.robots.h1 import H1RobotCfg
-from internutopia_extension.configs.sensors import RepCameraCfg
-
 from internnav.configs.evaluator import EvalCfg
-from internnav.env.utils.internutopia_extension.configs.metrics.vln_pe_metrics import (
-    VLNPEMetricCfg,
-)
-from internnav.env.utils.internutopia_extension.configs.tasks.vln_eval_task import (
-    VLNEvalTaskCfg,
-)
 from internnav.evaluator.utils.common import load_kujiale_scene_usd, load_scene_usd
 from internnav.dataloader.resumable_loader import ResumablePathKeyDataloader
 
@@ -19,6 +9,16 @@ def generate_episode(dataloader: ResumablePathKeyDataloader, config: EvalCfg):
     eval_path_key_list = dataloader.resumed_path_key_list
     path_key_data = dataloader.path_key_data
     episodes = []
+
+    # lazy import
+    from internutopia.core.config.robot import ControllerCfg
+    from internutopia_extension.configs.robots.h1 import H1RobotCfg
+    from internutopia_extension.configs.sensors import RepCameraCfg
+
+    from internnav.env.utils.internutopia_extension.configs.metrics import (
+        VLNPEMetricCfg,
+    )
+    from internnav.env.utils.internutopia_extension.configs.tasks import VLNEvalTaskCfg
 
     robot = H1RobotCfg(
         **config.task.robot.robot_settings,

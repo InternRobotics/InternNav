@@ -1,0 +1,33 @@
+accelerate==1.7.0
+azure-core==1.28.0
+azure-identity==1.13.0
+azure-storage-blob==12.17.0
+depth-camera-filtering @ git+https://github.com/naokiyokoyama/depth_camera_filtering.git
+diffusers==0.33.1
+diffusion_policy @ git+https://github.com/real-stanford/diffusion_policy.git@5ba07ac6661db573af695b419a7947ecb704690f
+distro==1.9.0
+docstring_parser==0.16
+einops==0.8.1
+flash_attn==2.7.2.post1
+ftfy==6.3.1
+hf-xet==1.1.5
+huggingface-hub==0.33.4
+idna-ssl==1.1.0
+isodate==0.6.1
+jmespath==1.0.1
+llvmlite==0.42.0
+markdown-it-py==3.0.0
+msal==1.23.0
+msal-extensions==1.0.0
+open3d==0.19.0
+openai==1.29.0
+pandas==2.3.1
+pyarrow==21.0.0
+s3transfer==0.6.1
+safetensors==0.5.3
+sympy==1.13.1
+tensorboard==2.20.0
+tokenizers==0.21.2
+transformers==4.51.0
+triton==3.1.0
+waterbear==2.6.8
