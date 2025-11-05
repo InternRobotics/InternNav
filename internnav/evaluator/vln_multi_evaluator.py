@@ -14,7 +14,7 @@ from internnav.evaluator.utils.data_collector import DataCollector
 from internnav.evaluator.utils.dataset import ResultLogger, split_data
 from internnav.evaluator.utils.eval import generate_episode
 from internnav.evaluator.utils.visualize_util import VisualizeUtil
-from internnav.dataloader.resumable_loader import ResumablePathKeyDataloader
+from internnav.episode_loader.resumable_loader import ResumablePathKeyEpisodeLoader
 from internnav.utils import common_log_util, progress_log_multi_util
 from internnav.utils.common_log_util import common_logger as log
 
@@ -35,7 +35,7 @@ class VlnMultiEvaluator(Evaluator):
             split_data(config.dataset)
         self.result_logger = ResultLogger(config.dataset)
         common_log_util.init(self.task_name)
-        self.episode_iterator = ResumablePathKeyDataloader(config.dataset.dataset_type, **config.dataset.dataset_settings)
+        self.episode_iterator = ResumablePathKeyEpisodeLoader(config.dataset.dataset_type, **config.dataset.dataset_settings)
         self.dataset_name = Path(config.dataset.dataset_settings['base_data_dir']).name
         progress_log_multi_util.init(self.task_name, self.episode_iterator.size)
         self.total_path_num = self.episode_iterator.size

@@ -9,7 +9,7 @@ from .data_reviser import revise_one_data, skip_list
 from internnav.evaluator.utils.common import get_load_func
 
 
-class BasePathKeyDataloader:
+class BasePathKeyEpisodeLoader:
     def __init__(
         self,
         dataset_type,
@@ -48,7 +48,7 @@ class BasePathKeyDataloader:
                     self.path_key_split[path_key] = split_data_type
 
 
-class ResumablePathKeyDataloader(BasePathKeyDataloader):
+class ResumablePathKeyEpisodeLoader(BasePathKeyEpisodeLoader):
     def __init__(
         self,
         dataset_type,

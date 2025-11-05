@@ -1,13 +1,13 @@
 from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator.utils.common import load_kujiale_scene_usd, load_scene_usd
-from internnav.dataloader.resumable_loader import ResumablePathKeyDataloader
+from internnav.episode_loader.resumable_loader import ResumablePathKeyEpisodeLoader
 
 
-def generate_episode(dataloader: ResumablePathKeyDataloader, config: EvalCfg):
+def generate_episode(episode_loader: ResumablePathKeyEpisodeLoader, config: EvalCfg):
     scene_data_dir = config.task.scene.scene_data_dir
     scene_asset_path = config.task.scene.scene_asset_path
-    eval_path_key_list = dataloader.resumed_path_key_list
-    path_key_data = dataloader.path_key_data
+    eval_path_key_list = episode_loader.resumed_path_key_list
+    path_key_data = episode_loader.path_key_data
     episodes = []
 
     # lazy import
@@ -31,7 +31,7 @@ def generate_episode(dataloader: ResumablePathKeyDataloader, config: EvalCfg):
         start_position = data['start_position']
         start_rotation = data['start_rotation']
         data['path_key'] = path_key
-        data['name'] = dataloader.task_name
+        data['name'] = episode_loader.task_name
 
         load_scene_func = load_kujiale_scene_usd if config.task.scene.scene_type == 'kujiale' else load_scene_usd
         scene_scale = (1, 1, 1)
@@ -46,7 +46,7 @@ def generate_episode(dataloader: ResumablePathKeyDataloader, config: EvalCfg):
                 robot_flash=robot_flash,
                 one_step_stand_still=one_step_stand_still,
                 metrics=[VLNPEMetricCfg(**config.task.metric.metric_setting['metric_config'])],
-                scene_asset_path=load_scene_func(scene_data_dir, dataloader.path_key_scan[path_key])
+                scene_asset_path=load_scene_func(scene_data_dir, episode_loader.path_key_scan[path_key])
                 if scene_asset_path == ''
                 else scene_asset_path,
                 scene_scale=scene_scale,
