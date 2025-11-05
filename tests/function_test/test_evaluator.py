@@ -25,7 +25,7 @@ from internnav.configs.agent import AgentCfg
 from internnav.configs.evaluator import (
     EnvCfg,
     EvalCfg,
-    EvalDatasetCfg,
+    EpisodeCfg,
     SceneCfg,
     TaskCfg,
 )
@@ -62,7 +62,7 @@ eval_cfg = EvalCfg(
         camera_resolution=[256, 256],  # (W,H)
         camera_prim_path='torso_link/h1_pano_camera_0',
     ),
-    dataset=EvalDatasetCfg(
+    dataset=EpisodeCfg(
         dataset_type="mp3d",
         dataset_settings={
             'base_data_dir': 'data/vln_pe/raw_data/r2r',

@@ -2,7 +2,7 @@ from internnav.configs.agent import AgentCfg
 from internnav.configs.evaluator import (
     EnvCfg,
     EvalCfg,
-    EvalDatasetCfg,
+    EpisodeCfg,
     SceneCfg,
     TaskCfg,
 )
@@ -39,7 +39,7 @@ eval_cfg = EvalCfg(
         vlnce=False,  # vlnpe by default
         obstacle_detection=False,  # whether allow flash across obstacle
     ),
-    dataset=EvalDatasetCfg(
+    dataset=EpisodeCfg(
         dataset_type="mp3d",
         dataset_settings={
             'base_data_dir': 'data/vln_pe/raw_data/r2r',

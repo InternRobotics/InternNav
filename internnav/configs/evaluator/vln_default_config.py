@@ -11,7 +11,7 @@ from internnav.configs.evaluator import (
     ControllerCfg,
     EnvCfg,
     EvalCfg,
-    EvalDatasetCfg,
+    EpisodeCfg,
     MetricCfg,
     RobotCfg,
     SceneCfg,
@@ -90,7 +90,7 @@ cfg = EvalCfg(
             },
         ),
     ),
-    dataset=EvalDatasetCfg(
+    dataset=EpisodeCfg(
         dataset_type='mp3d',
         dataset_settings={
             'filter_same_trajectory': False,

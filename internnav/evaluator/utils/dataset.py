@@ -6,14 +6,14 @@ import lmdb
 import msgpack_numpy
 
 from internnav import PROJECT_ROOT_PATH
-from internnav.evaluator.utils.common import load_data
+from internnav.evaluator.utils.common import get_load_func
 from internnav.evaluator.utils.config import get_lmdb_path, get_lmdb_prefix
 
-from internnav.configs.evaluator import EvalDatasetCfg
+from internnav.configs.evaluator import EpisodeCfg
 from .config import Config
 
 
-def split_data(dataset_cfg: EvalDatasetCfg):
+def split_data(dataset_cfg: EpisodeCfg):
     if isinstance(dataset_cfg.dataset_settings, dict):
         config = Config(**dataset_cfg.dataset_settings)
     run_type = config.run_type
@@ -43,12 +43,11 @@ def split_data(dataset_cfg: EvalDatasetCfg):
 
     dataset_type = dataset_cfg.dataset_type
     for split_data_type in split_data_types:
-        data_map = load_data(
+        data_map = get_load_func(dataset_type)(
             base_data_dir,
             split_data_type,
             filter_same_trajectory=filter_same_trajectory,
             filter_stairs=filter_stairs,
-            dataset_type=dataset_type,
         )
         for scan, path_list in data_map.items():
             path_key_list = []
@@ -110,7 +109,7 @@ def split_data(dataset_cfg: EvalDatasetCfg):
 
 
 class ResultLogger:
-    def __init__(self, dataset_cfg: EvalDatasetCfg):
+    def __init__(self, dataset_cfg: EpisodeCfg):
         if isinstance(dataset_cfg.dataset_settings, dict):
             config = Config(**dataset_cfg.dataset_settings)
         self.name = config.task_name
@@ -132,12 +131,11 @@ class ResultLogger:
     ):
         split_map = {}
         for split_data_type in split_data_types:
-            load_data_map = load_data(
+            load_data_map = get_load_func(dataset_type)(
                 base_data_dir,
                 split_data_type,
                 filter_same_trajectory=False,
                 filter_stairs=filter_stairs,
-                dataset_type=dataset_type,
             )
             path_key_list = []
             for scan, path_list in load_data_map.items():
