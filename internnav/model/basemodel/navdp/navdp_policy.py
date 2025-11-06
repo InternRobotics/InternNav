@@ -7,15 +7,13 @@ from transformers import PretrainedConfig, PreTrainedModel
 
 from internnav.configs.model.base_encoders import ModelCfg
 from internnav.configs.trainer.exp import ExpCfg
-from internnav.model.encoder.navdp_backbone import LearnablePositionalEncoding
 from internnav.model.encoder.navdp_backbone import (
-    NavDP_ImageGoal_Backbone as ImageGoal_Backbone,
+    ImageGoal_Backbone,
+    LearnablePositionalEncoding,
+    PixelGoal_Backbone,
+    RGBD_Backbone,
+    SinusoidalPosEmb,
 )
-from internnav.model.encoder.navdp_backbone import (
-    NavDP_PixelGoal_Backbone as PixelGoal_Backbone,
-)
-from internnav.model.encoder.navdp_backbone import NavDP_RGBD_Backbone as RGBD_Backbone
-from internnav.model.encoder.navdp_backbone import SinusoidalPosEmb
 
 
 class NavDPModelConfig(PretrainedConfig):

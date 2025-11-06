@@ -202,7 +202,7 @@ class DAT_RGBD_Patch_Backbone(nn.Module):
         return memory_token
 
 
-class NavDP_RGBD_Backbone(nn.Module):
+class RGBD_Backbone(nn.Module):
     def __init__(
         self,
         image_size=224,
@@ -313,7 +313,7 @@ class NavDP_RGBD_Backbone(nn.Module):
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class NavDP_ImageGoal_Backbone(nn.Module):
+class ImageGoal_Backbone(nn.Module):
     def __init__(self, image_size=224, embed_size=512, device='cuda:0'):
         super().__init__()
         if device is None:
@@ -376,7 +376,7 @@ class NavDP_ImageGoal_Backbone(nn.Module):
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class NavDP_PixelGoal_Backbone(nn.Module):
+class PixelGoal_Backbone(nn.Module):
     def __init__(self, image_size=224, embed_size=512, pixel_channel=7, device='cuda:0'):
         super().__init__()
         if device is None:
