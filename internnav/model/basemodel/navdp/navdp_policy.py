@@ -8,10 +8,10 @@ from transformers import PretrainedConfig, PreTrainedModel
 from internnav.configs.model.base_encoders import ModelCfg
 from internnav.configs.trainer.exp import ExpCfg
 from internnav.model.encoder.navdp_backbone import (
-    ImageGoal_Backbone,
+    ImageGoalBackbone,
     LearnablePositionalEncoding,
-    PixelGoal_Backbone,
-    RGBD_Backbone,
+    PixelGoalBackbone,
+    RGBDBackbone,
     SinusoidalPosEmb,
 )
 
@@ -83,13 +83,13 @@ class NavDPNet(PreTrainedModel):
         self.token_dim = self.config.model_cfg['il']['token_dim']
         self.scratch = self.config.model_cfg['il']['scratch']
         self.finetune = self.config.model_cfg['il']['finetune']
-        self.rgbd_encoder = RGBD_Backbone(
+        self.rgbd_encoder = RGBDBackbone(
             self.image_size, self.token_dim, memory_size=self.memory_size, finetune=self.finetune, device=self._device
         )
-        self.pixel_encoder = PixelGoal_Backbone(
+        self.pixel_encoder = PixelGoalBackbone(
             self.image_size, self.token_dim, pixel_channel=self.pixel_channel, device=self._device
         )
-        self.image_encoder = ImageGoal_Backbone(self.image_size, self.token_dim, device=self._device)
+        self.image_encoder = ImageGoalBackbone(self.image_size, self.token_dim, device=self._device)
         self.point_encoder = nn.Linear(3, self.token_dim)
 
         if not self.finetune:
