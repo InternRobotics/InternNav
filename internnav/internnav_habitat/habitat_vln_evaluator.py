@@ -1,12 +1,14 @@
 import argparse
-import copy
-import itertools
 import json
 import os
+import sys
+
+sys.path.append('./src/diffusion-policy')
+import copy
+import itertools
 import random
 import re
 from collections import OrderedDict
-from typing import Any
 
 import habitat
 import numpy as np
@@ -14,59 +16,77 @@ import quaternion
 import torch
 import tqdm
 from depth_camera_filtering import filter_depth
-from habitat import Env
-from habitat.config.default import get_agent_config
-from habitat.config.default_structured_configs import (
-    CollisionsMeasurementConfig,
-    FogOfWarConfig,
-    TopDownMapMeasurementConfig,
-)
-from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
-from habitat.utils.visualizations.utils import images_to_video, observations_to_image
-from habitat_baselines.config.default import get_config as get_habitat_config
-from omegaconf import OmegaConf
 from PIL import Image, ImageDraw, ImageFont
+from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 from transformers.image_utils import to_numpy_array
 
+# Import for Habitat registry side effects — do not remove
+import internnav.env.utils.habitat_extensions.measures  # noqa: F401
+from internnav.configs.evaluator import EvalCfg
+from internnav.evaluator.base import Evaluator
+from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
 from internnav.model.utils.vln_utils import (
     chunk_token,
     open_image,
     split_and_clean,
     traj_to_actions,
 )
-from internnav.utils.dist import *  # noqa: F403
+from internnav.utils.dist import dist, get_rank, get_world_size, init_distributed_mode
+
+try:
+    from habitat import Env
+    from habitat.config.default import get_agent_config
+    from habitat.config.default_structured_configs import (
+        CollisionsMeasurementConfig,
+        FogOfWarConfig,
+        TopDownMapMeasurementConfig,
+    )
+    from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
+    from habitat.utils.visualizations.utils import (
+        images_to_video,
+        observations_to_image,
+    )
+    from habitat_baselines.config.default import get_config as get_habitat_config
+except Exception as e:
+    print("Habitat Error:", e)
+    print("Habitat Evaluation is not loaded.")
+
 
 DEFAULT_IMAGE_TOKEN = "<image>"
 
 
-class VLNEvaluator:
-    def __init__(
-        self,
-        config_path: str,
-        split: str = "val_seen",
-        env_num: int = 1,
-        output_path: str = None,
-        model: Any = None,
-        processor: Any = None,
-        epoch: int = 0,
-        args: argparse.Namespace = None,
-    ):
+@Evaluator.register('habitat_vln')
+class HabitatVlnEvaluator(Evaluator):
+    def __init__(self, cfg: EvalCfg):
+        args = argparse.Namespace(**cfg.eval_settings)
         self.args = args
-        self.device = torch.device('cuda')
-        self.split = split
-        self.env_num = env_num
         self.save_video = args.save_video
-        self.output_path = output_path
-        self.epoch = epoch
-        self.config_path = config_path
-        self.config = get_habitat_config(config_path)
+
+        # distributed setting
+        import os
+        import socket
+
+        print(
+            f"Rank {os.getenv('RANK')} / {os.getenv('WORLD_SIZE')} on {socket.gethostname()}:{os.getenv('MASTER_PORT')}"
+        )
+        init_distributed_mode(args)
+        local_rank = args.local_rank
+        np.random.seed(local_rank)
+        cfg.env.env_settings['idx'] = get_rank()
+        cfg.env.env_settings['world_size'] = get_world_size()
+
+        self.world_size = get_world_size()
+        self.output_path = args.output_path  # TODO: modify by rank
+        self.epoch = 0
+
+        # create habitat config
+        self.config_path = cfg.env.env_settings['config_path']
+        self.config = get_habitat_config(self.config_path)
         self.agent_config = get_agent_config(self.config.habitat.simulator)
         self.sim_sensors_config = self.config.habitat.simulator.agents.main_agent.sim_sensors
 
         with habitat.config.read_write(self.config):
-            # self.config.habitat.task.measurements.success.success_distance=3.0
-            self.config.habitat.dataset.split = self.split  # refactor: why args and yaml both have split
-            self.config.habitat.task.measurements.update(  # refactor: move to yaml
+            self.config.habitat.task.measurements.update(
                 {
                     "top_down_map": TopDownMapMeasurementConfig(
                         map_padding=3,
@@ -86,10 +106,37 @@ class VLNEvaluator:
                     "collisions": CollisionsMeasurementConfig(),
                 }
             )
+        cfg.env.env_settings['habitat_config'] = self.config
 
-        print(f"config = {type(self.config)}")
-        print(OmegaConf.to_yaml(self.config))
+        # init agent and env
+        # super().__init__(cfg)
 
+        # ------------------------------------- model ------------------------------------------
+        processor = AutoProcessor.from_pretrained(args.model_path)
+        processor.tokenizer.padding_side = 'left'
+
+        device = torch.device(f"cuda:{local_rank}")
+        if args.mode == 'dual_system':
+            model = InternVLAN1ForCausalLM.from_pretrained(
+                args.model_path,
+                torch_dtype=torch.bfloat16,
+                attn_implementation="flash_attention_2",
+                device_map={"": device},
+            )
+        elif args.mode == 'system2':
+            model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                args.model_path,
+                torch_dtype=torch.bfloat16,
+                attn_implementation="flash_attention_2",
+                device_map={"": device},
+            )
+        else:
+            raise ValueError(f"Invalid mode: {args.mode}")
+
+        model.eval()
+        self.device = device
+
+        # ------------------------------------- old ------------------------------------------
         self._camera_height = self.sim_sensors_config.rgb_sensor.position[1]
         self._min_depth = self.sim_sensors_config.depth_sensor.min_depth
         self._max_depth = self.sim_sensors_config.depth_sensor.max_depth
@@ -131,6 +178,52 @@ class VLNEvaluator:
         self.num_frames = args.num_frames
         self.num_future_steps = args.num_future_steps
         self.num_history = args.num_history
+        # ------------------------------------- remove ------------------------------------------
+
+    def eval(self):
+        # * 3. do eval
+        sucs, spls, oss, nes, ep_num = self.eval_action(self.args.local_rank)
+        ep_num_all = [torch.zeros_like(ep_num) for _ in range(self.world_size)]
+        # import ipdb; ipdb.set_trace()
+        world_size = get_world_size()
+        dist.all_gather(ep_num_all, ep_num)
+        sucs_all = [torch.zeros(ep_num_all[i], dtype=sucs.dtype).to(sucs.device) for i in range(world_size)]
+        spls_all = [torch.zeros(ep_num_all[i], dtype=spls.dtype).to(spls.device) for i in range(world_size)]
+        oss_all = [torch.zeros(ep_num_all[i], dtype=oss.dtype).to(oss.device) for i in range(world_size)]
+        nes_all = [torch.zeros(ep_num_all[i], dtype=nes.dtype).to(nes.device) for i in range(world_size)]
+        dist.barrier()
+        dist.all_gather(sucs_all, sucs)
+        dist.all_gather(spls_all, spls)
+        dist.all_gather(oss_all, oss)
+        dist.all_gather(nes_all, nes)
+
+        sucs_all = torch.cat(sucs_all, dim=0)
+        spls_all = torch.cat(spls_all, dim=0)
+        oss_all = torch.cat(oss_all, dim=0)
+        nes_all = torch.cat(nes_all, dim=0)
+        result_all = {
+            "sucs_all": (sum(sucs_all) / len(sucs_all)).item(),
+            "spls_all": (sum(spls_all) / len(spls_all)).item(),
+            "oss_all": (sum(oss_all) / len(oss_all)).item(),
+            "nes_all": (sum(nes_all) / len(nes_all)).item(),
+            'length': len(sucs_all),
+        }
+
+        print(result_all)
+        if get_rank() == 0:
+            with open(os.path.join(self.args.output_path, 'result.json'), 'a') as f:
+                f.write(json.dumps(result_all))
+
+    def _eval_action(self):
+        obs = self.env.reset()
+        action = self.agent.reset()
+        while not self.env.is_running():
+            action = self.agent.step(action, obs)
+            obs, terminated = self.env.step(action)
+            if terminated:
+                obs = self.env.reset()
+                self.agent.reset()
+                self.env.update_metric()
 
     # refactor
     def config_env(self) -> Env:
@@ -138,7 +231,7 @@ class VLNEvaluator:
         # env.episodes = env.episodes[0:1]
         return env
 
-    def eval_action(self, idx) -> None:  # noqa: C901
+    def eval_action(self, idx=0) -> None:  # noqa: C901
         self.model.eval()
         env = self.config_env()
         scene_episode_dict = {}
@@ -158,19 +251,19 @@ class VLNEvaluator:
                 for line in f.readlines():
                     res = json.loads(line)
                     done_res.append([res["scene_id"], res["episode_id"], res["episode_instruction"]])
-                    if get_rank() == 0:  # noqa: F405
+                    if get_rank() == 0:  # noqa: F405 TODO this need to keep in evaluator
                         sucs.append(res['success'])
                         spls.append(res['spl'])
                         oss.append(res['os'])
                         nes.append(res['ne'])
 
-        # refactor: why sort to scene: [episode] but nothing actually used
+        # refactor: sort to scene: [episode] but nothing actually used
         for scene in sorted(scene_episode_dict.keys()):
             episodes = scene_episode_dict[scene]
             scene_id = scene.split('/')[-2]
             print(f"scene_id = {scene_id}")
-            process_bar = tqdm.tqdm(range(len(episodes[idx :: self.env_num])), desc=f"scene {scene_id}")
-            for episode in episodes[idx :: self.env_num]:
+            process_bar = tqdm.tqdm(range(len(episodes[idx :: self.world_size])), desc=f"scene {scene_id}")
+            for episode in episodes[idx :: self.world_size]:
                 episode_instruction = (
                     episode.instruction.instruction_text
                     if 'objectnav' not in self.config_path
@@ -302,9 +395,9 @@ class VLNEvaluator:
                             assert action == 5
                             sources = [{"from": "human", "value": ""}, {"from": "gpt", "value": ""}]
                             input_images += [look_down_image]
-                            messages.append(
-                                {'role': 'assistant', 'content': [{'type': 'text', 'text': llm_outputs}]}  # noqa: F405
-                            )
+                            # messages.append(
+                            #     {'role': 'assistant', 'content': [{'type': 'text', 'text': llm_outputs}]}  # noqa: F405
+                            # )
                             input_img_id = -1
 
                         prompt = random.choice(self.conjunctions) + DEFAULT_IMAGE_TOKEN
