@@ -1,57 +1,13 @@
+import argparse
 import json
 import os
-from datetime import datetime
 
+import numpy as np
 import torch
 
 from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator.base import Evaluator
-from internnav.utils.dist import dist, get_rank, get_world_size
-
-
-def init_distributed_mode(args):
-    if 'SLURM_PROCID' in os.environ:
-        args.rank = int(os.environ['SLURM_PROCID'])
-        args.world_size = int(os.environ['SLURM_NTASKS'])
-
-        num_gpus = torch.cuda.device_count()
-        args.gpu = args.rank % num_gpus
-        args.local_rank = args.gpu
-
-        node_list = os.environ['SLURM_NODELIST']
-        print(f'Node list: {node_list}')
-        # addr = subprocess.getoutput(f'scontrol show hostname {node_list} | head -n1')
-
-        os.environ['MASTER_PORT'] = str(getattr(args, 'port', '29529'))
-        # os.environ['MASTER_ADDR'] = addr
-        os.environ['WORLD_SIZE'] = str(args.world_size)
-        os.environ['LOCAL_RANK'] = str(args.gpu)
-        os.environ['RANK'] = str(args.rank)
-    elif 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
-        args.rank = int(os.environ["RANK"])
-        args.world_size = int(os.environ['WORLD_SIZE'])
-        args.gpu = int(os.environ['LOCAL_RANK'])
-        args.local_rank = args.gpu
-    else:
-        print('Not using distributed mode')
-        # setup_for_distributed(is_master=True)  # hack
-        args.distributed = False
-        return
-
-    args.distributed = True
-
-    torch.cuda.set_device(args.gpu)
-    args.dist_backend = 'nccl'
-    print('| distributed init (rank {}): {}, gpu {}'.format(args.rank, args.dist_url, args.gpu), flush=True)
-    dist.init_process_group(
-        backend=args.dist_backend,
-        init_method=args.dist_url,
-        world_size=args.world_size,
-        rank=args.rank,
-        timeout=datetime.timedelta(0, 7200),
-    )
-    dist.barrier()
-    # setup_for_distributed(args.rank == 0)
+from internnav.utils.dist import dist, get_rank, get_world_size, init_distributed_mode
 
 
 class DistributedEvaluator(Evaluator):
@@ -61,53 +17,106 @@ class DistributedEvaluator(Evaluator):
 
     def __init__(self, cfg: EvalCfg):
         # distributed setting
-        import os
         import socket
 
         print(
             f"Rank {os.getenv('RANK')} / {os.getenv('WORLD_SIZE')} on {socket.gethostname()}:{os.getenv('MASTER_PORT')}"
         )
-        # init_distributed_mode(args)
-        # local_rank = args.local_rank
-        # np.random.seed(local_rank)
+
+        args = argparse.Namespace(**cfg.eval_settings)
+        self.args = args
+
+        init_distributed_mode(args)
+
+        self.local_rank = args.local_rank
+        np.random.seed(self.local_rank)
+        self.world_size = get_world_size()
+        self.output_path = args.output_path  # TODO: modify by rank
+
         cfg.env.env_settings['idx'] = get_rank()
         cfg.env.env_settings['world_size'] = get_world_size()
 
+        # -------- initialize agent config (either remote server or local agent) --------
         # set agent port based on rank
-        cfg.agent.agent_settings['port'] = 8000 + get_rank()
+        # cfg.agent.agent_settings['port'] = 8000 + get_rank()
         # start_server(cfg.agent.agent_settings['port'])
 
-        super().__init__(cfg)
+        self.eval_config = cfg
+        # self.env = Env.init(cfg.env, cfg.task)
+        # self.agent = AgentClient(config.agent)
 
     def eval(self):
-        # 1. 每个 rank 本地跑一遍
-        local_metrics = self.eval_action()  # dict[str, Tensor], 每个 Tensor shape [N]
-        # 取出设备 & 本地样本数
-        device = next(iter(local_metrics.values())).device
-        local_count = torch.tensor([len(next(iter(local_metrics.values())))], dtype=torch.long, device=device)
+        """
+        Uniform distributed evaluation pipeline:
 
-        # 2. 全局样本数
+        1. Call subclass's eval_action() to get local per-episode tensors.
+        2. Use dist all_gather (+ padding) to build global tensors for each metric.
+        3. Call subclass's calc_metrics(global_metrics) to compute scalar metrics.
+        4. Print + rank 0 writes result.json.
+        """
+        local_metrics = self.eval_action()  # dict[str, Tensor], each [N_local]
+
+        if not local_metrics:
+            raise RuntimeError("eval_action() returned empty metrics dict.")
+
+        first_tensor = next(iter(local_metrics.values()))
+        device = first_tensor.device
+        local_len = first_tensor.shape[0]
+
         world_size = get_world_size()
-        global_count = local_count.clone()
-        if world_size > 1:
-            dist.all_reduce(global_count, op=dist.ReduceOp.SUM)
 
-        # 3. 对每个 metric 做全局 sum / mean
-        result_all = {}
-        for name, tensor in local_metrics.items():
-            # tensor: [N]
-            local_sum = tensor.sum()
-            global_sum = local_sum.clone()
-            if world_size > 1:
-                dist.all_reduce(global_sum, op=dist.ReduceOp.SUM)
+        # -------- 1) Handle non-distributed / world_size == 1 --------
+        if world_size == 1:
+            global_metrics = {name: tensor.detach().cpu() for name, tensor in local_metrics.items()}
+            total_len = int(local_len)
+        else:
+            # -------- 2) Gather lengths from all ranks --------
+            local_len_t = torch.tensor([local_len], dtype=torch.long, device=device)
+            len_list = [torch.zeros_like(local_len_t) for _ in range(world_size)]
+            dist.all_gather(len_list, local_len_t)
+            lens = torch.stack(len_list).cpu()  # shape [world_size, 1]
+            lens = lens.view(-1)  # [world_size]
+            max_len = int(lens.max().item())
+            total_len = int(lens.sum().item())
 
-            mean_val = (global_sum / global_count).item()
-            result_all[name] = mean_val
+            # -------- 3) For each metric, pad + all_gather + unpad --------
+            global_metrics = {}
+            for name, tensor in local_metrics.items():
+                assert tensor.shape[0] == local_len, (
+                    f"Metric {name} length ({tensor.shape[0]}) " f"!= first metric length ({local_len})"
+                )
 
-        # 4. 统计全局 episode 数
-        result_all["length"] = int(global_count.item())
+                # pad to max_len on this rank
+                padded = torch.zeros(
+                    max_len,
+                    dtype=tensor.dtype,
+                    device=device,
+                )
+                padded[:local_len] = tensor
 
-        # 5. 打印 + 只在 rank 0 写文件
+                # gather padded tensors from all ranks
+                gathered = [torch.zeros_like(padded) for _ in range(world_size)]
+                dist.all_gather(gathered, padded)
+
+                # unpad & concat using true lengths
+                parts = []
+                for rank in range(world_size):
+                    cur_len = int(lens[rank].item())
+                    if cur_len > 0:
+                        parts.append(gathered[rank][:cur_len])
+                if parts:
+                    global_tensor = torch.cat(parts, dim=0)
+                else:
+                    # no episodes at all (edge case)
+                    global_tensor = torch.empty(0, dtype=tensor.dtype)
+
+                global_metrics[name] = global_tensor.detach().cpu()
+
+        # -------- 4) Let subclass compute final metrics from global tensors --------
+        result_all = self.calc_metrics(global_metrics)
+        result_all.setdefault("length", total_len)
+
+        # -------- 5) Logging --------
         print(result_all)
         if get_rank() == 0:
             os.makedirs(self.args.output_path, exist_ok=True)
@@ -117,15 +126,43 @@ class DistributedEvaluator(Evaluator):
 
         return result_all
 
-    def eval_action(self):
+    # ================= ABSTRACT HOOKS =================
+
+    def eval_action(self) -> dict:
         """
-        跑当前 rank 的 episodes, 返回一个 dict:
-        {
-            "success": tensor([0., 1., ...], device=...),
-            "spl": tensor([...]),
-            "os": tensor([...]),
-            "ne": tensor([...]),
-            ...
-        }
+        Run evaluation on this rank and return per-episode metrics.
+
+        Returns
+        -------
+        dict[str, torch.Tensor]
+            Example:
+            {
+                "sucs": tensor([0., 1., ...], device=...),
+                "spls": tensor([...]),
+                "oss": tensor([...]),
+                "nes": tensor([...]),
+            }
+        """
+        raise NotImplementedError
+
+    def calc_metrics(self, global_metrics: dict) -> dict:
+        """
+        Compute final scalar metrics from global per-episode tensors.
+
+        Parameters
+        ----------
+        global_metrics : dict[str, torch.Tensor]
+            For each metric name, a 1-D CPU tensor with all episodes across all ranks.
+            Example:
+                {
+                    "sucs": tensor([...], dtype=torch.float32),
+                    "spls": tensor([...]),
+                    ...
+                }
+
+        Returns
+        -------
+        dict[str, float]
+            Final scalar metrics to log.
         """
         raise NotImplementedError

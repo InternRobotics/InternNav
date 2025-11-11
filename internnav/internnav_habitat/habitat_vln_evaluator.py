@@ -10,7 +10,6 @@ import random
 import re
 from collections import OrderedDict
 
-import habitat
 import numpy as np
 import quaternion
 import torch
@@ -23,7 +22,7 @@ from transformers.image_utils import to_numpy_array
 # Import for Habitat registry side effects — do not remove
 import internnav.env.utils.habitat_extensions.measures  # noqa: F401
 from internnav.configs.evaluator import EvalCfg
-from internnav.evaluator.base import Evaluator
+from internnav.evaluator import DistributedEvaluator, Evaluator
 from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
 from internnav.model.utils.vln_utils import (
     chunk_token,
@@ -31,9 +30,9 @@ from internnav.model.utils.vln_utils import (
     split_and_clean,
     traj_to_actions,
 )
-from internnav.utils.dist import dist, get_rank, get_world_size, init_distributed_mode
 
 try:
+    import habitat
     from habitat import Env
     from habitat.config.default import get_agent_config
     from habitat.config.default_structured_configs import (
@@ -56,28 +55,12 @@ DEFAULT_IMAGE_TOKEN = "<image>"
 
 
 @Evaluator.register('habitat_vln')
-class HabitatVlnEvaluator(Evaluator):
+class HabitatVlnEvaluator(DistributedEvaluator):
     def __init__(self, cfg: EvalCfg):
         args = argparse.Namespace(**cfg.eval_settings)
         self.args = args
         self.save_video = args.save_video
-
-        # distributed setting
-        import os
-        import socket
-
-        print(
-            f"Rank {os.getenv('RANK')} / {os.getenv('WORLD_SIZE')} on {socket.gethostname()}:{os.getenv('MASTER_PORT')}"
-        )
-        init_distributed_mode(args)
-        local_rank = args.local_rank
-        np.random.seed(local_rank)
-        cfg.env.env_settings['idx'] = get_rank()
-        cfg.env.env_settings['world_size'] = get_world_size()
-
-        self.world_size = get_world_size()
-        self.output_path = args.output_path  # TODO: modify by rank
-        self.epoch = 0
+        self.epoch = args.epoch
 
         # create habitat config
         self.config_path = cfg.env.env_settings['config_path']
@@ -109,13 +92,13 @@ class HabitatVlnEvaluator(Evaluator):
         cfg.env.env_settings['habitat_config'] = self.config
 
         # init agent and env
-        # super().__init__(cfg)
+        super().__init__(cfg)
 
         # ------------------------------------- model ------------------------------------------
         processor = AutoProcessor.from_pretrained(args.model_path)
         processor.tokenizer.padding_side = 'left'
 
-        device = torch.device(f"cuda:{local_rank}")
+        device = torch.device(f"cuda:{self.local_rank}")
         if args.mode == 'dual_system':
             model = InternVLAN1ForCausalLM.from_pretrained(
                 args.model_path,
@@ -135,15 +118,6 @@ class HabitatVlnEvaluator(Evaluator):
 
         model.eval()
         self.device = device
-
-        # ------------------------------------- old ------------------------------------------
-        self._camera_height = self.sim_sensors_config.rgb_sensor.position[1]
-        self._min_depth = self.sim_sensors_config.depth_sensor.min_depth
-        self._max_depth = self.sim_sensors_config.depth_sensor.max_depth
-
-        camera_fov_rad = np.deg2rad(self.sim_sensors_config.depth_sensor.hfov)
-        self._camera_fov = camera_fov_rad
-        self._fx = self._fy = self.sim_sensors_config.depth_sensor.width / (2 * np.tan(camera_fov_rad / 2))
 
         self.model = model
         self.processor = processor
@@ -178,41 +152,56 @@ class HabitatVlnEvaluator(Evaluator):
         self.num_frames = args.num_frames
         self.num_future_steps = args.num_future_steps
         self.num_history = args.num_history
+
+        # ------------------------------------- old ------------------------------------------
+        self._camera_height = self.sim_sensors_config.rgb_sensor.position[1]
+        self._min_depth = self.sim_sensors_config.depth_sensor.min_depth
+        self._max_depth = self.sim_sensors_config.depth_sensor.max_depth
+
+        camera_fov_rad = np.deg2rad(self.sim_sensors_config.depth_sensor.hfov)
+        self._camera_fov = camera_fov_rad
+        self._fx = self._fy = self.sim_sensors_config.depth_sensor.width / (2 * np.tan(camera_fov_rad / 2))
+
         # ------------------------------------- remove ------------------------------------------
 
-    def eval(self):
-        # * 3. do eval
-        sucs, spls, oss, nes, ep_num = self.eval_action(self.args.local_rank)
-        ep_num_all = [torch.zeros_like(ep_num) for _ in range(self.world_size)]
-        # import ipdb; ipdb.set_trace()
-        world_size = get_world_size()
-        dist.all_gather(ep_num_all, ep_num)
-        sucs_all = [torch.zeros(ep_num_all[i], dtype=sucs.dtype).to(sucs.device) for i in range(world_size)]
-        spls_all = [torch.zeros(ep_num_all[i], dtype=spls.dtype).to(spls.device) for i in range(world_size)]
-        oss_all = [torch.zeros(ep_num_all[i], dtype=oss.dtype).to(oss.device) for i in range(world_size)]
-        nes_all = [torch.zeros(ep_num_all[i], dtype=nes.dtype).to(nes.device) for i in range(world_size)]
-        dist.barrier()
-        dist.all_gather(sucs_all, sucs)
-        dist.all_gather(spls_all, spls)
-        dist.all_gather(oss_all, oss)
-        dist.all_gather(nes_all, nes)
+    def eval_action(self):
+        """
+        Run local episodes on this rank.
 
-        sucs_all = torch.cat(sucs_all, dim=0)
-        spls_all = torch.cat(spls_all, dim=0)
-        oss_all = torch.cat(oss_all, dim=0)
-        nes_all = torch.cat(nes_all, dim=0)
-        result_all = {
-            "sucs_all": (sum(sucs_all) / len(sucs_all)).item(),
-            "spls_all": (sum(spls_all) / len(spls_all)).item(),
-            "oss_all": (sum(oss_all) / len(oss_all)).item(),
-            "nes_all": (sum(nes_all) / len(nes_all)).item(),
-            'length': len(sucs_all),
+        Returns dict[str, Tensor] on GPU (1D tensors of same length).
+        """
+        # Old behavior was something like:
+        # sucs, spls, oss, nes, ep_num = self.eval_action(self.args.local_rank)
+        # Now just implement the actual eval here and return dict.
+
+        sucs, spls, oss, nes, _ = self._run_local_eval(self.args.local_rank)
+
+        return {
+            "sucs": sucs,  # shape [N_local]
+            "spls": spls,  # shape [N_local]
+            "oss": oss,  # shape [N_local]
+            "nes": nes,  # shape [N_local]
         }
 
-        print(result_all)
-        if get_rank() == 0:
-            with open(os.path.join(self.args.output_path, 'result.json'), 'a') as f:
-                f.write(json.dumps(result_all))
+    def calc_metrics(self, global_metrics: dict) -> dict:
+        """
+        global_metrics["sucs"] etc. are global 1-D CPU tensors with all episodes.
+        """
+        sucs_all = global_metrics["sucs"]
+        spls_all = global_metrics["spls"]
+        oss_all = global_metrics["oss"]
+        nes_all = global_metrics["nes"]
+
+        # avoid /0 if no episodes
+        denom = max(len(sucs_all), 1)
+
+        return {
+            "sucs_all": float(sucs_all.mean().item()) if denom > 0 else 0.0,
+            "spls_all": float(spls_all.mean().item()) if denom > 0 else 0.0,
+            "oss_all": float(oss_all.mean().item()) if denom > 0 else 0.0,
+            "nes_all": float(nes_all.mean().item()) if denom > 0 else 0.0,
+            # "length" will be filled by base class
+        }
 
     def _eval_action(self):
         obs = self.env.reset()
@@ -228,10 +217,10 @@ class HabitatVlnEvaluator(Evaluator):
     # refactor
     def config_env(self) -> Env:
         env = Env(config=self.config)
-        # env.episodes = env.episodes[0:1]
+        env.episodes = env.episodes[0:2]  # for debug
         return env
 
-    def eval_action(self, idx=0) -> None:  # noqa: C901
+    def _run_local_eval(self, idx=0) -> None:  # noqa: C901
         self.model.eval()
         env = self.config_env()
         scene_episode_dict = {}
@@ -250,8 +239,8 @@ class HabitatVlnEvaluator(Evaluator):
             with open(os.path.join(self.output_path, 'result.json'), 'r') as f:
                 for line in f.readlines():
                     res = json.loads(line)
-                    done_res.append([res["scene_id"], res["episode_id"], res["episode_instruction"]])
-                    if get_rank() == 0:  # noqa: F405 TODO this need to keep in evaluator
+                    done_res.append([res["scene_id"], res["episode_id"]])
+                    if idx == 0:  # noqa: F405 TODO this need to keep in evaluator
                         sucs.append(res['success'])
                         spls.append(res['spl'])
                         oss.append(res['os'])
@@ -271,7 +260,7 @@ class HabitatVlnEvaluator(Evaluator):
                 )
                 print("episode start", episode_instruction)
                 episode_id = int(episode.episode_id)
-                if [scene_id, episode_id, episode_instruction] in done_res:
+                if [scene_id, episode_id] in done_res:
                     continue
 
                 # refactor env warm up

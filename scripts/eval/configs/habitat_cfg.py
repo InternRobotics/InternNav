@@ -41,6 +41,7 @@ eval_cfg = EvalCfg(
         "local_rank": 0,  # node rank
         "output_path": "./logs/habitat/test_refactor_debug",  # output directory for logs/results
         "save_video": False,  # whether to save videos
+        "epoch": 0,  # epoch number for logging
         "world_size": 1,  # number of distributed processes
         "rank": 0,  # rank of current process
         "gpu": 0,  # gpu id to use
