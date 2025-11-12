@@ -41,6 +41,7 @@ class NavDP_Base_Datset(Dataset):
         image_size=224,
         scene_data_scale=1.0,
         trajectory_data_scale=1.0,
+        pixel_channel=7,
         debug=False,
         preload=False,
         random_digit=False,
@@ -61,6 +62,7 @@ class NavDP_Base_Datset(Dataset):
         self.trajectory_afford_path = []
         self.random_digit = random_digit
         self.prior_sample = prior_sample
+        self.pixel_channel = pixel_channel
         self.item_cnt = 0
         self.batch_size = batch_size
         self.batch_time_sum = 0.0
@@ -509,7 +511,12 @@ class NavDP_Base_Datset(Dataset):
             camera_intrinsic,
             trajectory_base_extrinsic,
         )
-        pixel_goal = np.concatenate((pixel_goal, memory_images[-1]), axis=-1)
+        # pixel channel == 7 represents the navdp works pixel navigation under asynchronous pace,
+        # pixel_mask (1), the history image with the assigned pixel goal (3), current image (3)
+        # if pixel_channel == 4, pixel goal is assigned at current frame, therefore,
+        # only pixel_mask (1) and current image (3) are needed
+        if self.pixel_channel == 7:
+            pixel_goal = np.concatenate((pixel_goal, memory_images[-1]), axis=-1)
 
         pred_actions = (pred_actions[1:] - pred_actions[:-1]) * 4.0
         augment_actions = (augment_actions[1:] - augment_actions[:-1]) * 4.0

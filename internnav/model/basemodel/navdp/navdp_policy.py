@@ -7,7 +7,13 @@ from transformers import PretrainedConfig, PreTrainedModel
 
 from internnav.configs.model.base_encoders import ModelCfg
 from internnav.configs.trainer.exp import ExpCfg
-from internnav.model.encoder.navdp_backbone import *
+from internnav.model.encoder.navdp_backbone import (
+    ImageGoalBackbone,
+    LearnablePositionalEncoding,
+    PixelGoalBackbone,
+    RGBDBackbone,
+    SinusoidalPosEmb,
+)
 
 
 class NavDPModelConfig(PretrainedConfig):
@@ -51,9 +57,7 @@ class NavDPNet(PreTrainedModel):
         elif pretrained_model_name_or_path is None or len(pretrained_model_name_or_path) == 0:
             pass
         else:
-            incompatible_keys, _ = model.load_state_dict(
-                torch.load(pretrained_model_name_or_path)['state_dict'], strict=False
-            )
+            incompatible_keys, _ = model.load_state_dict(torch.load(pretrained_model_name_or_path), strict=False)
             if len(incompatible_keys) > 0:
                 print(f'Incompatible keys: {incompatible_keys}')
 
@@ -66,13 +70,12 @@ class NavDPNet(PreTrainedModel):
             self.model_config = ModelCfg(**config.model_cfg['model'])
         else:
             self.model_config = config
-
         self.config.model_cfg['il']
-
         self._device = torch.device(f"cuda:{config.model_cfg['local_rank']}")
         self.image_size = self.config.model_cfg['il']['image_size']
         self.memory_size = self.config.model_cfg['il']['memory_size']
         self.predict_size = self.config.model_cfg['il']['predict_size']
+        self.pixel_channel = self.config.model_cfg['il']['pixel_channel']
         self.temporal_depth = self.config.model_cfg['il']['temporal_depth']
         self.attention_heads = self.config.model_cfg['il']['heads']
         self.input_channels = self.config.model_cfg['il']['channels']
@@ -80,17 +83,19 @@ class NavDPNet(PreTrainedModel):
         self.token_dim = self.config.model_cfg['il']['token_dim']
         self.scratch = self.config.model_cfg['il']['scratch']
         self.finetune = self.config.model_cfg['il']['finetune']
-        self.rgbd_encoder = NavDP_RGBD_Backbone(
+        self.rgbd_encoder = RGBDBackbone(
             self.image_size, self.token_dim, memory_size=self.memory_size, finetune=self.finetune, device=self._device
         )
-        self.pixel_encoder = NavDP_PixelGoal_Backbone(self.image_size, self.token_dim, device=self._device)
-        self.image_encoder = NavDP_ImageGoal_Backbone(self.image_size, self.token_dim, device=self._device)
+        self.pixel_encoder = PixelGoalBackbone(
+            self.image_size, self.token_dim, pixel_channel=self.pixel_channel, device=self._device
+        )
+        self.image_encoder = ImageGoalBackbone(self.image_size, self.token_dim, device=self._device)
         self.point_encoder = nn.Linear(3, self.token_dim)
 
         if not self.finetune:
-            for p in self.rgbd_encoder.parameters():
+            for p in self.rgbd_encoder.rgb_model.parameters():
                 p.requires_grad = False
-            self.rgbd_encoder.eval()
+            self.rgbd_encoder.rgb_model.eval()
 
         decoder_layer = nn.TransformerDecoderLayer(
             d_model=self.token_dim,
@@ -180,23 +185,6 @@ class NavDPNet(PreTrainedModel):
         return critic_output
 
     def forward(self, goal_point, goal_image, goal_pixel, input_images, input_depths, output_actions, augment_actions):
-        # """get device safely"""
-        # # get device safely
-        # try:
-        #     # try to get device through model parameters
-        #     device = next(self.parameters()).device
-        # except StopIteration:
-        #     # model has no parameters, use the default device
-        #     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # # move all inputs to model device
-        # goal_point = goal_point.to(device)
-        # goal_image = goal_image.to(device)
-        # input_images = input_images.to(device)
-        # input_depths = input_depths.to(device)
-        # output_actions = output_actions.to(device)
-        # augment_actions = augment_actions.to(device)
-        # device = self._device
-        # print(f"self.parameters() is:{self.parameters()}")
         device = next(self.parameters()).device
 
         assert input_images.shape[1] == self.memory_size
@@ -325,7 +313,6 @@ class NavDPNet(PreTrainedModel):
                 naction = self.noise_scheduler.step(model_output=noise_pred, timestep=k, sample=naction).prev_sample
 
             critic_values = self.predict_critic(naction, rgbd_embed)
-            all_trajectory = torch.cumsum(naction / 4.0, dim=1)
 
             negative_trajectory = torch.cumsum(naction / 4.0, dim=1)[(critic_values).argsort()[0:8]]
             positive_trajectory = torch.cumsum(naction / 4.0, dim=1)[(-critic_values).argsort()[0:8]]
@@ -344,7 +331,6 @@ class NavDPNet(PreTrainedModel):
                 naction = self.noise_scheduler.step(model_output=noise_pred, timestep=k, sample=naction).prev_sample
 
             critic_values = self.predict_critic(naction, rgbd_embed)
-            all_trajectory = torch.cumsum(naction / 4.0, dim=1)
 
             negative_trajectory = torch.cumsum(naction / 4.0, dim=1)[(critic_values).argsort()[0:8]]
             positive_trajectory = torch.cumsum(naction / 4.0, dim=1)[(-critic_values).argsort()[0:8]]

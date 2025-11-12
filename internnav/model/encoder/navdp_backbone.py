@@ -202,7 +202,7 @@ class DAT_RGBD_Patch_Backbone(nn.Module):
         return memory_token
 
 
-class NavDP_RGBD_Backbone(nn.Module):
+class RGBDBackbone(nn.Module):
     def __init__(
         self,
         image_size=224,
@@ -313,7 +313,7 @@ class NavDP_RGBD_Backbone(nn.Module):
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class NavDP_ImageGoal_Backbone(nn.Module):
+class ImageGoalBackbone(nn.Module):
     def __init__(self, image_size=224, embed_size=512, device='cuda:0'):
         super().__init__()
         if device is None:
@@ -376,8 +376,8 @@ class NavDP_ImageGoal_Backbone(nn.Module):
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class NavDP_PixelGoal_Backbone(nn.Module):
-    def __init__(self, image_size=224, embed_size=512, device='cuda:0'):
+class PixelGoalBackbone(nn.Module):
+    def __init__(self, image_size=224, embed_size=512, pixel_channel=7, device='cuda:0'):
         super().__init__()
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -392,7 +392,7 @@ class NavDP_PixelGoal_Backbone(nn.Module):
         self.pixelgoal_encoder = DepthAnythingV2(**model_configs['vits'])
         self.pixelgoal_encoder = self.pixelgoal_encoder.pretrained.float()
         self.pixelgoal_encoder.patch_embed.proj = nn.Conv2d(
-            in_channels=7,
+            in_channels=pixel_channel,
             out_channels=self.pixelgoal_encoder.patch_embed.proj.out_channels,
             kernel_size=self.pixelgoal_encoder.patch_embed.proj.kernel_size,
             stride=self.pixelgoal_encoder.patch_embed.proj.stride,
