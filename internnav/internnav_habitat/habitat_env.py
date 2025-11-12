@@ -11,8 +11,9 @@ class HabitatEnv(base.Env):
     def __init__(self, env_config: EnvCfg, task_config: TaskCfg):
         """
         env_settings include:
-            - config_path: str, path to habitat config yaml file
-            - split: str, dataset split to use
+            - habitat_config: loaded from get_habitat_config
+            - local_rank: int, rank index for sharding
+            - world_size: int, total number of ranks
         """
         try:
             from habitat import Env
@@ -24,54 +25,59 @@ class HabitatEnv(base.Env):
         super().__init__(env_config, task_config)
 
         self.config = env_config.env_settings['habitat_config']
-        self.env = Env(self.config)
+        self._env = Env(self.config)
 
-        self.episodes = self.generate_episodes()
-        self.sort_episodes_by_scene()
-
-        self.index = env_config.env_settings.get('idx', 0)
+        self.local_rank = env_config.env_settings.get('local_rank', 0)
         self.world_size = env_config.env_settings.get('world_size', 1)
         self._current_episode_index: int = 0
         self._last_obs: Optional[Dict[str, Any]] = None
 
-        self.step_id = 0
         self.is_running = True
+        self.output_path = env_config.env_settings.get('output_path', './output')
+
+        # generate episodes
+        # self._env.episodes = self._env.episodes[0:1]  # for debug
+        self.episodes = self.generate_episodes()
+        print(self.episodes)
 
     def generate_episodes(self) -> List[Any]:
         """
-        Generate list of episodes for the current split
+        Generate list of episodes for the current split, already:
+        - grouped by scene
+        - filtered by done_res (the path is self.output_path/progress.json)
+        - sharded by (local_rank, world_size)
         """
-        episodes = []
+        all_episodes = []
 
-        # sort episode by scene
-        scene_episode_dict = {}
-        for episode in self.env.episodes:
-            if episode.scene_id not in scene_episode_dict:
-                scene_episode_dict[episode.scene_id] = []
-            scene_episode_dict[episode.scene_id].append(episode)
+        # group episodes by scene
+        scene_episode_dict: Dict[str, List[Any]] = {}
+        for episode in self._env.episodes:
+            scene_episode_dict.setdefault(episode.scene_id, []).append(episode)
 
+        # load done_res
         done_res = set()
-
-        if os.path.exists(os.path.join(self.output_path, 'result.json')):
-            with open(os.path.join(self.output_path, 'result.json'), 'r') as f:
-                for line in f.readlines():
+        result_path = os.path.join(self.output_path, 'progress.json')
+        if os.path.exists(result_path):
+            with open(result_path, 'r') as f:
+                for line in f:
                     res = json.loads(line)
-                    done_res.add((res["scene_id"], res["episode_id"], res["episode_instruction"]))
+                    # only skip if current format has scene_id
+                    if "scene_id" in res:
+                        done_res.add((res["scene_id"], res["episode_id"]))
 
+        # iterate scenes in order, collect all episodes
         for scene in sorted(scene_episode_dict.keys()):
-            episodes = scene_episode_dict[scene]
+            per_scene_eps = scene_episode_dict[scene]
             scene_id = scene.split('/')[-2]
-            for episode in episodes[self.index :: self.world_size]:
-                episode_instruction = (
-                    episode.instruction.instruction_text
-                    if 'objectnav' not in self.config_path
-                    else episode.object_category
-                )
+
+            # shard by rank index / world_size
+            for episode in per_scene_eps[self.local_rank :: self.world_size]:
                 episode_id = int(episode.episode_id)
-                if (scene_id, episode_id, episode_instruction) in done_res:
+                if (scene_id, episode_id) in done_res:
                     continue
-                episodes.append(episode)
-        return episodes
+                all_episodes.append(episode)
+
+        return all_episodes
 
     def reset(self):
         """
@@ -83,12 +89,11 @@ class HabitatEnv(base.Env):
             return
 
         # Manually set to next episode in habitat
-        self.env.current_episode = self.episodes[self._current_episode_index]
+        self._env.current_episode = self.episodes[self._current_episode_index]
         self._current_episode_index += 1
 
         # Habitat reset
-        self._last_obs = self.env.reset()
-        self.step_id = 0
+        self._last_obs = self._env.reset()
 
         return self._last_obs
 
@@ -98,29 +103,26 @@ class HabitatEnv(base.Env):
 
         Args: action: List[Any], action for each env in the batch
 
-        Return: obs, terminated
+        Return: obs, reward, done, info
         """
-        self._last_obs = self.env.step(action)
-        terminated = self.env.episode_over
-        return self._last_obs, terminated
+        obs = self._env.step(action)
+        done = self._env.episode_over
+        info = self._env.get_metrics()
+        reward = info.get('reward', 0.0)
+        return obs, reward, done, info
 
     def close(self):
-        print('Vln Env close')
-        self.env.close()
+        print('Habitat Env close')
+        self._env.close()
 
     def render(self):
-        self.env.render()
+        self._env.render()
 
     def get_observation(self) -> Dict[str, Any]:
-        return self.env.get_observations()
+        return self._env.get_observations()
 
     def get_metrics(self) -> Dict[str, Any]:
-        return self.env.get_metrics()
+        return self._env.get_metrics()
 
-    def sort_episodes_by_scene(self, key_list: List[str]):
-        sorted_episodes = []
-        episode_dict = {ep.episode_id: ep for ep in self.episodes}
-        for key in key_list:
-            if key in episode_dict:
-                sorted_episodes.append(episode_dict[key])
-        self.episodes = sorted_episodes
+    def get_current_episode(self):
+        return self._env.current_episode

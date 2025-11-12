@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 
@@ -6,7 +5,8 @@ import numpy as np
 import torch
 
 from internnav.configs.evaluator import EvalCfg
-from internnav.evaluator.base import Evaluator
+from internnav.env import Env
+from internnav.evaluator import Evaluator
 from internnav.utils.dist import dist, get_rank, get_world_size, init_distributed_mode
 
 
@@ -23,17 +23,16 @@ class DistributedEvaluator(Evaluator):
             f"Rank {os.getenv('RANK')} / {os.getenv('WORLD_SIZE')} on {socket.gethostname()}:{os.getenv('MASTER_PORT')}"
         )
 
-        args = argparse.Namespace(**cfg.eval_settings)
-        self.args = args
+        self.output_path = cfg.eval_settings["output_path"]  # TODO: unsafe for distribution
 
-        init_distributed_mode(args)
+        init_distributed_mode()
 
-        self.local_rank = args.local_rank
+        self.local_rank = get_rank()
         np.random.seed(self.local_rank)
         self.world_size = get_world_size()
-        self.output_path = args.output_path  # TODO: modify by rank
 
-        cfg.env.env_settings['idx'] = get_rank()
+        # habitat env also need rank to split dataset
+        cfg.env.env_settings['local_rank'] = get_rank()
         cfg.env.env_settings['world_size'] = get_world_size()
 
         # -------- initialize agent config (either remote server or local agent) --------
@@ -42,7 +41,7 @@ class DistributedEvaluator(Evaluator):
         # start_server(cfg.agent.agent_settings['port'])
 
         self.eval_config = cfg
-        # self.env = Env.init(cfg.env, cfg.task)
+        self.env = Env.init(cfg.env, cfg.task)
         # self.agent = AgentClient(config.agent)
 
     def eval(self):
@@ -119,8 +118,8 @@ class DistributedEvaluator(Evaluator):
         # -------- 5) Logging --------
         print(result_all)
         if get_rank() == 0:
-            os.makedirs(self.args.output_path, exist_ok=True)
-            out_path = os.path.join(self.args.output_path, "result.json")
+            os.makedirs(self.output_path, exist_ok=True)
+            out_path = os.path.join(self.output_path, "result.json")
             with open(out_path, "a") as f:
                 f.write(json.dumps(result_all) + "\n")
 

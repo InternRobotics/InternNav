@@ -33,7 +33,6 @@ from internnav.model.utils.vln_utils import (
 
 try:
     import habitat
-    from habitat import Env
     from habitat.config.default import get_agent_config
     from habitat.config.default_structured_configs import (
         CollisionsMeasurementConfig,
@@ -41,10 +40,7 @@ try:
         TopDownMapMeasurementConfig,
     )
     from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
-    from habitat.utils.visualizations.utils import (
-        images_to_video,
-        observations_to_image,
-    )
+    from habitat.utils.visualizations.utils import observations_to_image
     from habitat_baselines.config.default import get_config as get_habitat_config
 except Exception as e:
     print("Habitat Error:", e)
@@ -58,9 +54,10 @@ DEFAULT_IMAGE_TOKEN = "<image>"
 class HabitatVlnEvaluator(DistributedEvaluator):
     def __init__(self, cfg: EvalCfg):
         args = argparse.Namespace(**cfg.eval_settings)
-        self.args = args
         self.save_video = args.save_video
         self.epoch = args.epoch
+        self.max_steps_per_episode = args.max_steps_per_episode
+        self.output_path = args.output_path
 
         # create habitat config
         self.config_path = cfg.env.env_settings['config_path']
@@ -90,31 +87,34 @@ class HabitatVlnEvaluator(DistributedEvaluator):
                 }
             )
         cfg.env.env_settings['habitat_config'] = self.config
+        cfg.env.env_settings['output_path'] = self.output_path
 
         # init agent and env
         super().__init__(cfg)
 
         # ------------------------------------- model ------------------------------------------
-        processor = AutoProcessor.from_pretrained(args.model_path)
+        self.model_args = argparse.Namespace(**cfg.agent.model_settings)
+
+        processor = AutoProcessor.from_pretrained(self.model_args.model_path)
         processor.tokenizer.padding_side = 'left'
 
         device = torch.device(f"cuda:{self.local_rank}")
-        if args.mode == 'dual_system':
+        if self.model_args.mode == 'dual_system':
             model = InternVLAN1ForCausalLM.from_pretrained(
-                args.model_path,
+                self.model_args.model_path,
                 torch_dtype=torch.bfloat16,
                 attn_implementation="flash_attention_2",
                 device_map={"": device},
             )
-        elif args.mode == 'system2':
+        elif self.model_args.mode == 'system2':
             model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                args.model_path,
+                self.model_args.model_path,
                 torch_dtype=torch.bfloat16,
                 attn_implementation="flash_attention_2",
                 device_map={"": device},
             )
         else:
-            raise ValueError(f"Invalid mode: {args.mode}")
+            raise ValueError(f"Invalid mode: {self.model_args.mode}")
 
         model.eval()
         self.device = device
@@ -149,9 +149,9 @@ class HabitatVlnEvaluator(DistributedEvaluator):
 
         self.objectnav_instructions = ["Search for the {target_object}."]
 
-        self.num_frames = args.num_frames
-        self.num_future_steps = args.num_future_steps
-        self.num_history = args.num_history
+        self.num_frames = self.model_args.num_frames
+        self.num_future_steps = self.model_args.num_future_steps
+        self.num_history = self.model_args.num_history
 
         # ------------------------------------- old ------------------------------------------
         self._camera_height = self.sim_sensors_config.rgb_sensor.position[1]
@@ -162,8 +162,6 @@ class HabitatVlnEvaluator(DistributedEvaluator):
         self._camera_fov = camera_fov_rad
         self._fx = self._fy = self.sim_sensors_config.depth_sensor.width / (2 * np.tan(camera_fov_rad / 2))
 
-        # ------------------------------------- remove ------------------------------------------
-
     def eval_action(self):
         """
         Run local episodes on this rank.
@@ -171,10 +169,10 @@ class HabitatVlnEvaluator(DistributedEvaluator):
         Returns dict[str, Tensor] on GPU (1D tensors of same length).
         """
         # Old behavior was something like:
-        # sucs, spls, oss, nes, ep_num = self.eval_action(self.args.local_rank)
+        # sucs, spls, oss, nes, ep_num = self.eval_action(self.local_rank)
         # Now just implement the actual eval here and return dict.
 
-        sucs, spls, oss, nes, _ = self._run_local_eval(self.args.local_rank)
+        sucs, spls, oss, nes, _ = self._run_local_eval(self.local_rank)
 
         return {
             "sucs": sucs,  # shape [N_local]
@@ -203,126 +201,153 @@ class HabitatVlnEvaluator(DistributedEvaluator):
             # "length" will be filled by base class
         }
 
-    def _eval_action(self):
-        obs = self.env.reset()
-        action = self.agent.reset()
-        while not self.env.is_running():
-            action = self.agent.step(action, obs)
-            obs, terminated = self.env.step(action)
-            if terminated:
-                obs = self.env.reset()
-                self.agent.reset()
-                self.env.update_metric()
-
-    # refactor
-    def config_env(self) -> Env:
-        env = Env(config=self.config)
-        env.episodes = env.episodes[0:2]  # for debug
-        return env
-
     def _run_local_eval(self, idx=0) -> None:  # noqa: C901
-        self.model.eval()
-        env = self.config_env()
-        scene_episode_dict = {}
-        for episode in env.episodes:
-            if episode.scene_id not in scene_episode_dict:
-                scene_episode_dict[episode.scene_id] = []
-            scene_episode_dict[episode.scene_id].append(episode)
+        """
+        Run local evaluation on this rank.
 
-        intrinsic_matrix = self.get_intrinsic_matrix(
-            self.config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor
-        )
+        Important: if resuming from previous results, need to read from / write to "self.output_path/progress.json".
+                    For each episode, save the result dict in jsonl format to that file.
+                    In Env, the episodes are already filtered by this file, tasks that have the same (scene_id, episode_id) are skipped.
+
+
+        Returns
+        -------
+        dict[str, Tensor]:
+            {
+                "sucs": [N_local],
+                "spls": [N_local],
+                "oss":  [N_local],
+                "nes":  [N_local],
+            }
+        """
+        # Create / get env
+        # self.env = self.env  # HabitatEnv from DistributedEvaluator
+
         sucs, spls, oss, nes = [], [], [], []
-        done_res = []
+        self.model.eval()
 
-        if os.path.exists(os.path.join(self.output_path, 'result.json')):
-            with open(os.path.join(self.output_path, 'result.json'), 'r') as f:
+        # resume from previous results
+        # TODO: Current read write op is not distributed safe
+        if os.path.exists(os.path.join(self.output_path, 'progress.json')):
+            with open(os.path.join(self.output_path, 'progress.json'), 'r') as f:
                 for line in f.readlines():
                     res = json.loads(line)
-                    done_res.append([res["scene_id"], res["episode_id"]])
+                    if "scene_id" not in res:
+                        print("This evaluation has already finished!")
+                        return (
+                            torch.tensor(sucs).to(self.device),
+                            torch.tensor(spls).to(self.device),
+                            torch.tensor(oss).to(self.device),
+                            torch.tensor(nes).to(self.device),
+                            torch.tensor(len(sucs)).to(self.device),
+                        )
                     if idx == 0:  # noqa: F405 TODO this need to keep in evaluator
                         sucs.append(res['success'])
                         spls.append(res['spl'])
                         oss.append(res['os'])
                         nes.append(res['ne'])
 
-        # refactor: sort to scene: [episode] but nothing actually used
-        for scene in sorted(scene_episode_dict.keys()):
-            episodes = scene_episode_dict[scene]
-            scene_id = scene.split('/')[-2]
-            print(f"scene_id = {scene_id}")
-            process_bar = tqdm.tqdm(range(len(episodes[idx :: self.world_size])), desc=f"scene {scene_id}")
-            for episode in episodes[idx :: self.world_size]:
-                episode_instruction = (
-                    episode.instruction.instruction_text
-                    if 'objectnav' not in self.config_path
-                    else episode.object_category
+        # Episode loop is now driven by env.reset() + env.is_running
+        process_bar = tqdm.tqdm(total=len(self.env.episodes), desc=f"Eval Epoch {self.epoch} Rank {idx}")
+        while self.env.is_running:
+
+            # ------------ 1. Start of episode ------------
+            observations = self.env.reset()
+            if not self.env.is_running or observations is None:
+                break
+
+            # ---- episode meta (scene_id, episode_id, instruction) ----
+            # we get it from the underlying habitat env
+            episode = self.env.get_current_episode()
+            scene_id = episode.scene_id.split('/')[-2]
+            episode_id = int(episode.episode_id)
+            episode_instruction = (
+                episode.instruction.instruction_text if 'objectnav' not in self.config_path else episode.object_category
+            )
+            print("episode start", episode_instruction)
+
+            agent_state = self.env._env.sim.get_agent_state()
+            rotation = agent_state.rotation
+            translation = agent_state.position
+            rotation_matrix = quaternion.as_rotation_matrix(rotation)
+            transformation_matrix = np.eye(4)
+            transformation_matrix[:3, :3] = rotation_matrix
+            transformation_matrix[:3, 3] = translation
+
+            agent = ShortestPathFollower(self.env._env.sim, 0.25, False)
+
+            # save first frame per rank to validate sim quality
+            os.makedirs(os.path.join(self.output_path, f'check_sim_{self.epoch}'), exist_ok=True)
+            Image.fromarray(observations['rgb']).save(
+                os.path.join(self.output_path, f'check_sim_{self.epoch}', f'rgb_{idx}.jpg')
+            )
+
+            vis_frames = []
+            step_id = 0
+
+            if self.save_video:
+                os.makedirs(os.path.join(self.output_path, f'vis_{self.epoch}', f'{scene_id}'), exist_ok=True)
+            initial_height = self.env._env.sim.get_agent_state().position[1]
+
+            rgb_list = []
+            action_seq = []
+            output_ids = None
+
+            goal = None
+            action = None
+            messages = []
+            local_actions = []
+
+            done = False
+
+            # ---------- 2. Episode step loop -----------
+            while (not done) and (step_id <= self.max_steps_per_episode):
+                # refactor agent get action
+                rgb = observations["rgb"]
+                depth = observations["depth"]
+                x, y = observations["gps"]
+                camera_yaw = observations["compass"][0]
+                depth = filter_depth(depth.reshape(depth.shape[:2]), blur_type=None)
+                depth = depth * (self._max_depth - self._min_depth) + self._min_depth
+                depth = depth * 1000
+
+                agent_state = self.env._env.sim.get_agent_state()
+                height = agent_state.position[1] - initial_height
+                camera_position = np.array([x, -y, self._camera_height + height])
+                tf_camera_to_episodic = (
+                    self.xyz_yaw_pitch_to_tf_matrix(camera_position, camera_yaw, np.deg2rad(30))
+                    @ self.get_axis_align_matrix()
                 )
-                print("episode start", episode_instruction)
-                episode_id = int(episode.episode_id)
-                if [scene_id, episode_id] in done_res:
-                    continue
 
-                # refactor env warm up
-                env.current_episode = episode
-                observations = env.reset()
+                image = Image.fromarray(rgb).convert('RGB')
+                save_raw_image = image.copy()
 
-                agent_state = env.sim.get_agent_state()
-                rotation = agent_state.rotation
-                translation = agent_state.position
-                rotation_matrix = quaternion.as_rotation_matrix(rotation)
-                transformation_matrix = np.eye(4)
-                transformation_matrix[:3, :3] = rotation_matrix
-                transformation_matrix[:3, 3] = translation
-
-                agent = ShortestPathFollower(env.sim, 0.25, False)
-
-                os.makedirs(os.path.join(self.output_path, f'check_sim_{self.epoch}'), exist_ok=True)
-                Image.fromarray(observations['rgb']).save(
-                    os.path.join(self.output_path, f'check_sim_{self.epoch}', f'rgb_{idx}.jpg')
-                )
-
-                vis_frames = []
-                step_id = 0
-
-                if self.save_video:
-                    os.makedirs(os.path.join(self.output_path, f'vis_{self.epoch}', f'{scene_id}'), exist_ok=True)
-                initial_height = env.sim.get_agent_state().position[1]
-
-                rgb_list = []
-                action_seq = []
-                output_ids = None
-
-                goal = None
-                action = None
-                messages = []
-                local_actions = []
-
-                while not env.episode_over and step_id <= 500:
-                    # refactor agent get action
-                    rgb = observations["rgb"]
-                    depth = observations["depth"]
-                    x, y = observations["gps"]
-                    camera_yaw = observations["compass"][0]
-                    depth = filter_depth(depth.reshape(depth.shape[:2]), blur_type=None)
-                    depth = depth * (self._max_depth - self._min_depth) + self._min_depth
-                    depth = depth * 1000
-
-                    agent_state = env.sim.get_agent_state()
-                    height = agent_state.position[1] - initial_height
-                    camera_position = np.array([x, -y, self._camera_height + height])
-                    tf_camera_to_episodic = (
-                        self.xyz_yaw_pitch_to_tf_matrix(camera_position, camera_yaw, np.deg2rad(30))
-                        @ self.get_axis_align_matrix()
+                save_dot = False
+                if action == 5:
+                    look_down_image = image
+                    save_raw_image = look_down_image.copy()
+                    look_down_depth, resize_shape = self.preprocess_depth_image_v2(
+                        Image.fromarray(depth.astype(np.uint16), mode='I;16'),
+                        do_depth_scale=True,
+                        depth_scale=1000,
+                        target_height=224,
+                        target_width=224,
                     )
+                    look_down_depth = torch.as_tensor(np.ascontiguousarray(look_down_depth)).float()
+                    look_down_depth[look_down_depth > 5.0] = 5.0
+                else:
+                    image = image.resize((self.model_args.resize_w, self.model_args.resize_h))
+                    rgb_list.append(image)
 
-                    image = Image.fromarray(rgb).convert('RGB')
-                    save_raw_image = image.copy()
+                    if self.model_args.mode == 'dual_system':
+                        down_observations, _, done, _ = self.env.step(5)
+                        down_observations, _, done, _ = self.env.step(5)
 
-                    save_dot = False
-                    if action == 5:
-                        look_down_image = image
-                        save_raw_image = look_down_image.copy()
+                        look_down_image = Image.fromarray(down_observations["rgb"]).convert('RGB')
+                        depth = down_observations["depth"]
+                        depth = filter_depth(depth.reshape(depth.shape[:2]), blur_type=None)
+                        depth = depth * (self._max_depth - self._min_depth) + self._min_depth
+                        depth = depth * 1000
                         look_down_depth, resize_shape = self.preprocess_depth_image_v2(
                             Image.fromarray(depth.astype(np.uint16), mode='I;16'),
                             do_depth_scale=True,
@@ -332,295 +357,277 @@ class HabitatVlnEvaluator(DistributedEvaluator):
                         )
                         look_down_depth = torch.as_tensor(np.ascontiguousarray(look_down_depth)).float()
                         look_down_depth[look_down_depth > 5.0] = 5.0
+
+                        self.env.step(4)
+                        self.env.step(4)
+
+                info = self.env.get_metrics()
+
+                if len(action_seq) == 0 and goal is None:
+                    if action != 5:
+                        sources = copy.deepcopy(self.conversation)
+                        sources[0]["value"] = sources[0]["value"].replace(
+                            '<instruction>.', episode.instruction.instruction_text[:-1]
+                        )
+                        cur_images = rgb_list[-1:]
+                        if step_id == 0:
+                            history_id = []
+                        else:
+                            history_id = np.unique(
+                                np.linspace(0, step_id - 1, self.num_history, dtype=np.int32)
+                            ).tolist()
+                            placeholder = (DEFAULT_IMAGE_TOKEN + '\n') * len(history_id)
+                            sources[0]["value"] += f' These are your historical observations: {placeholder}.'
+
+                        history_id = sorted(history_id)
+                        print('history_idddddddd', step_id, history_id)
+                        input_images = [rgb_list[i] for i in history_id] + cur_images
+                        input_img_id = 0
                     else:
-                        image = image.resize((self.args.resize_w, self.args.resize_h))
-                        rgb_list.append(image)
+                        assert action == 5
+                        sources = [{"from": "human", "value": ""}, {"from": "gpt", "value": ""}]
+                        input_images += [look_down_image]
+                        # messages.append(
+                        #     {'role': 'assistant', 'content': [{'type': 'text', 'text': llm_outputs}]}  # noqa: F405
+                        # )
+                        input_img_id = -1
 
-                        if self.args.mode == 'dual_system':
-                            down_observations = env.step(5)
-                            down_observations = env.step(5)
+                    prompt = random.choice(self.conjunctions) + DEFAULT_IMAGE_TOKEN
+                    sources[0]["value"] += f" {prompt}."
+                    print('sources', step_id, sources)
+                    prompt_instruction = copy.deepcopy(sources[0]["value"])
+                    parts = split_and_clean(prompt_instruction)
 
-                            look_down_image = Image.fromarray(down_observations["rgb"]).convert('RGB')
-                            depth = down_observations["depth"]
-                            depth = filter_depth(depth.reshape(depth.shape[:2]), blur_type=None)
-                            depth = depth * (self._max_depth - self._min_depth) + self._min_depth
-                            depth = depth * 1000
-                            look_down_depth, resize_shape = self.preprocess_depth_image_v2(
-                                Image.fromarray(depth.astype(np.uint16), mode='I;16'),
-                                do_depth_scale=True,
-                                depth_scale=1000,
-                                target_height=224,
-                                target_width=224,
-                            )
-                            look_down_depth = torch.as_tensor(np.ascontiguousarray(look_down_depth)).float()
-                            look_down_depth[look_down_depth > 5.0] = 5.0
-
-                            env.step(4)
-                            env.step(4)
-
-                    info = env.get_metrics()
-
-                    if len(action_seq) == 0 and goal is None:
-                        if action != 5:
-                            sources = copy.deepcopy(self.conversation)
-                            sources[0]["value"] = sources[0]["value"].replace(
-                                '<instruction>.', episode.instruction.instruction_text[:-1]
-                            )
-                            cur_images = rgb_list[-1:]
-                            if step_id == 0:
-                                history_id = []
-                            else:
-                                history_id = np.unique(
-                                    np.linspace(0, step_id - 1, self.num_history, dtype=np.int32)
-                                ).tolist()
-                                placeholder = (DEFAULT_IMAGE_TOKEN + '\n') * len(history_id)
-                                sources[0]["value"] += f' These are your historical observations: {placeholder}.'
-
-                            history_id = sorted(history_id)
-                            print('history_idddddddd', step_id, history_id)
-                            input_images = [rgb_list[i] for i in history_id] + cur_images
-                            input_img_id = 0
+                    content = []
+                    for i in range(len(parts)):
+                        if parts[i] == "<image>":
+                            content.append({"type": "image", "image": input_images[input_img_id]})
+                            input_img_id += 1
                         else:
-                            assert action == 5
-                            sources = [{"from": "human", "value": ""}, {"from": "gpt", "value": ""}]
-                            input_images += [look_down_image]
-                            # messages.append(
-                            #     {'role': 'assistant', 'content': [{'type': 'text', 'text': llm_outputs}]}  # noqa: F405
-                            # )
-                            input_img_id = -1
+                            content.append({"type": "text", "text": parts[i]})
 
-                        prompt = random.choice(self.conjunctions) + DEFAULT_IMAGE_TOKEN
-                        sources[0]["value"] += f" {prompt}."
-                        print('sources', step_id, sources)
-                        prompt_instruction = copy.deepcopy(sources[0]["value"])
-                        parts = split_and_clean(prompt_instruction)
+                    messages.append({'role': 'user', 'content': content})
 
-                        content = []
-                        for i in range(len(parts)):
-                            if parts[i] == "<image>":
-                                content.append({"type": "image", "image": input_images[input_img_id]})
-                                input_img_id += 1
-                            else:
-                                content.append({"type": "text", "text": parts[i]})
+                    print('step_id', step_id, 'messages:', messages)
 
-                        messages.append({'role': 'user', 'content': content})
+                    text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
-                        print('step_id', step_id, 'messages:', messages)
+                    inputs = self.processor(text=[text], images=input_images, return_tensors="pt").to(self.model.device)
 
-                        text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                    with torch.no_grad():
+                        output_ids = self.model.generate(**inputs, max_new_tokens=128, do_sample=False)
 
-                        inputs = self.processor(text=[text], images=input_images, return_tensors="pt").to(
-                            self.model.device
+                    llm_outputs = self.processor.tokenizer.decode(
+                        output_ids[0][inputs.input_ids.shape[1] :], skip_special_tokens=True
+                    )
+                    print('step_id:', step_id, 'output text:', llm_outputs)
+
+                    if bool(re.search(r'\d', llm_outputs)):
+                        forward_action = 0
+                        coord = [int(c) for c in re.findall(r'\d+', llm_outputs)]
+                        pixel_goal = [int(coord[1]), int(coord[0])]
+
+                        intrinsic_matrix = self.get_intrinsic_matrix(
+                            self.config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor
                         )
+                        goal = self.pixel_to_gps(pixel_goal, depth / 1000, intrinsic_matrix, tf_camera_to_episodic)
+                        print('before', goal, depth.shape)
+                        goal = (transformation_matrix @ np.array([-goal[1], 0, -goal[0], 1]))[:3]
 
-                        with torch.no_grad():
-                            output_ids = self.model.generate(**inputs, max_new_tokens=128, do_sample=False)
+                        if not self.env._env.sim.pathfinder.is_navigable(np.array(goal)):
+                            goal = np.array(self.env._env.sim.pathfinder.snap_point(np.array(goal)))
 
-                        llm_outputs = self.processor.tokenizer.decode(
-                            output_ids[0][inputs.input_ids.shape[1] :], skip_special_tokens=True
-                        )
-                        print('step_id:', step_id, 'output text:', llm_outputs)
+                        # look down --> horizontal
+                        self.env.step(4)
+                        self.env.step(4)
 
-                        if bool(re.search(r'\d', llm_outputs)):
-                            forward_action = 0
-                            coord = [int(c) for c in re.findall(r'\d+', llm_outputs)]
-                            pixel_goal = [int(coord[1]), int(coord[0])]
-
-                            goal = self.pixel_to_gps(pixel_goal, depth / 1000, intrinsic_matrix, tf_camera_to_episodic)
-                            print('before', goal, depth.shape)
-                            goal = (transformation_matrix @ np.array([-goal[1], 0, -goal[0], 1]))[:3]
-
-                            if not env.sim.pathfinder.is_navigable(np.array(goal)):
-                                goal = np.array(env.sim.pathfinder.snap_point(np.array(goal)))
-
-                            # look down --> horizontal
-                            env.step(4)
-                            env.step(4)
-
-                            # Forking logic based on mode
-                            if self.args.mode == 'system2':
-                                action = agent.get_next_action(goal)
-                                if action == 0:
-                                    goal = None
-                                    output_ids = None
-                                    action = 2  # random action
-                                    print('conduct a random action 2')
-                                    observations = env.step(action)
-                                    step_id += 1
-                                    messages = []
-                                    continue
-                            else:  # dual-system logic
-                                local_actions = []
-                                pixel_values = inputs.pixel_values
-                                image_grid_thw = torch.cat([thw.unsqueeze(0) for thw in inputs.image_grid_thw], dim=0)
-
-                                with torch.no_grad():
-                                    traj_latents = self.model.generate_latents(output_ids, pixel_values, image_grid_thw)
-
-                                # prepocess align with navdp
-                                image_dp = (
-                                    torch.tensor(np.array(look_down_image.resize((224, 224)))).to(torch.bfloat16) / 255
-                                )
-                                pix_goal_image = copy.copy(image_dp)
-                                images_dp = torch.stack([pix_goal_image, image_dp]).unsqueeze(0).to(self.device)
-                                depth_dp = look_down_depth.unsqueeze(-1).to(torch.bfloat16)
-                                pix_goal_depth = copy.copy(depth_dp)
-                                depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0).to(self.device)
-
-                                with torch.no_grad():
-                                    dp_actions = self.model.generate_traj(
-                                        traj_latents, images_dp, depths_dp, use_async=True
-                                    )
-
-                                random_choice = np.random.choice(dp_actions.shape[0])
-                                if self.args.continuous_traj:
-                                    action_list = traj_to_actions(dp_actions)
-                                    if len(action_list) < 8:
-                                        action_list += [0] * (8 - len(action_list))
-                                else:
-                                    action_list = chunk_token(dp_actions[random_choice])
-
-                                local_actions = action_list
-                                if len(local_actions) >= 4:
-                                    local_actions = local_actions[:4]
-                                action = local_actions[0]
-                                if action == 0:
-                                    goal = None
-                                    output_ids = None
-                                    action = 2  # random action
-                                    print('conduct a random action 2')
-                                    observations = env.step(action)
-                                    step_id += 1
-                                    messages = []
-                                    continue
-
-                            print('predicted goal', pixel_goal, goal, flush=True)
-                        else:
-                            action_seq = self.parse_actions(llm_outputs)
-                            print('actions', action_seq, flush=True)
-
-                    if len(action_seq) != 0:
-                        action = action_seq[0]
-                        action_seq.pop(0)
-                    elif goal is not None:
                         # Forking logic based on mode
-                        if self.args.mode == 'system2':
+                        if self.model_args.mode == 'system2':
                             action = agent.get_next_action(goal)
-                            action = action.detach().cpu().numpy()[0] if isinstance(action, torch.Tensor) else action
-                            action = action[0] if hasattr(action, "__len__") else action
+                            if action == 0:
+                                goal = None
+                                output_ids = None
+                                action = 2  # random action
+                                print('conduct a random action 2')
+                                observations = self.env.step(action)
+                                step_id += 1
+                                messages = []
+                                continue
                         else:  # dual-system logic
-                            if len(local_actions) == 0:
-                                # navdp
-                                local_actions = []
-                                image_dp = (
-                                    torch.tensor(np.array(look_down_image.resize((224, 224)))).to(torch.bfloat16) / 255
+                            local_actions = []
+                            pixel_values = inputs.pixel_values
+                            image_grid_thw = torch.cat([thw.unsqueeze(0) for thw in inputs.image_grid_thw], dim=0)
+
+                            with torch.no_grad():
+                                traj_latents = self.model.generate_latents(output_ids, pixel_values, image_grid_thw)
+
+                            # prepocess align with navdp
+                            image_dp = (
+                                torch.tensor(np.array(look_down_image.resize((224, 224)))).to(torch.bfloat16) / 255
+                            )
+                            pix_goal_image = copy.copy(image_dp)
+                            images_dp = torch.stack([pix_goal_image, image_dp]).unsqueeze(0).to(self.device)
+                            depth_dp = look_down_depth.unsqueeze(-1).to(torch.bfloat16)
+                            pix_goal_depth = copy.copy(depth_dp)
+                            depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0).to(self.device)
+
+                            with torch.no_grad():
+                                dp_actions = self.model.generate_traj(
+                                    traj_latents, images_dp, depths_dp, use_async=True
                                 )
 
-                                images_dp = torch.stack([pix_goal_image, image_dp]).unsqueeze(0).to(self.device)
-                                depth_dp = look_down_depth.unsqueeze(-1).to(torch.bfloat16)
-
-                                depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0).to(self.device)
-                                with torch.no_grad():
-                                    dp_actions = self.model.generate_traj(
-                                        traj_latents, images_dp, depths_dp, use_async=True
-                                    )
-
-                                random_choice = np.random.choice(dp_actions.shape[0])
-                                if self.args.continuous_traj:
-                                    action_list = traj_to_actions(dp_actions)
-                                    if len(action_list) < 8:
-                                        action_list += [0] * (8 - len(action_list))
-                                else:
-                                    action_list = chunk_token(dp_actions[random_choice])
-                                print("first action_list", action_list)
-
-                                local_actions = action_list
-                                if len(local_actions) >= 4:
-                                    local_actions = local_actions[:4]
-                                # if len(local_actions) >= 2:
-                                #     local_actions = local_actions[:2]
-
-                                print("local_actions", local_actions)
-
-                                action = local_actions.pop(0)
-                                # navdp
+                            random_choice = np.random.choice(dp_actions.shape[0])
+                            if self.model_args.continuous_traj:
+                                action_list = traj_to_actions(dp_actions)
+                                if len(action_list) < 8:
+                                    action_list += [0] * (8 - len(action_list))
                             else:
-                                action = local_actions.pop(0)
+                                action_list = chunk_token(dp_actions[random_choice])
 
-                        forward_action += 1
-                        print('forward_action', forward_action, flush=True)
-                        if forward_action > 8:
-                            goal = None
-                            output_ids = None
-                            messages = []
-                            step_id += 1
-                            forward_action = 0
-                            local_actions = []
-                            continue
-                        if action == 0:
-                            goal = None
-                            output_ids = None
-                            messages = []
-                            step_id += 1
-                            forward_action = 0
-                            local_actions = []
-                            continue
+                            local_actions = action_list
+                            if len(local_actions) >= 4:
+                                local_actions = local_actions[:4]
+                            action = local_actions[0]
+                            if action == 0:
+                                goal = None
+                                output_ids = None
+                                action = 2  # random action
+                                print('conduct a random action 2')
+                                observations = self.env.step(action)
+                                step_id += 1
+                                messages = []
+                                continue
+
+                        print('predicted goal', pixel_goal, goal, flush=True)
                     else:
-                        action = 0
+                        action_seq = self.parse_actions(llm_outputs)
+                        print('actions', action_seq, flush=True)
 
-                    if info['top_down_map'] is not None:
-                        if save_dot:
-                            save_raw_image = self.dot_matrix_two_dimensional(
-                                save_raw_image, save_img=False, save_path=f'test_{step_id}.jpg', pixel_goal=pixel_goal
+                if len(action_seq) != 0:
+                    action = action_seq[0]
+                    action_seq.pop(0)
+                elif goal is not None:
+                    # Forking logic based on mode
+                    if self.model_args.mode == 'system2':
+                        action = agent.get_next_action(goal)
+                        action = action.detach().cpu().numpy()[0] if isinstance(action, torch.Tensor) else action
+                        action = action[0] if hasattr(action, "__len__") else action
+                    else:  # dual-system logic
+                        if len(local_actions) == 0:
+                            # navdp
+                            local_actions = []
+                            image_dp = (
+                                torch.tensor(np.array(look_down_image.resize((224, 224)))).to(torch.bfloat16) / 255
                             )
+
+                            images_dp = torch.stack([pix_goal_image, image_dp]).unsqueeze(0).to(self.device)
+                            depth_dp = look_down_depth.unsqueeze(-1).to(torch.bfloat16)
+
+                            depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0).to(self.device)
+                            with torch.no_grad():
+                                dp_actions = self.model.generate_traj(
+                                    traj_latents, images_dp, depths_dp, use_async=True
+                                )
+
+                            random_choice = np.random.choice(dp_actions.shape[0])
+                            if self.model_args.continuous_traj:
+                                action_list = traj_to_actions(dp_actions)
+                                if len(action_list) < 8:
+                                    action_list += [0] * (8 - len(action_list))
+                            else:
+                                action_list = chunk_token(dp_actions[random_choice])
+                            print("first action_list", action_list)
+
+                            local_actions = action_list
+                            if len(local_actions) >= 4:
+                                local_actions = local_actions[:4]
+                            # if len(local_actions) >= 2:
+                            #     local_actions = local_actions[:2]
+
+                            print("local_actions", local_actions)
+
+                            action = local_actions.pop(0)
+                            # navdp
+                        else:
+                            action = local_actions.pop(0)
+
+                    forward_action += 1
+                    print('forward_action', forward_action, flush=True)
+                    if forward_action > 8:
+                        goal = None
+                        output_ids = None
+                        messages = []
+                        step_id += 1
+                        forward_action = 0
+                        local_actions = []
+                        continue
+                    if action == 0:
+                        goal = None
+                        output_ids = None
+                        messages = []
+                        step_id += 1
+                        forward_action = 0
+                        local_actions = []
+                        continue
+                else:
+                    action = 0
+
+                if info['top_down_map'] is not None:
+                    if save_dot:
+                        save_raw_image = self.dot_matrix_two_dimensional(
+                            save_raw_image, save_img=False, save_path=f'test_{step_id}.jpg', pixel_goal=pixel_goal
+                        )
+                    if self.save_video:
                         frame = observations_to_image({'rgb': np.asarray(save_raw_image)}, info)
                         vis_frames.append(frame)
 
-                    print("step_id", step_id, "action", action)
+                print("step_id", step_id, "action", action)
 
-                    # refactor: core
-                    if action == 5:
-                        env.step(action)
-                        observations = env.step(action)
-                    else:
-                        observations = env.step(action)
-                        step_id += 1
-                        messages = []
+                # refactor: core
+                if action == 5:
+                    self.env.step(action)
+                    observations, _, done, _ = self.env.step(action)
+                else:
+                    observations, _, done, _ = self.env.step(action)
+                    step_id += 1
+                    messages = []
 
-                process_bar.update(1)
+            # ---------- 3. End of episode -----------
+            # Update result and write progress to the output_path/progress.json
 
-                metrics = env.get_metrics()
-                if self.save_video:
-                    images_to_video(
-                        vis_frames,
-                        os.path.join(self.output_path, f'vis_{self.epoch}', f'{scene_id}'),
-                        f'{episode_id:04d}',
-                        fps=6,
-                        quality=9,
-                    )
-                vis_frames.clear()
-                sucs.append(metrics['success'])
-                spls.append(metrics['spl'])
-                oss.append(metrics['oracle_success'])
-                nes.append(metrics["distance_to_goal"])
-                print(
-                    f"scene_episode {scene_id}_{episode_id:04d} success: {metrics['success']}, spl: {metrics['spl']}, os: {metrics['oracle_success']}, ne: {metrics['distance_to_goal']}"
-                )
+            process_bar.update(1)
 
-                result = {
-                    "scene_id": scene_id,
-                    "episode_id": episode_id,
-                    "success": metrics["success"],
-                    "spl": metrics["spl"],
-                    "os": metrics['oracle_success'],
-                    "ne": metrics["distance_to_goal"],
-                    "steps": step_id,
-                    "episode_instruction": episode_instruction,
-                }
+            # After the episode finishes, collect metrics:
+            metrics = self.env.get_metrics()
 
-                with open(os.path.join(self.output_path, 'result.json'), 'a') as f:
-                    f.write(json.dumps(result) + "\n")
-        env.close()
+            sucs.append(metrics['success'])
+            spls.append(metrics['spl'])
+            oss.append(metrics['oracle_success'])
+            nes.append(metrics["distance_to_goal"])
+
+            print(
+                f"scene_episode {scene_id}_{episode_id:04d} success: {metrics['success']}, "
+                f"spl: {metrics['spl']}, os: {metrics['oracle_success']}, "
+                f"ne: {metrics['distance_to_goal']}"
+            )
+
+            # Write per-episode result.json entry (still per-rank)
+            result = {
+                "scene_id": scene_id,
+                "episode_id": episode_id,
+                "success": metrics["success"],
+                "spl": metrics["spl"],
+                "os": metrics['oracle_success'],
+                "ne": metrics["distance_to_goal"],
+                "steps": step_id,
+                "episode_instruction": episode_instruction,
+            }
+            os.makedirs(self.output_path, exist_ok=True)
+            with open(os.path.join(self.output_path, 'progress.json'), 'a') as f:
+                f.write(json.dumps(result) + "\n")
+
+        self.env.close()
+
         return (
             torch.tensor(sucs).to(self.device),
             torch.tensor(spls).to(self.device),

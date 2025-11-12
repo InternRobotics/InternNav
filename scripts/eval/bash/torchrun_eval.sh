@@ -2,7 +2,7 @@
 
 MID_RUN_NAME="InternVLA-N1"
 torchrun \
-  --nproc_per_node=2 \
+  --nproc_per_node=1 \
   --master_port=2333 \
   scripts/eval/eval.py \
     --config scripts/eval/configs/habitat_cfg.py \
