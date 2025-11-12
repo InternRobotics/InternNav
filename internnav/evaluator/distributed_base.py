@@ -13,9 +13,14 @@ from internnav.utils.dist import dist, get_rank, get_world_size, init_distribute
 class DistributedEvaluator(Evaluator):
     """
     Base class of distributed evaluators.
+
+    Args:
+        cfg (EvalCfg): evaluation configuration
+        init_env (bool): whether to initialize the environment
+        init_agent (bool): whether to initialize the agent
     """
 
-    def __init__(self, cfg: EvalCfg):
+    def __init__(self, cfg: EvalCfg, init_env: bool = True, init_agent: bool = True):
         # distributed setting
         import socket
 
@@ -35,14 +40,23 @@ class DistributedEvaluator(Evaluator):
         cfg.env.env_settings['local_rank'] = get_rank()
         cfg.env.env_settings['world_size'] = get_world_size()
 
-        # -------- initialize agent config (either remote server or local agent) --------
-        # set agent port based on rank
-        # cfg.agent.agent_settings['port'] = 8000 + get_rank()
-        # start_server(cfg.agent.agent_settings['port'])
-
         self.eval_config = cfg
-        self.env = Env.init(cfg.env, cfg.task)
-        # self.agent = AgentClient(config.agent)
+
+        if init_env:
+            self.env = Env.init(cfg.env, cfg.task)
+
+        # -------- initialize agent config (either remote server or local agent) --------
+        if init_agent:
+            if cfg.remote_agent:
+                # set agent port based on rank
+                from internnav.utils import AgentClient
+
+                cfg.agent.agent_settings['port'] = 8000 + get_rank()
+                self.agent = AgentClient(cfg.agent)
+            else:
+                from internnav.agent import Agent
+
+                self.agent = Agent(cfg.agent)
 
     def eval(self):
         """

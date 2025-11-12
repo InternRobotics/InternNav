@@ -19,8 +19,6 @@ from PIL import Image, ImageDraw, ImageFont
 from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 from transformers.image_utils import to_numpy_array
 
-# Import for Habitat registry side effects — do not remove
-import internnav.env.utils.habitat_extensions.measures  # noqa: F401
 from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator import DistributedEvaluator, Evaluator
 from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
@@ -42,6 +40,9 @@ try:
     from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
     from habitat.utils.visualizations.utils import observations_to_image
     from habitat_baselines.config.default import get_config as get_habitat_config
+
+    # Import for Habitat registry side effects — do not remove
+    import internnav.internnav_habitat.measures  # noqa: F401 # isort: skip
 except Exception as e:
     print("Habitat Error:", e)
     print("Habitat Evaluation is not loaded.")
@@ -90,7 +91,7 @@ class HabitatVlnEvaluator(DistributedEvaluator):
         cfg.env.env_settings['output_path'] = self.output_path
 
         # init agent and env
-        super().__init__(cfg)
+        super().__init__(cfg, init_agent=False)
 
         # ------------------------------------- model ------------------------------------------
         self.model_args = argparse.Namespace(**cfg.agent.model_settings)
@@ -449,7 +450,7 @@ class HabitatVlnEvaluator(DistributedEvaluator):
                                 output_ids = None
                                 action = 2  # random action
                                 print('conduct a random action 2')
-                                observations = self.env.step(action)
+                                observations, _, done, _ = self.env.step(action)
                                 step_id += 1
                                 messages = []
                                 continue
@@ -493,7 +494,7 @@ class HabitatVlnEvaluator(DistributedEvaluator):
                                 output_ids = None
                                 action = 2  # random action
                                 print('conduct a random action 2')
-                                observations = self.env.step(action)
+                                observations, _, done, _ = self.env.step(action)
                                 step_id += 1
                                 messages = []
                                 continue

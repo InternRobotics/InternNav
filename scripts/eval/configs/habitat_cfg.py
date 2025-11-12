@@ -29,12 +29,12 @@ eval_cfg = EvalCfg(
     eval_type='habitat_vln',
     eval_settings={
         # all current parse args
-        "local_rank": 0,  # node rank
-        "output_path": "./logs/habitat/test_refactor_debug",  # output directory for logs/results
+        "output_path": "./logs/habitat/test_refactor_0d00014",  # output directory for logs/results
         "save_video": False,  # whether to save videos
         "epoch": 0,  # epoch number for logging
         "max_steps_per_episode": 500,  # maximum steps per episode
         # distributed settings
+        "local_rank": 0,  # node rank
         "world_size": 1,  # number of distributed processes
         "rank": 0,  # rank of current process
         "gpu": 0,  # gpu id to use
