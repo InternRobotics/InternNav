@@ -21,7 +21,8 @@ from internnav.model.utils.vln_utils import split_and_clean, traj_to_actions
 DEFAULT_IMAGE_TOKEN = "<image>"
 
 
-class HabitatAgent:
+@Agent.register("N1")
+class HabitatAgent(Agent):
     def __init__(self, model, processor, args, device):
         self.model = model
         self.processor = processor

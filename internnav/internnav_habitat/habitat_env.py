@@ -38,7 +38,7 @@ class HabitatEnv(base.Env):
         # generate episodes
         # self._env.episodes = self._env.episodes[0:1]  # for debug
         self.episodes = self.generate_episodes()
-        print(self.episodes)
+        # print(self.episodes)
 
     def generate_episodes(self) -> List[Any]:
         """

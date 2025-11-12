@@ -26,7 +26,7 @@ except Exception as e:
 DEFAULT_IMAGE_TOKEN = "<image>"
 
 
-@Evaluator.register('habitat_vln')
+@Evaluator.register('habitat_vlln')
 class HabitatVlnEvaluator(DistributedEvaluator):
     def __init__(self, cfg: EvalCfg):
         args = argparse.Namespace(**cfg.eval_settings)
