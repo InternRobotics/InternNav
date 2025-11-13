@@ -213,7 +213,14 @@ def init_distributed_mode(dist_url="env://", port=29529, backend="nccl", timeout
     elif 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
         rank = int(os.environ["RANK"])
         world_size = int(os.environ["WORLD_SIZE"])
-        local_rank = int(os.environ["LOCAL_RANK"])
+        if "LOCAL_RANK" in os.environ:
+            local_rank = int(os.environ["LOCAL_RANK"])
+        elif "RANK" in os.environ:
+            # fallback: assume per-node GPU count n
+            num_gpus = torch.cuda.device_count()
+            local_rank = rank % max(1, num_gpus)
+        else:
+            local_rank = 0
 
     else:
         print("Not using distributed mode")
