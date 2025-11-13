@@ -153,7 +153,6 @@ class HabitatVlnEvaluator(DistributedEvaluator):
         self.num_future_steps = self.model_args.num_future_steps
         self.num_history = self.model_args.num_history
 
-        # ------------------------------------- old ------------------------------------------
         self._camera_height = self.sim_sensors_config.rgb_sensor.position[1]
         self._min_depth = self.sim_sensors_config.depth_sensor.min_depth
         self._max_depth = self.sim_sensors_config.depth_sensor.max_depth
@@ -172,7 +171,7 @@ class HabitatVlnEvaluator(DistributedEvaluator):
         # sucs, spls, oss, nes, ep_num = self.eval_action(self.rank)
         # Now just implement the actual eval here and return dict.
 
-        sucs, spls, oss, nes, _ = self._run_local_eval(self.rank)
+        sucs, spls, oss, nes, _ = self._run_local_eval()
 
         return {
             "sucs": sucs,  # shape [N_local]
