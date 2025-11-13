@@ -23,9 +23,9 @@ class DistributedEvaluator(Evaluator):
     def __init__(self, cfg: EvalCfg, init_env: bool = True, init_agent: bool = True):
         # distributed setting
         self.local_rank = init_distributed_mode(dist_url=cfg.eval_settings['dist_url'], port=cfg.eval_settings['port'])
+        np.random.seed(self.local_rank)
 
         self.rank = get_rank()
-        np.random.seed(self.local_rank)
         self.world_size = get_world_size()
         self.output_path = cfg.eval_settings["output_path"]  # TODO: unsafe for distribution
 

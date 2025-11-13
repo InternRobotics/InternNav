@@ -191,14 +191,8 @@ def save_on_master(*args, **kwargs):
 
 
 def init_distributed_mode(dist_url="env://", port=29529, backend="nccl", timeout_hours=2):
-    # Fast-path: torchrun provides these
-    if all(k in os.environ for k in ["RANK", "WORLD_SIZE", "LOCAL_RANK", "MASTER_ADDR", "MASTER_PORT"]):
-        rank = int(os.environ["RANK"])
-        world_size = int(os.environ["WORLD_SIZE"])
-        local_rank = int(os.environ["LOCAL_RANK"])
-
     # SLURM path: derive env then fall back to env://
-    elif "SLURM_PROCID" in os.environ:
+    if "SLURM_PROCID" in os.environ:
         rank = int(os.environ["SLURM_PROCID"])
         world_size = int(os.environ["SLURM_NTASKS"])
         num_gpus = torch.cuda.device_count()
@@ -206,12 +200,20 @@ def init_distributed_mode(dist_url="env://", port=29529, backend="nccl", timeout
 
         # pick first node as master
         nodelist = os.environ["SLURM_NODELIST"]
+        print(f'Node list: {nodelist}')
         master_addr = subprocess.getoutput(f"scontrol show hostname {nodelist} | head -n1")
-        os.environ.setdefault("MASTER_ADDR", master_addr)
-        os.environ.setdefault("MASTER_PORT", str(port))
+
+        os.environ["MASTER_ADDR"] = master_addr
+        os.environ["MASTER_PORT"] = str(port)
         os.environ["RANK"] = str(rank)
         os.environ["WORLD_SIZE"] = str(world_size)
         os.environ["LOCAL_RANK"] = str(local_rank)
+
+    # Fast-path: torchrun provides these
+    elif 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
+        rank = int(os.environ["RANK"])
+        world_size = int(os.environ["WORLD_SIZE"])
+        local_rank = int(os.environ["LOCAL_RANK"])
 
     else:
         print("Not using distributed mode")
