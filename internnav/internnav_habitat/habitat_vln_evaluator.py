@@ -44,8 +44,7 @@ try:
     # Import for Habitat registry side effects — do not remove
     import internnav.internnav_habitat.measures  # noqa: F401 # isort: skip
 except Exception as e:
-    print("Habitat Error:", e)
-    print("Habitat Evaluation is not loaded.")
+    print(f"Warning: ({e}), Habitat Evaluation is not loaded in this runtime. Ignore this if not using Habitat.")
 
 
 DEFAULT_IMAGE_TOKEN = "<image>"
@@ -170,10 +169,10 @@ class HabitatVlnEvaluator(DistributedEvaluator):
         Returns dict[str, Tensor] on GPU (1D tensors of same length).
         """
         # Old behavior was something like:
-        # sucs, spls, oss, nes, ep_num = self.eval_action(self.local_rank)
+        # sucs, spls, oss, nes, ep_num = self.eval_action(self.rank)
         # Now just implement the actual eval here and return dict.
 
-        sucs, spls, oss, nes, _ = self._run_local_eval(self.local_rank)
+        sucs, spls, oss, nes, _ = self._run_local_eval(self.rank)
 
         return {
             "sucs": sucs,  # shape [N_local]
@@ -202,7 +201,7 @@ class HabitatVlnEvaluator(DistributedEvaluator):
             # "length" will be filled by base class
         }
 
-    def _run_local_eval(self, idx=0) -> None:  # noqa: C901
+    def _run_local_eval(self) -> None:  # noqa: C901
         """
         Run local evaluation on this rank.
 
@@ -242,14 +241,14 @@ class HabitatVlnEvaluator(DistributedEvaluator):
                             torch.tensor(nes).to(self.device),
                             torch.tensor(len(sucs)).to(self.device),
                         )
-                    if idx == 0:  # noqa: F405 TODO this need to keep in evaluator
+                    if self.rank == 0:  # noqa: F405 TODO this need to keep in evaluator
                         sucs.append(res['success'])
                         spls.append(res['spl'])
                         oss.append(res['os'])
                         nes.append(res['ne'])
 
         # Episode loop is now driven by env.reset() + env.is_running
-        process_bar = tqdm.tqdm(total=len(self.env.episodes), desc=f"Eval Epoch {self.epoch} Rank {idx}")
+        process_bar = tqdm.tqdm(total=len(self.env.episodes), desc=f"Eval Epoch {self.epoch} Rank {self.rank}")
         while self.env.is_running:
 
             # ------------ 1. Start of episode ------------
@@ -280,7 +279,7 @@ class HabitatVlnEvaluator(DistributedEvaluator):
             # save first frame per rank to validate sim quality
             os.makedirs(os.path.join(self.output_path, f'check_sim_{self.epoch}'), exist_ok=True)
             Image.fromarray(observations['rgb']).save(
-                os.path.join(self.output_path, f'check_sim_{self.epoch}', f'rgb_{idx}.jpg')
+                os.path.join(self.output_path, f'check_sim_{self.epoch}', f'rgb_{self.rank}.jpg')
             )
 
             vis_frames = []

@@ -221,13 +221,17 @@ def init_distributed_mode(dist_url="env://", port=29529, backend="nccl", timeout
     import socket
 
     print(f"Rank {os.getenv('RANK')} / {os.getenv('WORLD_SIZE')} on {socket.gethostname()}:{os.getenv('MASTER_PORT')}")
+    print('| distributed init (rank {}): {}, gpu {}'.format(rank, dist_url, local_rank), flush=True)
 
     # Device selection must happen before NCCL init
     torch.cuda.set_device(local_rank)
 
-    dist.init_process_group(backend=backend, init_method=dist_url, timeout=datetime.timedelta(hours=timeout_hours))
+    dist.init_process_group(
+        backend=backend, init_method=dist_url, world_size=world_size, rank=rank, timeout=datetime.timedelta(0, 7200)
+    )
     dist.barrier()
     setup_for_distributed(dist.get_rank() == 0)
+    return local_rank
 
 
 def save_model(args, epoch, model_without_ddp, optimizer, checkpoint_path):

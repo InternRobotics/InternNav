@@ -45,4 +45,6 @@ eval_cfg = EvalCfg(
             'filter_stairs': False,
         },
     ),
+    eval_type='vln_multi',
+    eval_settings={'save_to_json': True, 'vis_output': False},
 )

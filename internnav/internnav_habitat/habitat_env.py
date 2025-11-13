@@ -12,7 +12,7 @@ class HabitatEnv(base.Env):
         """
         env_settings include:
             - habitat_config: loaded from get_habitat_config
-            - local_rank: int, rank index for sharding
+            - rank: int, rank index for sharding
             - world_size: int, total number of ranks
         """
         try:
@@ -27,7 +27,7 @@ class HabitatEnv(base.Env):
         self.config = env_config.env_settings['habitat_config']
         self._env = Env(self.config)
 
-        self.local_rank = env_config.env_settings.get('local_rank', 0)
+        self.rank = env_config.env_settings.get('rank', 0)
         self.world_size = env_config.env_settings.get('world_size', 1)
         self._current_episode_index: int = 0
         self._last_obs: Optional[Dict[str, Any]] = None
@@ -45,7 +45,7 @@ class HabitatEnv(base.Env):
         Generate list of episodes for the current split, already:
         - grouped by scene
         - filtered by done_res (the path is self.output_path/progress.json)
-        - sharded by (local_rank, world_size)
+        - sharded by (rank, world_size)
         """
         all_episodes = []
 
@@ -71,7 +71,7 @@ class HabitatEnv(base.Env):
             scene_id = scene.split('/')[-2]
 
             # shard by rank index / world_size
-            for episode in per_scene_eps[self.local_rank :: self.world_size]:
+            for episode in per_scene_eps[self.rank :: self.world_size]:
                 episode_id = int(episode.episode_id)
                 if (scene_id, episode_id) in done_res:
                     continue
