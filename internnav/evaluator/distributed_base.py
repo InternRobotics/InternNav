@@ -22,19 +22,12 @@ class DistributedEvaluator(Evaluator):
 
     def __init__(self, cfg: EvalCfg, init_env: bool = True, init_agent: bool = True):
         # distributed setting
-        import socket
-
-        print(
-            f"Rank {os.getenv('RANK')} / {os.getenv('WORLD_SIZE')} on {socket.gethostname()}:{os.getenv('MASTER_PORT')}"
-        )
-
-        self.output_path = cfg.eval_settings["output_path"]  # TODO: unsafe for distribution
-
-        init_distributed_mode()
+        init_distributed_mode(dist_url=cfg.eval_settings['dist_url'], port=cfg.eval_settings['port'])
 
         self.local_rank = get_rank()
         np.random.seed(self.local_rank)
         self.world_size = get_world_size()
+        self.output_path = cfg.eval_settings["output_path"]  # TODO: unsafe for distribution
 
         # habitat env also need rank to split dataset
         cfg.env.env_settings['local_rank'] = get_rank()

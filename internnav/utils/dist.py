@@ -190,7 +190,7 @@ def save_on_master(*args, **kwargs):
         torch.save(*args, **kwargs)
 
 
-def init_distributed_mode(port=29529, backend="nccl", timeout_hours=2):
+def init_distributed_mode(dist_url="env://", port=29529, backend="nccl", timeout_hours=2):
     # Fast-path: torchrun provides these
     if all(k in os.environ for k in ["RANK", "WORLD_SIZE", "LOCAL_RANK", "MASTER_ADDR", "MASTER_PORT"]):
         rank = int(os.environ["RANK"])
@@ -218,10 +218,15 @@ def init_distributed_mode(port=29529, backend="nccl", timeout_hours=2):
         setup_for_distributed(is_master=True)
         return
 
+    import socket
+
+    print(f"Rank {os.getenv('RANK')} / {os.getenv('WORLD_SIZE')} on {socket.gethostname()}:{os.getenv('MASTER_PORT')}")
+
     # Device selection must happen before NCCL init
     torch.cuda.set_device(local_rank)
 
-    dist.init_process_group(backend=backend, init_method="env://", timeout=datetime.timedelta(hours=timeout_hours))
+    dist.init_process_group(backend=backend, init_method=dist_url, timeout=datetime.timedelta(hours=timeout_hours))
+    dist.barrier()
     setup_for_distributed(dist.get_rank() == 0)
 
 
