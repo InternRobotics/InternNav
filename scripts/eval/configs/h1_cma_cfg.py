@@ -22,11 +22,11 @@ eval_cfg = EvalCfg(
         },
     ),
     task=TaskCfg(
-        task_name='cma_plus_eval',
+        task_name='cma_plus_refactor_debug',
         task_settings={
-            'env_num': 2,
+            'env_num': 1,
             'use_distributed': False,
-            'proc_num': 2,
+            'proc_num': 8,
         },
         scene=SceneCfg(
             scene_type='mp3d',
@@ -44,9 +44,13 @@ eval_cfg = EvalCfg(
         dataset_settings={
             'base_data_dir': 'data/vln_pe/raw_data/r2r',
             'split_data_types': ['val_unseen', 'val_seen'],
-            'filter_stairs': False,
+            'filter_stairs': True,
         },
     ),
-    eval_type='vln_multi',
-    eval_settings={'save_to_json': True, 'vis_output': False},
+    eval_type='vln_multi_distributed',
+    eval_settings={
+        'save_to_json': True,
+        'vis_output': True,
+        'use_agent_server': False,
+    },
 )

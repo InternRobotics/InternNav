@@ -1,112 +1,15 @@
-import os
-import sys
 import json
+import os
 
 import lmdb
 import msgpack_numpy
 
 from internnav import PROJECT_ROOT_PATH
-from internnav.evaluator.utils.common import load_data
-from internnav.evaluator.utils.config import get_lmdb_path, get_lmdb_prefix
-
 from internnav.configs.evaluator import EvalDatasetCfg
+from internnav.env.utils.episode_loader.dataset_utils import load_data
+from internnav.evaluator.utils.config import get_lmdb_path
+
 from .config import Config
-
-
-def split_data(dataset_cfg: EvalDatasetCfg):
-    if isinstance(dataset_cfg.dataset_settings, dict):
-        config = Config(**dataset_cfg.dataset_settings)
-    run_type = config.run_type
-    split_number = 1  # config.total_rank
-    run_type = run_type
-    name = config.task_name
-    split_data_types = config.split_data_types
-    base_data_dir = config.base_data_dir
-    filter_stairs = config.filter_stairs
-
-    print(f'run_type:{run_type}')
-    print(f'name:{name}')
-    print(f'split_data_types:{split_data_types}')
-    prefix = get_lmdb_prefix(run_type)
-    if run_type == 'eval':
-        filter_same_trajectory = False
-    elif run_type == 'sample':
-        filter_same_trajectory = True
-    else:
-        print(f'unknown run_type:{run_type}')
-        sys.exit()
-
-    lmdb_path = get_lmdb_path(name)
-    # get all data
-    path_key_map = {}
-    count = 0
-
-    dataset_type = dataset_cfg.dataset_type
-    for split_data_type in split_data_types:
-        data_map = load_data(
-            base_data_dir,
-            split_data_type,
-            filter_same_trajectory=filter_same_trajectory,
-            filter_stairs=filter_stairs,
-            dataset_type=dataset_type,
-        )
-        for scan, path_list in data_map.items():
-            path_key_list = []
-            for path in path_list:
-                trajectory_id = path['trajectory_id']
-                episode_id = path['episode_id']
-                path_key = f'{trajectory_id}_{episode_id}'
-                path_key_list.append(path_key)
-            path_key_map[scan] = path_key_list
-            count += len(path_key_list)
-
-    print(f'TOTAL:{count}')
-
-    # split rank
-    rank_map = {}
-    split_length = count // split_number
-    index = -1
-    for scan, path_key_list in path_key_map.items():
-        for path_key in path_key_list:
-            index += 1
-            rank = index // split_length
-            if rank >= split_number:
-                rank = split_number - 1
-            rank_map[path_key] = rank
-
-    ranked_data = {}
-    for i in range(split_number):
-        filtered_path_key_map = {}
-        for scan, path_key_list in path_key_map.items():
-            filtered_list = []
-            for path_key in path_key_list:
-                if rank_map[path_key] == i:
-                    filtered_list.append(path_key)
-            if len(filtered_list) > 0:
-                filtered_path_key_map[scan] = filtered_list
-        ranked_data[i] = filtered_path_key_map
-
-    for rank, path_key_map in ranked_data.items():
-        count = 0
-        for scan, path_key_list in path_key_map.items():
-            count += len(path_key_list)
-            print(f'[rank:{rank}][scan:{scan}][count:{len(path_key_list)}]')
-        print(f'[rank:{rank}][count:{count}]')
-
-    if not os.path.exists(lmdb_path):
-        os.makedirs(lmdb_path)
-    database = lmdb.open(
-        f'{lmdb_path}/sample_data.lmdb',
-        map_size=1 * 1024 * 1024 * 1024 * 1024,
-        max_dbs=0,
-    )
-    with database.begin(write=True) as txn:
-        for rank, path_key_map in ranked_data.items():
-            key = f'{prefix}_{rank}'.encode()
-            value = msgpack_numpy.packb(path_key_map, use_bin_type=True)
-            txn.put(key, value)
-            print(f'finish [key:{key}]')
-    database.close()
 
 
 class ResultLogger:
@@ -151,7 +54,7 @@ class ResultLogger:
 
     def write_now_result_json(self):
         # create log file
-        log_content = []
+        # log_content = []
         self.database_read = lmdb.open(
             f'{self.lmdb_path}/sample_data.lmdb',
             map_size=1 * 1024 * 1024 * 1024 * 1024,
@@ -209,23 +112,23 @@ class ResultLogger:
                     reason_map[ret_type] = reason_map[ret_type] + 1
                 if success > 0:
                     reason_map['reach_goal'] = reason_map['reach_goal'] + 1
-            
+
             if count == 0:
                 continue
-            json_data[split]={}
-            json_data[split]['TL']=round((total_TL / count),4)
-            json_data[split]['NE']=round((total_NE / count),4)
+            json_data[split] = {}
+            json_data[split]['TL'] = round((total_TL / count), 4)
+            json_data[split]['NE'] = round((total_NE / count), 4)
             if 'fall' not in reason_map:
                 reason_map['fall'] = 0
-            json_data[split]['FR']=round((reason_map['fall'] / count),4)
+            json_data[split]['FR'] = round((reason_map['fall'] / count), 4)
             if 'stuck' in reason_map:
-                json_data[split]['StR']=round((reason_map['stuck'] / count),4)
+                json_data[split]['StR'] = round((reason_map['stuck'] / count), 4)
             else:
-                json_data[split]['StR']=0
-            json_data[split]['OS']=round((total_osr / count),4)
-            json_data[split]['SR']=round((total_success / count),4)
-            json_data[split]['SPL']=round((total_spl / count),4)
-            json_data[split]['Count']=count
+                json_data[split]['StR'] = 0
+            json_data[split]['OS'] = round((total_osr / count), 4)
+            json_data[split]['SR'] = round((total_success / count), 4)
+            json_data[split]['SPL'] = round((total_spl / count), 4)
+            json_data[split]['Count'] = count
 
         # write log content to file
         with open(f'{self.dataset_type}_result.json', 'w') as f:

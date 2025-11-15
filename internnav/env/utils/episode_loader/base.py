@@ -1,9 +1,7 @@
-from internnav.evaluator.utils.common import load_data
-
-from .data_reviser import revise_one_data, skip_list
+from .dataset_utils import load_data, revise_one_data, skip_list
 
 
-class BasePathKeyDataloader:
+class BasePathKeyEpisodeloader:
     def __init__(
         self,
         dataset_type,
@@ -13,7 +11,15 @@ class BasePathKeyDataloader:
         filter_same_trajectory,
         revise_data=True,
         filter_stairs=True,
+        rank=0,
+        world_size=1,
     ):
+        # current supported dataset types in InternUtopia
+        # only kujiale has special scene path
+        # others type should be considered the same as mp3d in loading
+        allowed = ('R2RVLN', 'mp3d', 'kujiale', 'grscene')
+        assert dataset_type in allowed, f"Unsupported dataset type: {dataset_type}. Allowed: {allowed}"
+
         self.path_key_data = {}
         self.path_key_scan = {}
         self.path_key_split = {}
@@ -25,14 +31,19 @@ class BasePathKeyDataloader:
                 filter_same_trajectory=filter_same_trajectory,
                 filter_stairs=filter_stairs,
                 dataset_type=dataset_type,
+                rank=rank,
+                world_size=world_size,
             )
             for scan, path_list in load_data_map.items():
                 for path in path_list:
                     trajectory_id = path['trajectory_id']
-                    if revise_data:
+
+                    # tiny revision for R2R dataset in MP3D to fit vlnpe task
+                    if dataset_type == 'mp3d' and revise_data:
                         if trajectory_id in skip_list:
                             continue
                         path = revise_one_data(path)
+
                     episode_id = path['episode_id']
                     path_key = f'{trajectory_id}_{episode_id}'
                     path['start_position'] += robot_offset

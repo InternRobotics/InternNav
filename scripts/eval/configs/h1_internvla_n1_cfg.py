@@ -30,7 +30,7 @@ eval_cfg = EvalCfg(
             'predict_step_nums': 32,
             'continuous_traj': True,
             # debug
-            'vis_debug': True,  # If vis_debug=True, you can get visualization results
+            'vis_debug': False,  # If vis_debug=True, you can get visualization results
             'vis_debug_path': './logs/test/vis_debug',
         },
     ),
@@ -64,11 +64,15 @@ eval_cfg = EvalCfg(
         dataset_settings={
             'base_data_dir': 'data/vln_pe/raw_data/r2r',
             'split_data_types': ['val_unseen'],  # 'val_seen'
-            'filter_stairs': False,
+            'filter_stairs': True,
             # 'selected_scans': ['zsNo4HB9uLZ'],
             # 'selected_scans': ['8194nk5LbLH', 'pLe4wQe7qrG'],
         },
     ),
-    eval_type='vln_multi',
-    eval_settings={'save_to_json': True, 'vis_output': False},
+    eval_type='vln_multi_distributed',
+    eval_settings={
+        'save_to_json': True,
+        'vis_output': False,
+        'use_agent_server': False,
+    },
 )

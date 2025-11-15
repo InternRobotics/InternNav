@@ -37,7 +37,7 @@ def main():
     evaluator_cfg = load_eval_cfg(args.config, attr_name='eval_cfg')
 
     # fill in evaluator default config
-    if evaluator_cfg.eval_type == 'vln_multi':
+    if evaluator_cfg.eval_type == 'vln_multi_distributed':
         from internnav.configs.evaluator.vln_default_config import get_config
 
         evaluator_cfg = get_config(evaluator_cfg)

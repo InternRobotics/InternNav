@@ -68,6 +68,7 @@ def init(dataset_name, path_count):
     formatter = logging.Formatter('[%(asctime)s][%(levelname)s] %(message)s')
     file_handler.setFormatter(formatter)
     progress_logger_multi.addHandler(file_handler)
+    progress_logger_multi.disabled = False
     INITED = True
 
 

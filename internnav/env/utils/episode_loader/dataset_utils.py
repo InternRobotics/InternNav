@@ -1,3 +1,13 @@
+import copy
+import gzip
+import json
+import os
+from collections import defaultdict
+
+import numpy as np
+
+from internnav.utils.common_log_util import common_logger as log
+
 fall_path_z_0_3 = [
     70,
     121,
@@ -322,8 +332,7 @@ fall_path_z_0_3 = [
     2306,
 ]
 
-skip_list = [
-]
+skip_list = []
 
 fall_path_custom = {
     6558: [-1, 0, 0],
@@ -447,3 +456,112 @@ def revise_one_data(origin):
     origin['reference_path'][0][1] = origin['reference_path'][0][1] + amend_offset[1]
     origin['reference_path'][0][2] = origin['reference_path'][0][2] + amend_offset[2]
     return origin
+
+
+def transform_rotation_z_90degrees(rotation):
+    z_rot_90 = [np.cos(np.pi / 4), 0, 0, np.sin(np.pi / 4)]  # 90 degrees = pi/2 radians
+    w1, x1, y1, z1 = rotation
+    w2, x2, y2, z2 = z_rot_90
+    revised_rotation = [
+        w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,  # w
+        w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,  # x
+        w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,  # y
+        w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,  # z
+    ]
+    return revised_rotation
+
+
+def has_stairs(item, height_threshold=0.3):
+    has_stairs = False
+    if 'stair' in item['instruction']['instruction_text']:
+        latest_height = item['reference_path'][0][-1]
+        for index in range(1, len(item['reference_path'])):
+            position = item['reference_path'][index]
+            if abs(position[-1] - latest_height) >= height_threshold:
+                has_stairs = True
+                break
+            else:
+                latest_height = position[-1]
+    return has_stairs
+
+
+def different_height(item):
+    different_height = False
+    paths = item['reference_path']
+    for path_idx in range(len(paths) - 1):
+        if abs(paths[path_idx + 1][2] - paths[path_idx][2]) > 0.3:
+            different_height = True
+            break
+    return different_height
+
+
+def load_data(
+    dataset_root_dir, split, filter_same_trajectory=True, filter_stairs=True, dataset_type='mp3d', rank=0, world_size=1
+):
+    with gzip.open(os.path.join(dataset_root_dir, split, f"{split}.json.gz"), 'rt', encoding='utf-8') as f:
+        data = json.load(f)['episodes'][rank::world_size]
+
+    if dataset_type == 'kujiale':
+        scenes = list(set([x['scan'] for x in data]))
+    else:
+        scenes = list(set([x['scene_id'] for x in data]))  # e.g. 'mp3d/zsNo4HB9uLZ/zsNo4HB9uLZ.glb'
+
+    scenes.sort()
+    new_data = {}
+    for scene in scenes:
+        if dataset_type == 'kujiale':
+            scene_data = [x for x in data if x['scan'] == scene]
+            scan = scene
+        else:
+            scene_data = [x for x in data if x['scene_id'] == scene]
+            scan = scene.split('/')[1]  # e.g. 'zsNo4HB9uLZ'
+        new_scene_data = []
+        for item in scene_data:
+            new_item = copy.deepcopy(item)
+            new_item['scan'] = scan
+            new_item['original_start_position'] = item['start_position']
+            new_item['original_start_rotation'] = item['start_rotation']
+            if dataset_type != 'kujiale':
+                x, z, y = item['start_position']
+                new_item['start_position'] = [x, -y, z]
+                r1, r2, r3, r4 = item['start_rotation']
+                new_item['start_rotation'] = transform_rotation_z_90degrees([-r4, r1, r3, -r2])
+                new_item['reference_path'] = [[x, -y, z] for x, z, y in item['reference_path']]
+            new_scene_data.append(new_item)
+
+        new_data[scan] = new_scene_data
+
+    data = copy.deepcopy(new_data)
+    new_data = defaultdict(list)
+
+    # filter_same_trajectory
+    if filter_same_trajectory:
+        total_count = 0
+        remaining_count = 0
+        trajectory_list = []
+        for scan, data_item in data.items():
+            for item in data_item:
+                total_count += 1
+                if item['trajectory_id'] in trajectory_list:
+                    continue
+                remaining_count += 1
+                trajectory_list.append(item['trajectory_id'])
+                new_data[scan].append(item)
+        log.info(f'[split:{split}]filter_same_trajectory remain: [ {remaining_count} / {total_count} ]')
+        data = new_data
+        new_data = defaultdict(list)
+
+    if filter_stairs:
+        total_count = 0
+        remaining_count = 0
+        for scan, data_item in data.items():
+            for item in data_item:
+                total_count += 1
+                if has_stairs(item) or different_height(item):
+                    continue
+                remaining_count += 1
+                new_data[scan].append(item)
+        log.info(f'[split:{split}]filter_stairs remain: [ {remaining_count} / {total_count} ]')
+        data = new_data
+
+    return data

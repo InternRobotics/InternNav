@@ -7,7 +7,13 @@ import torch
 from internnav.configs.evaluator import EvalCfg
 from internnav.env import Env
 from internnav.evaluator import Evaluator
-from internnav.utils.dist import dist, get_rank, get_world_size, init_distributed_mode
+from internnav.utils.dist import (
+    dist,
+    get_rank,
+    get_world_size,
+    init_distributed_mode,
+    is_dist_avail_and_initialized,
+)
 
 
 class DistributedEvaluator(Evaluator):
@@ -22,16 +28,23 @@ class DistributedEvaluator(Evaluator):
 
     def __init__(self, cfg: EvalCfg, init_env: bool = True, init_agent: bool = True):
         # distributed setting
-        self.local_rank = init_distributed_mode(dist_url=cfg.eval_settings['dist_url'], port=cfg.eval_settings['port'])
+        if not cfg.eval_settings.get('use_agent_server', False):
+            self.local_rank = init_distributed_mode(
+                dist_url=cfg.eval_settings.get('dist_url', "env://"), port=cfg.eval_settings.get('port', 29529)
+            )
+        else:
+            self.local_rank = 0
         np.random.seed(self.local_rank)
 
         self.rank = get_rank()
         self.world_size = get_world_size()
-        self.output_path = cfg.eval_settings["output_path"]  # TODO: unsafe for distribution
+        self.output_path = cfg.eval_settings.get("output_path")  # TODO: unsafe for distribution
 
         # habitat env also need rank to split dataset
         cfg.env.env_settings['rank'] = get_rank()
+        cfg.env.env_settings['local_rank'] = self.local_rank
         cfg.env.env_settings['world_size'] = get_world_size()
+        cfg.env.dataset = cfg.dataset
 
         self.eval_config = cfg
 
@@ -40,15 +53,17 @@ class DistributedEvaluator(Evaluator):
 
         # -------- initialize agent config (either remote server or local agent) --------
         if init_agent:
-            if cfg.remote_agent:
+            if cfg.eval_settings.get('use_agent_server', False):
+                assert not is_dist_avail_and_initialized(), "agent server requires single evaluator process."
                 # set agent port based on rank
                 from internnav.utils import AgentClient
 
-                cfg.agent.agent_settings['port'] = 8000 + get_rank()
+                print(f"[R{self.rank}] Connecting to agent server at port {cfg.agent.server_port}")
                 self.agent = AgentClient(cfg.agent)
             else:
                 from internnav.agent import Agent
 
+                cfg.agent.model_settings['local_rank'] = self.local_rank
                 self.agent = Agent(cfg.agent)
 
     def eval(self):

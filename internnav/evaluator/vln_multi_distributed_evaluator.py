@@ -1,4 +1,3 @@
-import sys
 from enum import Enum
 from pathlib import Path
 from time import time
@@ -7,14 +6,12 @@ from typing import Dict, List
 import numpy as np
 
 from internnav.configs.evaluator import EvalCfg
-from internnav.evaluator.base import Evaluator
+from internnav.evaluator import DistributedEvaluator, Evaluator
 from internnav.evaluator.utils.common import set_seed_model
 from internnav.evaluator.utils.config import get_lmdb_path
 from internnav.evaluator.utils.data_collector import DataCollector
-from internnav.evaluator.utils.dataset import ResultLogger, split_data
-from internnav.evaluator.utils.eval import generate_episode
+from internnav.evaluator.utils.dataset import ResultLogger
 from internnav.evaluator.utils.visualize_util import VisualizeUtil
-from internnav.projects.dataloader.resumable import ResumablePathKeyDataloader
 from internnav.utils import common_log_util, progress_log_multi_util
 from internnav.utils.common_log_util import common_logger as log
 
@@ -27,27 +24,14 @@ class runner_status_code(Enum):
     STOP = 4
 
 
-@Evaluator.register('vln_multi')
-class VlnMultiEvaluator(Evaluator):
+@Evaluator.register('vln_multi_distributed')
+class VlnMultiDistributedEvaluator(DistributedEvaluator):
     def __init__(self, config: EvalCfg):
         self.task_name = config.task.task_name
-        if not Path(get_lmdb_path(self.task_name)).exists():
-            split_data(config.dataset)
         self.result_logger = ResultLogger(config.dataset)
-        common_log_util.init(self.task_name)
-        self.dataloader = ResumablePathKeyDataloader(config.dataset.dataset_type, **config.dataset.dataset_settings)
         self.dataset_name = Path(config.dataset.dataset_settings['base_data_dir']).name
-        progress_log_multi_util.init(self.task_name, self.dataloader.size)
-        self.total_path_num = self.dataloader.size
-        progress_log_multi_util.progress_logger_multi.info(
-            f'start eval dataset: {self.task_name}, total_path: {self.dataloader.size}'  # noqa: E501
-        )
-        # generate episode
-        episodes = generate_episode(self.dataloader, config)
-        if len(episodes) == 0:
-            log.info("No more episodes to evaluate. Episodes are saved in data/sample_episodes/")
-            sys.exit(0)
-        config.task.task_settings.update({'episodes': episodes})
+
+        # vec env settings
         self.env_num = config.task.task_settings['env_num']
         self.proc_num = (
             config.env.env_settings['distribution_config']['proc_num']
@@ -62,16 +46,25 @@ class VlnMultiEvaluator(Evaluator):
         while self.proc_num > 1 and self.proc_num * self.env_num > self.total_path_num:
             self.proc_num -= 1
             log.info(f'dataset size is too small! Change proc_num to {self.proc_num}.')
-        # update
+
+        # update config
         config.task.task_settings['env_num'] = self.env_num
         if 'distribution_config' in config.env.env_settings:
             config.env.env_settings['distribution_config']['proc_num'] = self.proc_num
 
         config.agent.model_settings.update({'env_num': self.env_num, 'proc_num': self.proc_num})
         self.robot_name = config.task.robot_name
+
         super().__init__(config)
         set_seed_model(0)
-        self.data_collector = DataCollector(self.dataloader.lmdb_path)
+
+        common_log_util.init(self.task_name)
+        self.total_path_num = len(self.env.episodes)
+        progress_log_multi_util.init(self.task_name, self.total_path_num)
+        progress_log_multi_util.progress_logger_multi.info(
+            f'start eval dataset: {self.task_name}, total_path: {self.total_path_num}'  # noqa: E501
+        )
+        self.data_collector = DataCollector(get_lmdb_path(self.task_name))
         self.robot_flash = config.task.robot_flash
         self.save_to_json = config.eval_settings['save_to_json']
         self.vis_output = config.eval_settings['vis_output']
@@ -96,7 +89,7 @@ class VlnMultiEvaluator(Evaluator):
                 action=[{self.robot_name: {'stand_still': []}} for _ in range(self.env_num * self.proc_num)]
             )
             if obs[0][self.robot_name]['finish_action']:
-                print('get_obs')
+                # print('get_obs')
                 break
         return obs
 
@@ -168,10 +161,10 @@ class VlnMultiEvaluator(Evaluator):
             self.runner_status[
                 np.logical_and(self.runner_status == runner_status_code.NORMAL, action == {'h1': {'stop': []}})
             ] = runner_status_code.STOP
-            print(action)
-            t0 = time()
+            # print(action)
+            # t0 = time()
             obs, reward, terminated, truncated, info = self.env.step(action=action.tolist())
-            print(f"inner one step time {time() - t0}")
+            # print(f"inner one step time {time() - t0}")
             obs = self._obs_remove_robot_name(obs)
             finish_status = np.logical_or(
                 np.array([ob['finish_action'] for ob in obs]),
@@ -184,14 +177,21 @@ class VlnMultiEvaluator(Evaluator):
             ) or np.logical_and.reduce(np.array(finish_status)):
                 self.runner_status[self.runner_status == runner_status_code.STOP] = runner_status_code.NORMAL
                 break
-            if __debug__ and np.logical_or.reduce(np.array(finish_status)):
-                print(f'finish_status: {finish_status}')
+            # if __debug__ and np.logical_or.reduce(np.array(finish_status)):
+            # print(f'finish_status: {finish_status}')
         end_time = time()
         duration = round(end_time - start_time, 2)
         log.info(f'env step time: {duration}s')
         return obs, terminated
 
     def terminate_ops(self, obs_ls, reset_infos, terminated_ls):
+        """
+        1. reset agent if finished warm up
+        2. reset envs that are terminated
+        3. start new trace log and visualize log
+        4. return whether all envs are terminated
+        5. return updated reset_infos
+        """
         finish_warmup_ls = (self.runner_status == runner_status_code.WARM_UP) & [ob['finish_action'] for ob in obs_ls]
         if np.logical_or.reduce(finish_warmup_ls):
             self.agent.reset(np.where(finish_warmup_ls)[0].tolist())
@@ -249,7 +249,7 @@ class VlnMultiEvaluator(Evaluator):
             reset_infos = reset_infos.tolist()
 
         if np.logical_and.reduce(self.runner_status == runner_status_code.TERMINATED):
-            print('finished')
+            # print('finished')
             return True, reset_infos
         for reset_info in new_reset_infos:
             if reset_info is None:
@@ -268,7 +268,7 @@ class VlnMultiEvaluator(Evaluator):
     def eval(self):
         print('--- VlnMultiEvaluator start ---')
         obs, reset_info = self.env.reset()
-        print('obs:', obs)
+        # print('obs:', obs)
         for info in reset_info:
             if info is None:
                 continue
@@ -293,10 +293,20 @@ class VlnMultiEvaluator(Evaluator):
         self.runner_status[[info is None for info in reset_info]] = runner_status_code.TERMINATED
 
         while self.env.is_running():
-
+            start_time = time()
+            # get action from agent
             obs, action = self.get_action(obs, action)
+            log.info(f'get_action time: {round(time() - start_time, 2)}s')
+
+            # step env
+            start_time = time()
             obs, terminated = self.env_step(action)
+            log.info(f'env_step time: {round(time() - start_time, 2)}s')
+
+            # terminate ops
+            start_time = time()
             env_term, reset_info = self.terminate_ops(obs, reset_info, terminated)
+            log.info(f'terminate_ops time: {round(time() - start_time, 2)}s')
             if env_term:
                 break
 
