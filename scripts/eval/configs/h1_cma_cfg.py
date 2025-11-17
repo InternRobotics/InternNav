@@ -51,6 +51,6 @@ eval_cfg = EvalCfg(
     eval_settings={
         'save_to_json': True,
         'vis_output': True,
-        'use_agent_server': False,
+        'use_agent_server': True,
     },
 )

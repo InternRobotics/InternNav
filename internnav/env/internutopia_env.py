@@ -31,8 +31,8 @@ class InternutopiaEnv(base.Env):
 
         # generate episodes
         self.episode_loader = ResumablePathKeyEpisodeloader(
-            env_config.dataset.dataset_type,
-            **env_config.dataset.dataset_settings,
+            env_settings['dataset'].dataset_type,
+            **env_settings['dataset'].dataset_settings,
             rank=env_settings['rank'],
             world_size=env_settings['world_size']
         )
@@ -42,7 +42,7 @@ class InternutopiaEnv(base.Env):
         task_settings.update({'episodes': self.episodes})
 
         # set visible device for isaac sim
-        os.environ["CUDA_VISIBLE_DEVICES"] = env_settings.get('local_rank', '0')
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(env_settings.get('local_rank', 0))
 
         config = Config(
             simulator=SimConfig(**env_settings),

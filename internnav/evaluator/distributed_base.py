@@ -44,7 +44,7 @@ class DistributedEvaluator(Evaluator):
         cfg.env.env_settings['rank'] = get_rank()
         cfg.env.env_settings['local_rank'] = self.local_rank
         cfg.env.env_settings['world_size'] = get_world_size()
-        cfg.env.dataset = cfg.dataset
+        cfg.env.env_settings['dataset'] = cfg.dataset
 
         self.eval_config = cfg
 

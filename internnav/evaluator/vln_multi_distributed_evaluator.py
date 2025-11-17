@@ -128,6 +128,7 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
         return transformed_actions
 
     def get_action(self, obs, action):
+        start_time = time()
         # process obs
         obs = np.array(obs)
         fake_obs_index = np.logical_or(
@@ -143,6 +144,9 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
         # change warm_up
         action = np.array(action)
         action[self.runner_status == runner_status_code.WARM_UP] = {'h1': {'stand_still': []}}
+        end_time = time()
+        duration = round(end_time - start_time, 2)
+        log.info(f'[TIME] agent step time: {duration}s')
         return obs, action
 
     def _need_reset(self, terminated_ls):
@@ -155,6 +159,7 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
 
     def env_step(self, action):
         start_time = time()
+
         # stop_count = [0 for _ in range(self.env_num * self.sim_num)]
         while True:
             # stop action maybe also need 50 steps
@@ -181,7 +186,7 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
             # print(f'finish_status: {finish_status}')
         end_time = time()
         duration = round(end_time - start_time, 2)
-        log.info(f'env step time: {duration}s')
+        log.info(f'[TIME] env step time: {duration}s')
         return obs, terminated
 
     def terminate_ops(self, obs_ls, reset_infos, terminated_ls):
@@ -192,6 +197,8 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
         4. return whether all envs are terminated
         5. return updated reset_infos
         """
+        start_time = time()
+
         finish_warmup_ls = (self.runner_status == runner_status_code.WARM_UP) & [ob['finish_action'] for ob in obs_ls]
         if np.logical_or.reduce(finish_warmup_ls):
             self.agent.reset(np.where(finish_warmup_ls)[0].tolist())
@@ -263,6 +270,10 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
                 self.visualize_util.trace_start(
                     trajectory_id=self.now_path_key(reset_info), reference_path=reset_info.data['reference_path']
                 )
+
+        end_time = time()
+        duration = round(end_time - start_time, 2)
+        log.info(f'[TIME] reset time: {duration}s')
         return False, reset_infos
 
     def eval(self):
@@ -293,21 +304,14 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
         self.runner_status[[info is None for info in reset_info]] = runner_status_code.TERMINATED
 
         while self.env.is_running():
-            start_time = time()
             # get action from agent
             obs, action = self.get_action(obs, action)
-            log.info(f'get_action time: {round(time() - start_time, 2)}s')
-
             # step env
-            start_time = time()
             obs, terminated = self.env_step(action)
-            log.info(f'env_step time: {round(time() - start_time, 2)}s')
-
             # terminate ops
-            start_time = time()
-            env_term, reset_info = self.terminate_ops(obs, reset_info, terminated)
-            log.info(f'terminate_ops time: {round(time() - start_time, 2)}s')
-            if env_term:
+            env_terminate, reset_info = self.terminate_ops(obs, reset_info, terminated)
+
+            if env_terminate:
                 break
 
             # save step obs
