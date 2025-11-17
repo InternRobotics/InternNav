@@ -22,7 +22,7 @@ eval_cfg = EvalCfg(
         },
     ),
     task=TaskCfg(
-        task_name='cma_plus_refactor_debug',
+        task_name='cma_plus_refactor_debug_local_dist',
         task_settings={
             'env_num': 1,
             'use_distributed': False,
@@ -51,6 +51,6 @@ eval_cfg = EvalCfg(
     eval_settings={
         'save_to_json': True,
         'vis_output': True,
-        'use_agent_server': True,
+        'use_agent_server': False,
     },
 )

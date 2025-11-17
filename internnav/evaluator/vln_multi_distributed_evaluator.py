@@ -27,9 +27,12 @@ class runner_status_code(Enum):
 @Evaluator.register('vln_multi_distributed')
 class VlnMultiDistributedEvaluator(DistributedEvaluator):
     def __init__(self, config: EvalCfg):
+        start_time = time()
+
         self.task_name = config.task.task_name
         self.result_logger = ResultLogger(config.dataset)
         self.dataset_name = Path(config.dataset.dataset_settings['base_data_dir']).name
+        config.env.env_settings['dataset'] = config.dataset
 
         # vec env settings
         self.env_num = config.task.task_settings['env_num']
@@ -69,6 +72,10 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
         self.save_to_json = config.eval_settings['save_to_json']
         self.vis_output = config.eval_settings['vis_output']
         self.visualize_util = VisualizeUtil(self.task_name, fps=6)
+
+        end_time = time()
+        duration = round(end_time - start_time, 2)
+        log.info(f'[TIME] Env Init time: {duration}s')
 
     @property
     def ignore_obs_attr(self):
@@ -186,7 +193,7 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
             # print(f'finish_status: {finish_status}')
         end_time = time()
         duration = round(end_time - start_time, 2)
-        log.info(f'[TIME] env step time: {duration}s')
+        log.info(f'[TIME] Env Step time: {duration}s')
         return obs, terminated
 
     def terminate_ops(self, obs_ls, reset_infos, terminated_ls):
@@ -273,7 +280,7 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
 
         end_time = time()
         duration = round(end_time - start_time, 2)
-        log.info(f'[TIME] reset time: {duration}s')
+        log.info(f'[TIME] Env Reset time: {duration}s')
         return False, reset_infos
 
     def eval(self):

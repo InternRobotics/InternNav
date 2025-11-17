@@ -104,7 +104,12 @@ class DataCollector:
         if result != 'success':
             finish_flag = 'fail'
         lmdb_file = os.path.join(self.lmdb_path, 'sample_data.lmdb')
-        database = lmdb.open(lmdb_file, map_size=1 * 1024 * 1024 * 1024 * 1024, max_dbs=0)
+        database = lmdb.open(
+            lmdb_file,
+            map_size=1 * 1024 * 1024 * 1024 * 1024,
+            max_dbs=0,
+            lock=True,
+        )
         with database.begin(write=True) as txn:
             encode_key = key.encode()
             episode_datas = self.merge_data(self.episode_total_data, self.actions)
@@ -129,6 +134,7 @@ class DataCollector:
             f'{self.lmdb_path}/sample_data.lmdb',
             map_size=1 * 1024 * 1024 * 1024 * 1024,
             max_dbs=0,
+            lock=True,
         )
         with database_write.begin(write=True) as txn:
             key_write = key.encode()

@@ -1,3 +1,5 @@
+import os
+
 import lmdb
 import msgpack_numpy
 
@@ -37,11 +39,14 @@ class ResumablePathKeyEpisodeloader(BasePathKeyEpisodeloader):
         self.run_type = run_type
         self.lmdb_path = get_lmdb_path(task_name)
         self.retry_list = retry_list
+
+        if not os.path.exists(self.lmdb_path):
+            os.makedirs(self.lmdb_path)
+
         database = lmdb.open(
             f'{self.lmdb_path}/sample_data.lmdb',
             map_size=1 * 1024 * 1024 * 1024 * 1024,
-            readonly=True,
-            lock=False,
+            lock=True,
         )
 
         filtered_target_path_key_list = []

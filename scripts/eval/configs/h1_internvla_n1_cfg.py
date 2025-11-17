@@ -45,7 +45,7 @@ eval_cfg = EvalCfg(
         task_name='test',
         task_settings={
             'env_num': 1,
-            'use_distributed': False,  # If the others setting in task_settings, please set use_distributed = False.
+            'use_distributed': False,  # flag for multi isaac sims, must be False because currently internvla-n1 agent unsupported batch observation
             'proc_num': 1,
         },
         scene=SceneCfg(
@@ -73,6 +73,6 @@ eval_cfg = EvalCfg(
     eval_settings={
         'save_to_json': True,
         'vis_output': False,
-        'use_agent_server': False,
+        'use_agent_server': False,  # If use_agent_server=True, please start the agent server first.
     },
 )

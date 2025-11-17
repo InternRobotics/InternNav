@@ -44,7 +44,6 @@ class DistributedEvaluator(Evaluator):
         cfg.env.env_settings['rank'] = get_rank()
         cfg.env.env_settings['local_rank'] = self.local_rank
         cfg.env.env_settings['world_size'] = get_world_size()
-        cfg.env.env_settings['dataset'] = cfg.dataset
 
         self.eval_config = cfg
 
@@ -64,7 +63,7 @@ class DistributedEvaluator(Evaluator):
                 from internnav.agent import Agent
 
                 cfg.agent.model_settings['local_rank'] = self.local_rank
-                self.agent = Agent(cfg.agent)
+                self.agent = Agent.init(cfg.agent)
 
     def eval(self):
         """
