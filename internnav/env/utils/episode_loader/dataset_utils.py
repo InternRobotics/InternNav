@@ -501,7 +501,7 @@ def load_data(
     with gzip.open(os.path.join(dataset_root_dir, split, f"{split}.json.gz"), 'rt', encoding='utf-8') as f:
         data = json.load(f)['episodes'][rank::world_size]
 
-    if dataset_type == 'kujiale':
+    if dataset_type in ['kujiale', 'grscene']:
         scenes = list(set([x['scan'] for x in data]))
     else:
         scenes = list(set([x['scene_id'] for x in data]))  # e.g. 'mp3d/zsNo4HB9uLZ/zsNo4HB9uLZ.glb'
@@ -509,7 +509,7 @@ def load_data(
     scenes.sort()
     new_data = {}
     for scene in scenes:
-        if dataset_type == 'kujiale':
+        if dataset_type in ['kujiale', 'grscene']:
             scene_data = [x for x in data if x['scan'] == scene]
             scan = scene
         else:
@@ -521,7 +521,7 @@ def load_data(
             new_item['scan'] = scan
             new_item['original_start_position'] = item['start_position']
             new_item['original_start_rotation'] = item['start_rotation']
-            if dataset_type != 'kujiale':
+            if dataset_type == 'mp3d':
                 x, z, y = item['start_position']
                 new_item['start_position'] = [x, -y, z]
                 r1, r2, r3, r4 = item['start_rotation']

@@ -41,14 +41,6 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
             if 'distribution_config' in config.env.env_settings
             else 1
         )
-        # check env_num and proc_num
-        # priority: reduce env_num first then reduce proc_num
-        while self.env_num > 1 and self.proc_num * self.env_num > self.total_path_num:
-            self.env_num -= 1
-            log.info(f'dataset size is too small! Change env_num to {self.env_num}.')
-        while self.proc_num > 1 and self.proc_num * self.env_num > self.total_path_num:
-            self.proc_num -= 1
-            log.info(f'dataset size is too small! Change proc_num to {self.proc_num}.')
 
         # update config
         config.task.task_settings['env_num'] = self.env_num
@@ -67,7 +59,7 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
         progress_log_multi_util.progress_logger_multi.info(
             f'start eval dataset: {self.task_name}, total_path: {self.total_path_num}'  # noqa: E501
         )
-        self.data_collector = DataCollector(get_lmdb_path(self.task_name))
+        self.data_collector = DataCollector(get_lmdb_path(self.task_name), rank=self.rank, world_size=self.world_size)
         self.robot_flash = config.task.robot_flash
         self.save_to_json = config.eval_settings['save_to_json']
         self.vis_output = config.eval_settings['vis_output']
@@ -239,9 +231,10 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
                         result=obs['metrics'][list(obs['metrics'].keys())[0]][0]['fail_reason'],
                     )
                 # json format result
-                if self.save_to_json:
-                    self.result_logger.write_now_result_json()
-                self.result_logger.write_now_result()
+                # if self.save_to_json:
+                #     self.result_logger.write_now_result_json()
+                # self.result_logger.write_now_result()
+                self.result_logger.finalize_all_results(self.rank, self.world_size)
                 self.runner_status[env_id] = runner_status_code.NOT_RESET
                 log.info(f'env{env_id}: states switch to NOT_RESET.')
         # need this status to reset

@@ -32,8 +32,6 @@ internnav_habitat/
 * `measures.py` registers additional Habitat measurements (path length,
   oracle metrics, step counts) that are required by the evaluators.
 
-The `refactor_notes.md` file captures design notes and TODOs collected during a
-previous refactoring pass.
 
 ## Habitat environment wrapper
 

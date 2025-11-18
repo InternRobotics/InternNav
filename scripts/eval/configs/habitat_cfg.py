@@ -29,7 +29,7 @@ eval_cfg = EvalCfg(
     eval_type='habitat_vln',
     eval_settings={
         # all current parse args
-        "output_path": "./logs/habitat/test",  # output directory for logs/results
+        "output_path": "./logs/habitat/test1",  # output directory for logs/results
         "save_video": False,  # whether to save videos
         "epoch": 0,  # epoch number for logging
         "max_steps_per_episode": 500,  # maximum steps per episode

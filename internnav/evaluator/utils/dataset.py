@@ -1,3 +1,4 @@
+import collections
 import json
 import os
 
@@ -232,3 +233,97 @@ class ResultLogger:
             f.write('\n'.join(log_content))
 
         self.database_read.close()
+
+    def finalize_all_results(self, rank, world_size):
+        # Only rank 0 aggregates and writes final results
+        if rank != 0:
+            return
+
+        # accumulator for all splits across all ranks
+        split_acc = {}
+        for split in self.split_map.keys():
+            split_acc[split] = {
+                "total_TL": 0.0,
+                "total_NE": 0.0,
+                "total_osr": 0.0,
+                "total_success": 0.0,
+                "total_spl": 0.0,
+                "reason_map": collections.Counter({"reach_goal": 0}),
+                "count": 0,
+            }
+
+        # loop over all ranks' lmdbs
+        for i in range(world_size):
+            lmdb_dir = f"{self.lmdb_path}/sample_data{i}.lmdb"
+            if not os.path.exists(lmdb_dir):
+                # this rank might not have produced a db; skip
+                continue
+
+            env = lmdb.open(
+                lmdb_dir,
+                readonly=True,
+                lock=False,
+                max_readers=256,
+            )
+
+            for split, path_key_list in self.split_map.items():
+                for path_key in path_key_list:
+                    with env.begin() as txn:
+                        value = txn.get(path_key.encode())
+                    if value is None:
+                        continue
+
+                    data = msgpack_numpy.unpackb(value)
+                    data["path_key"] = path_key
+
+                    acc = split_acc[split]
+
+                    TL = data["info"]["TL"]
+                    NE = data["info"]["NE"]
+                    if NE < 0:
+                        NE = 0
+                    osr = data["info"]["osr"]
+                    if osr < 0:
+                        osr = 0
+                    success = data["info"]["success"]
+                    spl = data["info"]["spl"]
+
+                    acc["total_TL"] += TL
+                    acc["total_NE"] += NE
+                    acc["total_osr"] += osr
+                    acc["total_success"] += success
+                    acc["total_spl"] += spl
+                    acc["count"] += 1
+
+                    ret_type = data.get("fail_reason", "") or "success"
+                    acc["reason_map"][ret_type] += 1
+                    if success > 0:
+                        acc["reason_map"]["reach_goal"] += 1
+
+            env.close()
+
+        # build final json
+        json_data = {}
+        for split, acc in split_acc.items():
+            count = acc["count"]
+            if count == 0:
+                continue
+
+            reason_map = acc["reason_map"]
+            fall = reason_map.get("fall", 0)
+            stuck = reason_map.get("stuck", 0)
+
+            json_data[split] = {
+                "TL": round(acc["total_TL"] / count, 4),
+                "NE": round(acc["total_NE"] / count, 4),
+                "FR": round(fall / count, 4),
+                "StR": round(stuck / count, 4),
+                "OS": round(acc["total_osr"] / count, 4),
+                "SR": round(acc["total_success"] / count, 4),
+                "SPL": round(acc["total_spl"] / count, 4),
+                "Count": count,
+            }
+
+        # write log content to file
+        with open(f"{self.name}_result.json", "w") as f:
+            json.dump(json_data, f, indent=2, ensure_ascii=False)

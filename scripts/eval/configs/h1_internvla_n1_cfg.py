@@ -42,7 +42,7 @@ eval_cfg = EvalCfg(
         },
     ),
     task=TaskCfg(
-        task_name='test',
+        task_name='internvla-n1_dist_eval',
         task_settings={
             'env_num': 1,
             'use_distributed': False,  # flag for multi isaac sims, must be False because currently internvla-n1 agent unsupported batch observation

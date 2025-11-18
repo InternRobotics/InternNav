@@ -44,7 +44,7 @@ class ResumablePathKeyEpisodeloader(BasePathKeyEpisodeloader):
             os.makedirs(self.lmdb_path)
 
         database = lmdb.open(
-            f'{self.lmdb_path}/sample_data.lmdb',
+            f'{self.lmdb_path}/sample_data{rank}.lmdb',
             map_size=1 * 1024 * 1024 * 1024 * 1024,
             lock=True,
         )

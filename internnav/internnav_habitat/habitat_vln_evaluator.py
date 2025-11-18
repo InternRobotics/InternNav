@@ -226,7 +226,6 @@ class HabitatVlnEvaluator(DistributedEvaluator):
         self.model.eval()
 
         # resume from previous results
-        # TODO: Current read write op is not distributed safe
         if os.path.exists(os.path.join(self.output_path, 'progress.json')):
             with open(os.path.join(self.output_path, 'progress.json'), 'r') as f:
                 for line in f.readlines():
@@ -240,7 +239,7 @@ class HabitatVlnEvaluator(DistributedEvaluator):
                             torch.tensor(nes).to(self.device),
                             torch.tensor(len(sucs)).to(self.device),
                         )
-                    if self.rank == 0:  # noqa: F405 TODO this need to keep in evaluator
+                    if self.rank == 0:  # noqa: F405
                         sucs.append(res['success'])
                         spls.append(res['spl'])
                         oss.append(res['os'])

@@ -22,11 +22,11 @@ eval_cfg = EvalCfg(
         },
     ),
     task=TaskCfg(
-        task_name='cma_plus_refactor_debug',
+        task_name='rdp_refactor_test',
         task_settings={
-            'env_num': 1,
-            'use_distributed': False,
-            'proc_num': 8,
+            'env_num': 2,
+            'use_distributed': True,
+            'proc_num': 4,
         },
         scene=SceneCfg(
             scene_type='mp3d',
@@ -50,7 +50,7 @@ eval_cfg = EvalCfg(
     eval_type='vln_multi_distributed',
     eval_settings={
         'save_to_json': True,
-        'vis_output': True,
+        'vis_output': False,
         'use_agent_server': True,
     },
 )

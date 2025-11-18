@@ -1,6 +1,6 @@
 # use to run distributed eval with 4 gpus on single node
 
-CONFIG=scripts/eval/configs/h1_cma_cfg.py
+CONFIG=scripts/eval/configs/habitat_cfg.py
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -21,7 +21,7 @@ CONFIG_PREFIX=$(echo "$CONFIG_BASENAME" | sed 's/_cfg$//')
 EVAL_LOG="logs/${CONFIG_PREFIX}_eval.log"
 
 torchrun \
-  --nproc_per_node=8 \
+  --nproc_per_node=2 \
   --master_port=2333 \
   scripts/eval/eval.py \
     --config $CONFIG \
