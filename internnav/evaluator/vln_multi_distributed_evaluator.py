@@ -88,7 +88,6 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
                 action=[{self.robot_name: {'stand_still': []}} for _ in range(self.env_num * self.proc_num)]
             )
             if obs[0][self.robot_name]['finish_action']:
-                # print('get_obs')
                 break
         return obs
 
@@ -165,10 +164,7 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
             self.runner_status[
                 np.logical_and(self.runner_status == runner_status_code.NORMAL, action == {'h1': {'stop': []}})
             ] = runner_status_code.STOP
-            # print(action)
-            # t0 = time()
             obs, reward, terminated, truncated, info = self.env.step(action=action.tolist())
-            # print(f"inner one step time {time() - t0}")
             obs = self._obs_remove_robot_name(obs)
             finish_status = np.logical_or(
                 np.array([ob['finish_action'] for ob in obs]),
@@ -181,8 +177,6 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
             ) or np.logical_and.reduce(np.array(finish_status)):
                 self.runner_status[self.runner_status == runner_status_code.STOP] = runner_status_code.NORMAL
                 break
-            # if __debug__ and np.logical_or.reduce(np.array(finish_status)):
-            # print(f'finish_status: {finish_status}')
         end_time = time()
         duration = round(end_time - start_time, 2)
         log.info(f'[TIME] Env Step time: {duration}s')
@@ -231,9 +225,6 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
                         result=obs['metrics'][list(obs['metrics'].keys())[0]][0]['fail_reason'],
                     )
                 # json format result
-                # if self.save_to_json:
-                #     self.result_logger.write_now_result_json()
-                # self.result_logger.write_now_result()
                 self.result_logger.finalize_all_results(self.rank, self.world_size)
                 self.runner_status[env_id] = runner_status_code.NOT_RESET
                 log.info(f'env{env_id}: states switch to NOT_RESET.')
@@ -256,7 +247,6 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
             reset_infos = reset_infos.tolist()
 
         if np.logical_and.reduce(self.runner_status == runner_status_code.TERMINATED):
-            # print('finished')
             return True, reset_infos
         for reset_info in new_reset_infos:
             if reset_info is None:
@@ -279,7 +269,6 @@ class VlnMultiDistributedEvaluator(DistributedEvaluator):
     def eval(self):
         print('--- VlnMultiEvaluator start ---')
         obs, reset_info = self.env.reset()
-        # print('obs:', obs)
         for info in reset_info:
             if info is None:
                 continue

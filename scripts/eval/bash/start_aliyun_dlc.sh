@@ -7,6 +7,7 @@ mode="$1"
 shift   # remove first argument so only extra args left (--config ...)
 
 case "$mode" in
+    # start to evaluate habitat in dlc
     habitat)
         echo "[run.sh] Starting HABITAT evaluation..."
 

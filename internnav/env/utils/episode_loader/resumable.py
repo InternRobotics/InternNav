@@ -41,7 +41,7 @@ class ResumablePathKeyEpisodeloader(BasePathKeyEpisodeloader):
         self.retry_list = retry_list
 
         if not os.path.exists(self.lmdb_path):
-            os.makedirs(self.lmdb_path)
+            os.makedirs(self.lmdb_path, exist_ok=True)
 
         database = lmdb.open(
             f'{self.lmdb_path}/sample_data{rank}.lmdb',

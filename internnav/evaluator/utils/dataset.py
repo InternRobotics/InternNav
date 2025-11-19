@@ -235,10 +235,6 @@ class ResultLogger:
         self.database_read.close()
 
     def finalize_all_results(self, rank, world_size):
-        # Only rank 0 aggregates and writes final results
-        if rank != 0:
-            return
-
         # accumulator for all splits across all ranks
         split_acc = {}
         for split in self.split_map.keys():

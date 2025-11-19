@@ -32,8 +32,7 @@ class InternVLAN1Agent(Agent):
         set_random_seed(0)
         vln_sensor_config = self.config.model_settings
         self._model_settings = ModelCfg(**vln_sensor_config)
-        local_rank = getattr(self._model_settings, 'local_rank')
-        self.device = torch.device(local_rank)
+        self.device = torch.device(self._model_settings.device)
         self.mode = getattr(self._model_settings, 'infer_mode', 'sync')
         self.sys2_max_forward_step = getattr(self._model_settings, 'sys2_max_forward_step', 8)
 
