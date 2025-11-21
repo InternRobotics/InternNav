@@ -20,7 +20,7 @@ def init(task_name='default'):
     NAME = task_name
     log_dir = f'{PROJECT_ROOT_PATH}/logs/{task_name}/common'
     if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+        os.makedirs(log_dir, exist_ok=True)
     file_name = f"log_{datetime.now().strftime('%Y%m%d%H%M%S')}_{os.getpid()}.log"
     file_handler = logging.FileHandler(f'{log_dir}/{file_name}')
     file_handler.setLevel(logging.INFO)
