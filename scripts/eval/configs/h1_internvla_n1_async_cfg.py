@@ -33,7 +33,7 @@ eval_cfg = EvalCfg(
             'infer_mode': 'partial_async',  # You can choose "sync" or "partial_async", but for this model, "partial_async" is better.
             # debug
             'vis_debug': True,  # If vis_debug=True, you can get visualization results
-            'vis_debug_path': './logs/test_partial/vis_debug',
+            'vis_debug_path': './logs/test/vis_debug',
         },
     ),
     env=EnvCfg(
@@ -44,19 +44,19 @@ eval_cfg = EvalCfg(
         },
     ),
     task=TaskCfg(
-        task_name='test_partial_pe',
+        task_name='test',
         task_settings={
             'env_num': 1,
             'use_distributed': False,  # If the others setting in task_settings, please set use_distributed = False.
             'proc_num': 1,
-            'max_step': 1000,  # If use flash mode，default 1000; descrete mode, set 50000
+            'max_step': 50000,  # If use flash mode，default 1000; descrete mode, set 50000
         },
         scene=SceneCfg(
             scene_type='mp3d',
             scene_data_dir='data/scene_data/mp3d_pe',
         ),
         robot_name='h1',
-        robot_flash=False,  # If robot_flash is True, the mode is flash (set world_pose directly); else you choose physical mode.
+        robot_flash=True,  # If robot_flash is True, the mode is flash (set world_pose directly); else you choose physical mode.
         robot_usd_path='data/Embodiments/vln-pe/h1/h1_internvla.usd',
         camera_resolution=[640, 480],  # (W,H)
         camera_prim_path='torso_link/h1_1_25_down_30',

@@ -3,9 +3,7 @@ from internnav.configs.evaluator import EnvCfg, EvalCfg
 
 eval_cfg = EvalCfg(
     agent=AgentCfg(
-        server_port=8087,
         model_name='internvla_n1',
-        ckpt_path='',
         model_settings={
             "mode": "dual_system",  # inference mode: dual_system or system2
             "model_path": "checkpoints/InternVLA-N1",  # path to model checkpoint

@@ -1,11 +1,7 @@
-export MAGNUM_LOG=quiet HABITAT_SIM_LOG=quiet
-export NCCL_SOCKET_IFNAME=bond0
-export NCCL_IB_HCA=mlx5_2,mlx5_3,mlx5_4,mlx5_5
-
 MID_RUN_NAME="InternVLA-N1"
 CONFIG="scripts/eval/configs/habitat_cfg.py"
 
-srun -p efm_t \
+srun -p <YOUR_PARTITION_NAME> \
     --gres=gpu:8 \
     --ntasks=8 \
     -x HOST-10-140-66-68,HOST-10-140-66-182,HOST-10-140-66-181 \

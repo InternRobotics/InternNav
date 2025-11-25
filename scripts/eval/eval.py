@@ -18,9 +18,6 @@ def parse_args():
         default='scripts/eval/configs/h1_rdp_cfg.py',
         help='eval config file path, e.g. scripts/eval/configs/h1_cma_cfg.py',
     )
-    parser.add_argument('--port', type=int, default=None)
-    parser.add_argument('--host', type=str, default=None)
-    parser.add_argument('--dist_eval', action="store_true", default=False)
     return parser.parse_args()
 
 
@@ -41,9 +38,6 @@ def main():
         from internnav.configs.evaluator.vln_default_config import get_config
 
         evaluator_cfg = get_config(evaluator_cfg)
-    elif evaluator_cfg.eval_type == 'habitat_vln':
-        # TODO: add default config
-        pass
 
     # create evaluator based on sim backend and run eval
     evaluator = Evaluator.init(evaluator_cfg)

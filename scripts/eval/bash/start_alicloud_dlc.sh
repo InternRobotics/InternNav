@@ -18,7 +18,6 @@ case "$mode" in
             > logs/internvla_n1_log.txt 2>&1
 
         ;;
-
     internutopia)
         echo "[run.sh] Starting INTERNUTOPIA evaluation..."
 

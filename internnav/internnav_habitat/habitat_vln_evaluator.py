@@ -10,11 +10,21 @@ import random
 import re
 from collections import OrderedDict
 
+import habitat
 import numpy as np
 import quaternion
 import torch
 import tqdm
 from depth_camera_filtering import filter_depth
+from habitat.config.default import get_agent_config
+from habitat.config.default_structured_configs import (
+    CollisionsMeasurementConfig,
+    FogOfWarConfig,
+    TopDownMapMeasurementConfig,
+)
+from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
+from habitat.utils.visualizations.utils import observations_to_image
+from habitat_baselines.config.default import get_config as get_habitat_config
 from PIL import Image, ImageDraw, ImageFont
 from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 from transformers.image_utils import to_numpy_array
@@ -29,23 +39,8 @@ from internnav.model.utils.vln_utils import (
     traj_to_actions,
 )
 
-try:
-    import habitat
-    from habitat.config.default import get_agent_config
-    from habitat.config.default_structured_configs import (
-        CollisionsMeasurementConfig,
-        FogOfWarConfig,
-        TopDownMapMeasurementConfig,
-    )
-    from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
-    from habitat.utils.visualizations.utils import observations_to_image
-    from habitat_baselines.config.default import get_config as get_habitat_config
-
-    # Import for Habitat registry side effects — do not remove
-    import internnav.internnav_habitat.measures  # noqa: F401 # isort: skip
-except Exception as e:
-    print(f"Warning: ({e}), Habitat Evaluation is not loaded in this runtime. Ignore this if not using Habitat.")
-
+# Import for Habitat registry side effects — do not remove
+import internnav.internnav_habitat.measures  # noqa: F401 # isort: skip
 
 DEFAULT_IMAGE_TOKEN = "<image>"
 

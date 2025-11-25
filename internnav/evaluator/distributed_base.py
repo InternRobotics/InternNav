@@ -38,7 +38,7 @@ class DistributedEvaluator(Evaluator):
 
         self.rank = get_rank()
         self.world_size = get_world_size()
-        self.output_path = cfg.eval_settings.get("output_path")  # TODO: unsafe for distribution
+        self.output_path = cfg.eval_settings.get("output_path")
 
         # habitat env also need rank to split dataset
         cfg.env.env_settings['rank'] = get_rank()
