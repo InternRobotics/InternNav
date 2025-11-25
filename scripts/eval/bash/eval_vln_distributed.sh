@@ -1,10 +1,28 @@
 #!/bin/bash
+# vlnpe distributed scripts for aliyun dlc
+# use habitat or internutopia mode to run distributed eval with 1 gpus on single node
+# set use_agent_server=False in config file to use local agent on single node
+# internutopia_vec_env mode: collect all GPUs by ray, observations are collected in batch
 
 # Activate conda automatically
 source /root/miniconda3/etc/profile.d/conda.sh
 
 mode="$1"
 shift   # remove first argument so only extra args left (--config ...)
+
+CONFIG=scripts/eval/configs/h1_internvla_n1_async_cfg.py
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --config)
+            CONFIG="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown argument: $1"
+            exit 1
+            ;;
+    esac
+done
 
 case "$mode" in
     # start to evaluate habitat in dlc
@@ -14,11 +32,19 @@ case "$mode" in
         conda activate habitat
 
         python scripts/eval/eval.py \
-            --config scripts/eval/configs/habitat_cfg.py \
-            > logs/internvla_n1_log.txt 2>&1
+            --config $CONFIG
 
         ;;
     internutopia)
+        echo "[run.sh] Starting INTERNUTOPIA evaluation..."
+
+        conda activate internutopia
+
+        python scripts/eval/eval.py \
+            --config $CONFIG
+
+        ;;
+    internutopia_vec_env)
         echo "[run.sh] Starting INTERNUTOPIA evaluation..."
 
         conda activate internutopia
@@ -57,9 +83,8 @@ case "$mode" in
             sleep inf
         fi
         ;;
-
     *)
-        echo "Usage: $0 {habitat|internutopia} [--config xxx]"
+        echo "Usage: $0 {habitat|internutopia|internutopia_vec_env} [--config xxx]"
         exit 1
         ;;
 esac

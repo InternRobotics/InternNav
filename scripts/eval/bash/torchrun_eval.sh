@@ -1,6 +1,6 @@
-# use to run distributed eval with 4 gpus on single node
+# use to run distributed eval with multi gpus
 
-CONFIG=scripts/eval/configs/h1_internvla_n1_cfg.py
+CONFIG=scripts/eval/configs/h1_internvla_n1_async_cfg.py
 
 while [[ $# -gt 0 ]]; do
     case $1 in

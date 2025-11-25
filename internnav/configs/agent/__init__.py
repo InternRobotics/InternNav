@@ -7,7 +7,7 @@ class AgentCfg(BaseModel):
     server_host: str = 'localhost'
     server_port: int = 8087
     model_name: str
-    ckpt_path: str
+    ckpt_path: str = None
     model_settings: Dict[str, Any]
 
 
