@@ -22,7 +22,7 @@ eval_cfg = EvalCfg(
         },
     ),
     task=TaskCfg(
-        task_name='rdp_refactor_test',
+        task_name='rdp_eval',
         task_settings={
             'env_num': 2,
             'use_distributed': True,

@@ -22,7 +22,7 @@ eval_cfg = EvalCfg(
         },
     ),
     task=TaskCfg(
-        task_name='cma_plus_refactor_debug',
+        task_name='seq_eval',
         task_settings={
             'env_num': 1,
             'use_distributed': False,
