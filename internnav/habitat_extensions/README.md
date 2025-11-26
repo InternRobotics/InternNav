@@ -9,18 +9,17 @@ utilities.
 ## Package structure
 
 ```
-internnav_habitat/
+habitat_extensions/
 ├── __init__.py
 ├── habitat_env.py
 ├── habitat_default_evaluator.py
 ├── habitat_vln_evaluator.py
-├── measures.py
-└── refactor_notes.md
+└── measures.py
 ```
 
 * `__init__.py` re-exports the public entry points for the environment and the
   VLN evaluator so they can be imported as
-  `from internnav.internnav_habitat import HabitatEnv`.
+  `from internnav.habitat_extensions import HabitatEnv`.
 * `habitat_env.py` implements the `Env` subclass that wraps Habitat's
   `Env` object. It bootstraps episodes, handles sharding across distributed
   ranks, and adapts Habitat's observations to InternNav's expectations.

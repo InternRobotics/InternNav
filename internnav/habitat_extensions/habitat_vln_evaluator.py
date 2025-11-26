@@ -40,7 +40,7 @@ from internnav.model.utils.vln_utils import (
 )
 
 # Import for Habitat registry side effects — do not remove
-import internnav.internnav_habitat.measures  # noqa: F401 # isort: skip
+import internnav.habitat_extensions.measures  # noqa: F401 # isort: skip
 
 DEFAULT_IMAGE_TOKEN = "<image>"
 

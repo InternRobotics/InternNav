@@ -49,7 +49,7 @@ eval_cfg = EvalCfg(
             'env_num': 1,
             'use_distributed': False,  # If the others setting in task_settings, please set use_distributed = False.
             'proc_num': 1,
-            'max_step': 50000,  # If use flash mode，default 1000; descrete mode, set 50000
+            'max_step': 1000,  # If use flash mode，default 1000; descrete mode, set 50000
         },
         scene=SceneCfg(
             scene_type='mp3d',
