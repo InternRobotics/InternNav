@@ -23,7 +23,7 @@ from habitat.config.default_structured_configs import (
     TopDownMapMeasurementConfig,
 )
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
-from habitat.utils.visualizations.utils import observations_to_image
+from habitat.utils.visualizations.utils import images_to_video, observations_to_image
 from habitat_baselines.config.default import get_config as get_habitat_config
 from PIL import Image, ImageDraw, ImageFont
 from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
@@ -618,6 +618,15 @@ class HabitatVlnEvaluator(DistributedEvaluator):
             os.makedirs(self.output_path, exist_ok=True)
             with open(os.path.join(self.output_path, 'progress.json'), 'a') as f:
                 f.write(json.dumps(result) + "\n")
+            if self.save_video:
+                images_to_video(
+                    vis_frames,
+                    os.path.join(self.output_path, f'vis_{self.epoch}', f'{scene_id}'),
+                    f'{episode_id:04d}',
+                    fps=6,
+                    quality=9,
+                )
+            vis_frames.clear()
 
         self.env.close()
 

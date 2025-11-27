@@ -3,7 +3,7 @@ from internnav.evaluator.distributed_base import DistributedEvaluator
 
 # from internnav.evaluator.vln_multi_evaluator import VlnMultiEvaluator
 from internnav.evaluator.vln_multi_distributed_evaluator import (
-    VlnMultiDistributedEvaluator,
+    VLNMultiDistributedEvaluator,
 )
 
 # register habitat
@@ -13,4 +13,4 @@ except Exception as e:
     print(f"Warning: ({e}), Habitat Evaluation is not loaded in this runtime. Ignore this if not using Habitat.")
 
 
-__all__ = ['Evaluator', 'DistributedEvaluator']
+__all__ = ['Evaluator', 'DistributedEvaluator', 'VLNMultiDistributedEvaluator', 'HabitatVlnEvaluator']

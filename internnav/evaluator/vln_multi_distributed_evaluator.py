@@ -25,7 +25,7 @@ class runner_status_code(Enum):
 
 
 @Evaluator.register('vln_multi_distributed')
-class VlnMultiDistributedEvaluator(DistributedEvaluator):
+class VLNMultiDistributedEvaluator(DistributedEvaluator):
     def __init__(self, config: EvalCfg):
         start_time = time()
 

@@ -442,6 +442,23 @@ fall_path_custom = {
 
 
 def revise_one_data(origin):
+    """
+    Apply an offset amendment to the start position and first waypoint of the reference path
+    for a given trajectory, if it belongs to a known fall-amend trajectory group.
+
+    The offset is selected based on:
+      - `fall_path_z_0_3` → fixed offset [0, 0, 0.3]
+      - `fall_path_custom` → custom offset mapped by trajectory_id
+      - otherwise → return original unchanged
+
+    Args:
+        origin (dict): One navigation episode item containing keys such as
+            `trajectory_id`, `start_position`, and `reference_path`.
+
+    Returns:
+        dict: The amended item with updated start position and first reference path waypoint,
+        or the original if no amendment rule matched.
+    """
     trajectory_id = origin['trajectory_id']
     if trajectory_id in fall_path_z_0_3:
         amend_offset = [0, 0, 0.3]
@@ -459,6 +476,9 @@ def revise_one_data(origin):
 
 
 def transform_rotation_z_90degrees(rotation):
+    """
+    Rotate a quaternion by 90 degrees (π/2 radians) around the Z axis.
+    """
     z_rot_90 = [np.cos(np.pi / 4), 0, 0, np.sin(np.pi / 4)]  # 90 degrees = pi/2 radians
     w1, x1, y1, z1 = rotation
     w2, x2, y2, z2 = z_rot_90
@@ -472,6 +492,20 @@ def transform_rotation_z_90degrees(rotation):
 
 
 def has_stairs(item, height_threshold=0.3):
+    """
+    Determine if a navigation reference path contains stair-like height jumps when the
+    instruction text includes the word 'stair'.
+
+    The function checks the Z-height (3rd axis) differences between consecutive reference
+    waypoints and flags True if any jump exceeds the threshold.
+
+    Args:
+        item (dict): Episode item containing `instruction.instruction_text` and `reference_path`.
+        height_threshold (float, optional): Minimum absolute height delta to consider as stairs. Defaults to 0.3.
+
+    Returns:
+        bool: True if stairs are detected, False otherwise.
+    """
     has_stairs = False
     if 'stair' in item['instruction']['instruction_text']:
         latest_height = item['reference_path'][0][-1]
@@ -486,6 +520,16 @@ def has_stairs(item, height_threshold=0.3):
 
 
 def different_height(item):
+    """
+    Check if multiple reference paths (or waypoints across paths) have significantly different
+    heights (Z-axis), indicating non-flat terrain.
+
+    Args:
+        item (dict): Episode item containing a list of reference paths in `reference_path`.
+
+    Returns:
+        bool: True if any adjacent path segment has a height difference > 0.3, else False.
+    """
     different_height = False
     paths = item['reference_path']
     for path_idx in range(len(paths) - 1):
@@ -498,6 +542,30 @@ def different_height(item):
 def load_data(
     dataset_root_dir, split, filter_same_trajectory=True, filter_stairs=True, dataset_type='mp3d', rank=0, world_size=1
 ):
+    """
+    Load a compressed navigation dataset split and organize episodes by scan/scene,
+    with optional filtering rules for duplicate trajectories and stair terrain.
+
+    Supported behaviors include:
+      - Distributed slicing via `rank::world_size`
+      - Scene grouping by `scan` (kujiale/grscene) or `scene_id` (mp3d)
+      - Coordinate system remapping for mp3d (`x, z, y` → `[x, -y, z]`)
+      - Start rotation quaternion remapping + 90° Z rotation
+      - Filtering repeated `trajectory_id`
+      - Filtering episodes containing stairs or uneven heights
+
+    Args:
+        dataset_root_dir (str): Root data directory containing the split folders.
+        split (str): Dataset split name (folder & file prefix), e.g. "val_unseen".
+        filter_same_trajectory (bool, optional): Remove episodes with duplicate trajectory_id. Defaults to True.
+        filter_stairs (bool, optional): Remove episodes where stairs or large height variation are detected. Defaults to True.
+        dataset_type (str, optional): Dataset source identifier, such as "mp3d", "kujiale", or "grscene". Defaults to "mp3d".
+        rank (int, optional): Distributed process rank used for slicing episodes. Defaults to 0.
+        world_size (int, optional): Number of distributed ranks used for striding. Defaults to 1.
+
+    Returns:
+        dict: Mapping from `scan` → List of filtered episode items for that scene.
+    """
     with gzip.open(os.path.join(dataset_root_dir, split, f"{split}.json.gz"), 'rt', encoding='utf-8') as f:
         data = json.load(f)['episodes'][rank::world_size]
 

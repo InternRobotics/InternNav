@@ -21,16 +21,17 @@ class DistributedEvaluator(Evaluator):
     Base class of distributed evaluators.
 
     Args:
-        cfg (EvalCfg): evaluation configuration
-        init_env (bool): whether to initialize the environment
-        init_agent (bool): whether to initialize the agent
+        eval_cfg (EvalCfg): Evaluation configuration
+        init_env (bool): Whether to initialize the environment
+        init_agent (bool): Whether to initialize the agent
     """
 
-    def __init__(self, cfg: EvalCfg, init_env: bool = True, init_agent: bool = True):
+    def __init__(self, eval_cfg: EvalCfg, init_env: bool = True, init_agent: bool = True):
         # distributed setting
-        if not cfg.eval_settings.get('use_agent_server', False):
+        if not eval_cfg.eval_settings.get('use_agent_server', False):
             self.local_rank = init_distributed_mode(
-                dist_url=cfg.eval_settings.get('dist_url', "env://"), port=cfg.eval_settings.get('port', 29529)
+                dist_url=eval_cfg.eval_settings.get('dist_url', "env://"),
+                port=eval_cfg.eval_settings.get('port', 29529),
             )
         else:
             self.local_rank = 0
@@ -38,32 +39,32 @@ class DistributedEvaluator(Evaluator):
 
         self.rank = get_rank()
         self.world_size = get_world_size()
-        self.output_path = cfg.eval_settings.get("output_path")
+        self.output_path = eval_cfg.eval_settings.get("output_path")
 
         # habitat env also need rank to split dataset
-        cfg.env.env_settings['rank'] = get_rank()
-        cfg.env.env_settings['local_rank'] = self.local_rank
-        cfg.env.env_settings['world_size'] = get_world_size()
+        eval_cfg.env.env_settings['rank'] = get_rank()
+        eval_cfg.env.env_settings['local_rank'] = self.local_rank
+        eval_cfg.env.env_settings['world_size'] = get_world_size()
 
-        self.eval_config = cfg
+        self.eval_config = eval_cfg
 
         if init_env:
-            self.env = Env.init(cfg.env, cfg.task)
+            self.env = Env.init(eval_cfg.env, eval_cfg.task)
 
         # -------- initialize agent config (either remote server or local agent) --------
         if init_agent:
-            if cfg.eval_settings.get('use_agent_server', False):
+            if eval_cfg.eval_settings.get('use_agent_server', False):
                 assert not is_dist_avail_and_initialized(), "agent server requires single evaluator process."
                 # set agent port based on rank
                 from internnav.utils import AgentClient
 
-                print(f"[R{self.rank}] Connecting to agent server at port {cfg.agent.server_port}")
-                self.agent = AgentClient(cfg.agent)
+                print(f"[R{self.rank}] Connecting to agent server at port {eval_cfg.agent.server_port}")
+                self.agent = AgentClient(eval_cfg.agent)
             else:
                 from internnav.agent import Agent
 
-                cfg.agent.model_settings['local_rank'] = self.local_rank
-                self.agent = Agent.init(cfg.agent)
+                eval_cfg.agent.model_settings['local_rank'] = self.local_rank
+                self.agent = Agent.init(eval_cfg.agent)
 
     def eval(self):
         """
@@ -152,16 +153,15 @@ class DistributedEvaluator(Evaluator):
         """
         Run evaluation on this rank and return per-episode metrics.
 
-        Returns
-        -------
-        dict[str, torch.Tensor]
-            Example:
-            {
-                "sucs": tensor([0., 1., ...], device=...),
-                "spls": tensor([...]),
-                "oss": tensor([...]),
-                "nes": tensor([...]),
-            }
+        Returns:
+            dict[str, torch.Tensor]
+                Example:
+                {
+                    "sucs": tensor([0., 1., ...], device=...),
+                    "spls": tensor([...]),
+                    "oss": tensor([...]),
+                    "nes": tensor([...]),
+                }
         """
         raise NotImplementedError
 
@@ -169,20 +169,18 @@ class DistributedEvaluator(Evaluator):
         """
         Compute final scalar metrics from global per-episode tensors.
 
-        Parameters
-        ----------
-        global_metrics : dict[str, torch.Tensor]
-            For each metric name, a 1-D CPU tensor with all episodes across all ranks.
-            Example:
-                {
-                    "sucs": tensor([...], dtype=torch.float32),
-                    "spls": tensor([...]),
-                    ...
-                }
+        Args:
+            global_metrics : dict[str, torch.Tensor]
+                For each metric name, a 1-D CPU tensor with all episodes across all ranks.
+                Example:
+                    {
+                        "sucs": tensor([...], dtype=torch.float32),
+                        "spls": tensor([...]),
+                        ...
+                    }
 
-        Returns
-        -------
-        dict[str, float]
-            Final scalar metrics to log.
+        Returns:
+            dict[str, float]
+                Final scalar metrics to log.
         """
         raise NotImplementedError
