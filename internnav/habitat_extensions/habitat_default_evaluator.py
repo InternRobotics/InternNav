@@ -26,8 +26,33 @@ except Exception as e:
 DEFAULT_IMAGE_TOKEN = "<image>"
 
 
-@Evaluator.register('habitat_vlln')
-class HabitatVlnEvaluator(DistributedEvaluator):
+@Evaluator.register('habitat_evaluator')
+class HabitatDefaultEvaluator(DistributedEvaluator):
+    """
+    A default evaluator class for running Habitat-based evaluations in a distributed environment.
+
+    This evaluator is designed to work with the Habitat simulator and performs evaluation of
+    agents on local episodes. It provides metrics such as success rate (success), SPL (Success weighted by Path Length),
+    Oracle success rate (oracle_success), and the distance to the goal (distance_to_goal).
+
+    Attributes:
+        save_video (bool): Whether to save video during the evaluation.
+        epoch (int): The current epoch of the evaluation process.
+        max_steps_per_episode (int): The maximum number of steps allowed per episode.
+        output_path (str): The path where the evaluation results are saved.
+        config (habitat.config.default.Config): The Habitat configuration used for the environment setup.
+        agent_config (habitat.config.default.AgentConfig): Configuration specific to the agent in the Habitat simulator.
+        sim_sensors_config (dict): Configuration for the sensors used by the agent in the simulation.
+
+    Methods:
+        eval_action() -> dict:
+            Runs the local episodes and returns a dictionary of evaluation metrics such as success rate,
+            success weighted by path length (SPL), oracle success, and distance to the goal.
+
+        calc_metrics(global_metrics: dict) -> dict:
+            Calculates the global evaluation metrics from the distributed results by aggregating local metrics.
+    """
+
     def __init__(self, cfg: EvalCfg):
         args = argparse.Namespace(**cfg.eval_settings)
         self.args = args

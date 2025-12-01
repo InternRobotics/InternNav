@@ -54,8 +54,6 @@ class ResultLogger:
         return split_map
 
     def write_now_result_json(self):
-        # create log file
-        # log_content = []
         self.database_read = lmdb.open(
             f'{self.lmdb_path}/sample_data.lmdb',
             map_size=1 * 1024 * 1024 * 1024 * 1024,

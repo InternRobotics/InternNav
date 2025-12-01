@@ -464,7 +464,7 @@ def obs_to_image(obs_lst, action, output_path: str, reference_path, normalize: b
     topdown_array = first_obs['topdown_rgb']
 
     # draw array on rgb array
-    rgb_array = draw_action_pil(rgb_array, action)
+    rgb_array = cv2.resize(draw_action_pil(rgb_array, action), (256, 256))
 
     # draw trajectory on depth
     topdown_array = crop(draw_trajectory(topdown_array, obs_lst, reference_path))

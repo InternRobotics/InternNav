@@ -10,7 +10,7 @@ from internnav.evaluator import DistributedEvaluator, Evaluator
 from internnav.evaluator.utils.common import set_seed_model
 from internnav.evaluator.utils.config import get_lmdb_path
 from internnav.evaluator.utils.data_collector import DataCollector
-from internnav.evaluator.utils.dataset import ResultLogger
+from internnav.evaluator.utils.result_logger import ResultLogger
 from internnav.evaluator.utils.visualize_util import VisualizeUtil
 from internnav.utils import common_log_util, progress_log_multi_util
 from internnav.utils.common_log_util import common_logger as log
@@ -158,7 +158,6 @@ class VLNMultiDistributedEvaluator(DistributedEvaluator):
     def env_step(self, action):
         start_time = time()
 
-        # stop_count = [0 for _ in range(self.env_num * self.sim_num)]
         while True:
             # stop action maybe also need 50 steps
             self.runner_status[
