@@ -46,7 +46,7 @@ DEFAULT_IMAGE_TOKEN = "<image>"
 
 
 @Evaluator.register('habitat_vln')
-class HabitatVlnEvaluator(DistributedEvaluator):
+class HabitatVLNEvaluator(DistributedEvaluator):
     def __init__(self, cfg: EvalCfg):
         args = argparse.Namespace(**cfg.eval_settings)
         self.save_video = args.save_video

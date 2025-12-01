@@ -24,8 +24,8 @@ class runner_status_code(Enum):
     STOP = 4
 
 
-@Evaluator.register('vln_multi_distributed')
-class VLNMultiDistributedEvaluator(DistributedEvaluator):
+@Evaluator.register('vln_distributed')
+class VLNDistributedEvaluator(DistributedEvaluator):
     def __init__(self, config: EvalCfg):
         start_time = time()
 

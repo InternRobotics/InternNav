@@ -70,7 +70,7 @@ eval_cfg = EvalCfg(
             'filter_stairs': False,
         },
     ),
-    eval_type='vln_multi_distributed',
+    eval_type='vln_distributed',
     eval_settings={
         'save_to_json': False,
         'vis_output': False,
