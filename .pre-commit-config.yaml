@@ -1,4 +1,5 @@
-exclude: '^internnav/model/basemodel/LongCLIP/|^assets/'
+exclude: |
+  ^internnav/model/basemodel/LongCLIP/
 
 repos:
   - repo: https://github.com/PyCQA/autoflake
