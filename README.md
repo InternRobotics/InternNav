@@ -36,7 +36,7 @@ The toolbox supports the most advanced high-quality navigation dataset, InternDa
 ## 🔥 News
 | Time   | Update |
 |---------|--------|
-| 2025/11 | InternNav v0.2.0 released — added distributed evaluation support for InternVLA-N1, with major codebase refactoring, bug fixes, and stability improvements.|
+| 2025/11 | InternNav v0.2.0 released — added distributed evaluation support for VLN-PE.|
 | 2025/10 | Add a [inference-only demo](scripts/notebooks/inference_only_demo.ipynb) of InternVLA-N1. |
 | 2025/10 | InternVLA-N1 [technical report](https://internrobotics.github.io/internvla-n1.github.io/static/pdfs/InternVLA_N1.pdf) is released. Please check our [homepage](https://internrobotics.github.io/internvla-n1.github.io/). |
 | 2025/09 | Real-world deployment code of InternVLA-N1 released. Upload 3D printing [files](assets/3d_printing_files/go2_stand.STEP) for Unitree Go2. |
