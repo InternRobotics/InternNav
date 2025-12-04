@@ -1,3 +1,5 @@
+import gzip
+import json
 from typing import Any, List, Union
 
 import numpy as np
@@ -129,6 +131,56 @@ class StepsTaken(Measure):
 
     def update_metric(self, *args: Any, **kwargs: Any):
         self._metric += 1.0
+
+
+from dtw import dtw
+
+
+@registry.register_measure
+class NDTW(Measure):
+    """NDTW (Normalized Dynamic Time Warping)
+    ref: https://arxiv.org/abs/1907.05446
+    """
+
+    cls_uuid: str = "ndtw"
+
+    def __init__(self, *args: Any, sim: Simulator, config: Any, **kwargs: Any):
+        self._sim = sim
+        self._config = config
+        self.dtw_func = dtw
+
+        with gzip.open("val_unseen_guide_gt.json.gz", "rt") as f:
+            self.gt_json = json.load(f)  # HARDCODED
+
+        super().__init__()
+
+    def _get_uuid(self, *args: Any, **kwargs: Any) -> str:
+        return self.cls_uuid
+
+    def reset_metric(self, *args: Any, episode, **kwargs: Any):
+        self.locations = []
+        self.gt_locations = self.gt_json[episode.episode_id]["locations"]
+        self.update_metric()
+
+    def update_metric(self, *args: Any, **kwargs: Any):
+        current_position = self._sim.get_agent_state().position.tolist()
+        if len(self.locations) == 0:
+            self.locations.append(current_position)
+        else:
+            if current_position == self.locations[-1]:
+                return
+            self.locations.append(current_position)
+
+        dtw_distance = self.dtw_func(self.locations, self.gt_locations, dist=euclidean_distance)[0]
+
+        # nDTW = np.exp(
+        #     -dtw_distance
+        #     / (len(self.gt_locations) * self._config.SUCCESS_DISTANCE)
+        # )
+
+        nDTW = np.exp(-dtw_distance / (len(self.gt_locations) * 3.0))  # HARDCODED
+
+        self._metric = nDTW
 
 
 # import gzip

@@ -3,7 +3,11 @@ import json
 import os
 import sys
 
-sys.path.append('./src/diffusion-policy')
+# sys.path.append('./src/diffusion-policy')
+from pathlib import Path
+
+project_root = Path(__file__).parent.parent.parent
+sys.path.append(str(project_root))
 
 import numpy as np
 import torch
@@ -90,20 +94,32 @@ def main():
     )
 
     # * 3. do eval
-    sucs, spls, oss, nes, ep_num = evaluator.eval_action(idx=get_rank())
+    if args.mode == 'dual_system':
+        sucs, spls, oss, nes, ndtws, ep_num = evaluator.eval_dual_system(idx=get_rank())
+    elif args.mode == 'system2':
+        sucs, spls, oss, nes, ndtws, ep_num = evaluator.eval_system2(idx=get_rank())
+    else:
+        raise ValueError(f"Invalid mode: {args.mode}")
+
     ep_num_all = [torch.zeros_like(ep_num) for _ in range(world_size)]
 
     # import ipdb; ipdb.set_trace()
+    ep_num_all = [torch.zeros_like(ep_num) for _ in range(world_size)]
     dist.all_gather(ep_num_all, ep_num)
     sucs_all = [torch.zeros(ep_num_all[i], dtype=sucs.dtype).to(sucs.device) for i in range(world_size)]
     spls_all = [torch.zeros(ep_num_all[i], dtype=spls.dtype).to(spls.device) for i in range(world_size)]
     oss_all = [torch.zeros(ep_num_all[i], dtype=oss.dtype).to(oss.device) for i in range(world_size)]
     nes_all = [torch.zeros(ep_num_all[i], dtype=nes.dtype).to(nes.device) for i in range(world_size)]
+    if ndtws is not None:
+        ndtws_all = [torch.zeros(ep_num_all[i], dtype=ndtws.dtype).to(ndtws.device) for i in range(world_size)]
     dist.barrier()
+
     dist.all_gather(sucs_all, sucs)
     dist.all_gather(spls_all, spls)
     dist.all_gather(oss_all, oss)
     dist.all_gather(nes_all, nes)
+    if ndtws is not None:
+        dist.all_gather(ndtws_all, ndtws)
 
     sucs_all = torch.cat(sucs_all, dim=0)
     spls_all = torch.cat(spls_all, dim=0)
@@ -116,6 +132,9 @@ def main():
         "nes_all": (sum(nes_all) / len(nes_all)).item(),
         'length': len(sucs_all),
     }
+    if ndtws is not None:
+        ndtws_all = torch.cat(ndtws_all, dim=0)
+        result_all['ndtws_all'] = (sum(ndtws_all) / len(ndtws_all)).item()
 
     print(result_all)
     if get_rank() == 0:
