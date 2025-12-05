@@ -59,9 +59,9 @@ class EvalCfg(BaseModel):
     eval_type: Optional[str] = None
     eval_settings: Optional[Dict[str, Any]] = {}
     agent: Optional[AgentCfg] = None
-    env: EnvCfg
-    task: TaskCfg
-    dataset: EvalDatasetCfg
+    env: EnvCfg = None
+    task: TaskCfg = None
+    dataset: EvalDatasetCfg = None
 
 
 __all__ = [

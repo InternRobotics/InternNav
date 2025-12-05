@@ -349,6 +349,9 @@ def get_action(diffusion_output, action_stats, cumsum=True):
 
     ndeltas = unnormalize_data(ndeltas, action_stats)
     if cumsum:
+        import torch
+
+        torch.use_deterministic_algorithms(False)
         actions = torch.cumsum(ndeltas, dim=1)  # This get the relative actions (not delta) from the diffusion output
     else:
         actions = ndeltas
@@ -391,11 +394,9 @@ def unnormalize_data(ndata, stats):
         ndata_part = (ndata[:, :2] + 1) / 2
     try:
         data = ndata_part * (stats['max'].to(device) - stats['min'].to(device)) + stats['min'].to(device)
-    except Exception as e:
+    except Exception:
         data = ndata_part * (stats.max.to(device) - stats.min.to(device)) + stats.min.to(device)
 
-    # if len(ndata.shape) == 3:
-    #     data = torch.cat([data, ndata[:, 2:]], dim=1)
     return data
 
 
@@ -440,7 +441,7 @@ def load_dataset(dataset_root_dir, split, logger=None, dataset_type='r2r'):
                         item['c_reference_path'].append([path[0], -path[2], path[1]])
                     item['reference_path'] = item['c_reference_path']
                     del item['c_reference_path']
-            
+
             if dataset_type == 'kujiale':
                 load_data[f'{str(item["trajectory_id"])}_{str(item["episode_id"])}'].append(item)
             else:
@@ -448,4 +449,3 @@ def load_dataset(dataset_root_dir, split, logger=None, dataset_type='r2r'):
     if logger is not None:
         logger.info(f'Loaded data with a total of {len(load_data)} items from {split}')
     return load_data
-    

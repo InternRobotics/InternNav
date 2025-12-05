@@ -5,7 +5,6 @@ sys.path.append('.')
 import argparse
 import importlib.util
 
-from internnav.configs.evaluator.vln_default_config import get_config
 from internnav.evaluator import Evaluator
 
 # This file is the main file
@@ -33,10 +32,15 @@ def load_eval_cfg(config_path, attr_name='eval_cfg'):
 def main():
     args = parse_args()
     evaluator_cfg = load_eval_cfg(args.config, attr_name='eval_cfg')
-    cfg = get_config(evaluator_cfg)
-    print(cfg)
-    evaluator = Evaluator.init(cfg)
-    print(type(evaluator))
+
+    # fill in evaluator default config
+    if evaluator_cfg.eval_type == 'vln_distributed':
+        from internnav.configs.evaluator.vln_default_config import get_config
+
+        evaluator_cfg = get_config(evaluator_cfg)
+
+    # create evaluator based on sim backend and run eval
+    evaluator = Evaluator.init(evaluator_cfg)
     evaluator.eval()
 
 

@@ -17,7 +17,6 @@ import torch
 import tqdm
 from depth_camera_filtering import filter_depth
 from PIL import Image
-from transformers.image_utils import to_numpy_array
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
@@ -134,117 +133,6 @@ class VLNEvaluator:
     def config_env(self) -> Env:
         env = Env(config=self.config)
         return env
-
-    def get_intrinsic_matrix(self, sensor_cfg) -> np.ndarray:
-        width = sensor_cfg.width
-        height = sensor_cfg.height
-        fov = sensor_cfg.hfov
-        fx = (width / 2.0) / np.tan(np.deg2rad(fov / 2.0))
-        fy = fx  # Assuming square pixels (fx = fy)
-        cx = (width - 1.0) / 2.0
-        cy = (height - 1.0) / 2.0
-
-        intrinsic_matrix = np.array(
-            [[fx, 0.0, cx, 0.0], [0.0, fy, cy, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
-        )
-        return intrinsic_matrix
-
-    def get_axis_align_matrix(self):
-        ma = np.array([[0, 0, 1, 0], [-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 0, 1]])
-        return ma
-
-    def xyz_yaw_to_tf_matrix(self, xyz: np.ndarray, yaw: float) -> np.ndarray:
-        x, y, z = xyz
-        transformation_matrix = np.array(
-            [
-                [np.cos(yaw), -np.sin(yaw), 0, x],
-                [np.sin(yaw), np.cos(yaw), 0, y],
-                [0, 0, 1, z],
-                [0, 0, 0, 1],
-            ]
-        )
-        return transformation_matrix
-
-    def xyz_pitch_to_tf_matrix(self, xyz: np.ndarray, pitch: float) -> np.ndarray:
-        """Converts a given position and pitch angle to a 4x4 transformation matrix.
-
-        Args:
-            xyz (np.ndarray): A 3D vector representing the position.
-            pitch (float): The pitch angle in radians for y axis.
-        Returns:
-            np.ndarray: A 4x4 transformation matrix.
-        """
-
-        x, y, z = xyz
-        transformation_matrix = np.array(
-            [
-                [np.cos(pitch), 0, np.sin(pitch), x],
-                [0, 1, 0, y],
-                [-np.sin(pitch), 0, np.cos(pitch), z],
-                [0, 0, 0, 1],
-            ]
-        )
-        return transformation_matrix
-
-    def xyz_yaw_pitch_to_tf_matrix(self, xyz: np.ndarray, yaw: float, pitch: float) -> np.ndarray:
-        """Converts a given position and yaw, pitch angles to a 4x4 transformation matrix.
-
-        Args:
-            xyz (np.ndarray): A 3D vector representing the position.
-            yaw (float): The yaw angle in radians.
-            pitch (float): The pitch angle in radians for y axis.
-        Returns:
-            np.ndarray: A 4x4 transformation matrix.
-        """
-        x, y, z = xyz
-        rot1 = self.xyz_yaw_to_tf_matrix(xyz, yaw)[:3, :3]
-        rot2 = self.xyz_pitch_to_tf_matrix(xyz, pitch)[:3, :3]
-        transformation_matrix = np.eye(4)
-        transformation_matrix[:3, :3] = rot1 @ rot2
-        transformation_matrix[:3, 3] = xyz
-        return transformation_matrix
-
-    def pixel_to_gps(self, pixel, depth, intrinsic, tf_camera_to_episodic):
-        '''
-        Args:
-            pixel: (2,) - [u, v] pixel coordinates
-            depth: (H, W) - depth image where depth[v, u] gives depth in meters
-            intrinsic: (4, 4) - camera intrinsic matrix
-            tf_camera_to_episodic: (4, 4) - transformation from camera to episodic frame
-        Returns:
-            (x, y): (x, y) coordinates in the episodic frame
-        '''
-        v, u = pixel
-        z = depth[v, u]
-        print("depthhhhhhhhhhhhhh", z)
-
-        x = (u - intrinsic[0, 2]) * z / intrinsic[0, 0]
-        y = (v - intrinsic[1, 2]) * z / intrinsic[1, 1]
-        point_camera = np.array([x, y, z, 1.0])
-
-        # Transform to episodic frame
-        point_episodic = tf_camera_to_episodic @ point_camera
-        point_episodic = point_episodic[:3] / point_episodic[3]
-
-        x = point_episodic[0]
-        y = point_episodic[1]
-
-        return (x, y)  # same as habitat gps
-
-    def preprocess_depth_image_v2(
-        self, depth_image, do_depth_scale=True, depth_scale=1000, target_height=None, target_width=None
-    ):
-        if target_height is None:
-            target_height = self.image_processor.crop_size['height']  # 384
-            target_width = self.image_processor.crop_size['width']  # 384
-
-        resized_depth_image = depth_image.resize((target_width, target_height), Image.NEAREST)
-
-        img = to_numpy_array(resized_depth_image)
-        if do_depth_scale:
-            img = img / depth_scale
-
-        return img, (target_width, target_height)
 
     def eval_dual_system(self, idx) -> None:  # noqa: C901
         self.model.eval()

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import base64
+import multiprocessing
 import pickle
 from typing import Dict
 
@@ -77,3 +78,41 @@ class AgentServer:
             reload=reload,
             reload_dirs=['./internnav/agent/', './internnav/model/'],
         )
+
+
+def start_server(host='localhost', port=8087, dist=False):
+    """
+    start a server in the backgrouond process
+
+    Args:
+        host
+        port
+
+    Returns:
+        The rank of the process group
+        -1, if not part of the group
+
+    """
+    ctx = multiprocessing.get_context("spawn")
+    p = ctx.Process(target=_run_server if not dist else _run_server_dist, args=(host, port))
+    p.daemon = True
+    p.start()
+    print(f"Server started on {host}:{port} (pid={p.pid})")
+    return p
+
+
+def _run_server_dist(host='localhost', port=8087):
+    import torch
+
+    from internnav.utils.dist import get_rank
+
+    device_idx = get_rank()
+    torch.cuda.set_device(device_idx)
+    print(f"Server using GPU {device_idx}")
+    server = AgentServer(host, port)
+    server.run()
+
+
+def _run_server(host='localhost', port=8087):
+    server = AgentServer(host, port)
+    server.run()

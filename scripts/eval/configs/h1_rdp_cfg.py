@@ -26,7 +26,7 @@ eval_cfg = EvalCfg(
         task_settings={
             'env_num': 2,
             'use_distributed': True,
-            'proc_num': 1,
+            'proc_num': 4,
         },
         scene=SceneCfg(
             scene_type='mp3d',
@@ -41,8 +41,14 @@ eval_cfg = EvalCfg(
         dataset_type="mp3d",
         dataset_settings={
             'base_data_dir': 'data/vln_pe/raw_data/r2r',
-            'split_data_types': ['val_unseen', 'val_seen'],
-            'filter_stairs': False,
+            'split_data_types': ['val_unseen'],
+            'filter_stairs': True,
         },
     ),
+    eval_type='vln_distributed',
+    eval_settings={
+        'save_to_json': True,
+        'vis_output': False,
+        'use_agent_server': True,
+    },
 )

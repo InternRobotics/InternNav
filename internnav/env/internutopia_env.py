@@ -1,7 +1,13 @@
+import os
+import sys
 from typing import Any, Dict, List
 
 from internnav.configs.evaluator import EnvCfg, TaskCfg
 from internnav.env import base
+from internnav.env.utils.episode_loader import (
+    ResumablePathKeyEpisodeloader,
+    generate_vln_episode,
+)
 
 
 @base.Env.register('internutopia')
@@ -22,6 +28,23 @@ class InternutopiaEnv(base.Env):
         super().__init__(env_config, task_config)
         env_settings = self.env_config.env_settings
         task_settings = self.task_config.task_settings
+
+        # generate episodes
+        self.episode_loader = ResumablePathKeyEpisodeloader(
+            env_settings['dataset'].dataset_type,
+            **env_settings['dataset'].dataset_settings,
+            rank=env_settings['rank'],
+            world_size=env_settings['world_size']
+        )
+        self.episodes = generate_vln_episode(self.episode_loader, task_config)
+        if len(self.episodes) == 0:
+            print("No episodes found for the given configuration.")
+            sys.exit(0)
+        task_settings.update({'episodes': self.episodes})
+
+        # set visible device for isaac sim
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(env_settings.get('local_rank', 0))
+
         config = Config(
             simulator=SimConfig(**env_settings),
             env_num=task_settings['env_num'],
