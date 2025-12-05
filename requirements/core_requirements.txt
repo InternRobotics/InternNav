@@ -40,7 +40,7 @@ numpy>=1.26
 nvsmi>=0.4.2,<0.5
 
 # opencv wheels are python- and platform-specific
-opencv-python-headless>=4.9.0.80,<4.10.0.0
+opencv-python-headless>=4.9.0.80
 
 packaging>=23.0,<25
 

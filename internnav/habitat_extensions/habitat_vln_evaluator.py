@@ -770,7 +770,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                 if len(action_seq) != 0:
                     action = action_seq[0]
                     action_seq.pop(0)
-                elif pixel_goal is not None:
+                elif goal is not None:
                     action = agent.get_next_action(goal)
                     action = action.detach().cpu().numpy()[0] if isinstance(action, torch.Tensor) else action
                     action = action[0] if hasattr(action, "__len__") else action

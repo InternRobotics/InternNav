@@ -5,4 +5,4 @@ diffusion_policy @ git+https://github.com/real-stanford/diffusion_policy.git@5ba
 flash_attn==2.7.4.post1
 ftfy==6.3.1
 transformers==4.51.0
-dtw-python==1.7.2
+dtw==1.4.0
