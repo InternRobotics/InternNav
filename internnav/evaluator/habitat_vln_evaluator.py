@@ -595,7 +595,7 @@ class VLNEvaluator:
                     if len(action_seq) == 0 and goal is None:
                         if action != 5:
                             sources = copy.deepcopy(self.conversation)
-                            if 'objectnav' in self.config_path:
+                            if 'objectnav' in self.config_path:  # not exist?
                                 sources[0]["value"] = sources[0]["value"].replace(
                                     '<instruction>.',
                                     random.choice(self.objectnav_instructions).format(
@@ -675,16 +675,16 @@ class VLNEvaluator:
 
                             pixel_goal = [int(coord[1]), int(coord[0])]  # switch the goal o
 
+                            # look down --> horizontal
+                            env.step(4)
+                            env.step(4)
+
                             goal = self.pixel_to_gps(pixel_goal, depth / 1000, intrinsic_matrix, tf_camera_to_episodic)
 
                             goal = (transformation_matrix @ np.array([-goal[1], 0, -goal[0], 1]))[:3]
 
                             if not env.sim.pathfinder.is_navigable(np.array(goal)):
                                 goal = np.array(env.sim.pathfinder.snap_point(np.array(goal)))
-
-                            # look down --> horizontal
-                            env.step(4)
-                            env.step(4)
 
                             action = agent.get_next_action(goal)
                             if action == 0:

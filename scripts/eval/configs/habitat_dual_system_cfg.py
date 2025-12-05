@@ -12,8 +12,6 @@ eval_cfg = EvalCfg(
             "num_history": 8,
             "resize_w": 384,  # image resize width
             "resize_h": 384,  # image resize height
-            "predict_step_nums": 32,  # number of steps to predict
-            "continuous_traj": True,  # whether to use continuous trajectory
             "max_new_tokens": 1024,  # maximum number of tokens for generation
         },
     ),
