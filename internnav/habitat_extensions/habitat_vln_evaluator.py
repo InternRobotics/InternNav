@@ -152,7 +152,6 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             }
         )
 
-        self.num_frames = self.model_args.num_frames
         self.num_history = self.model_args.num_history
 
         self._camera_height = self.sim_sensors_config.rgb_sensor.position[1]
