@@ -1,13 +1,13 @@
-import os
-import time
 import builtins
 import datetime
+import os
 import subprocess
+import time
+from collections import defaultdict, deque
 
 import torch
 import torch.distributed as dist
 
-from collections import defaultdict, deque
 
 class SmoothedValue(object):
     def __init__(self, window_size=20, fmt=None):
@@ -60,11 +60,8 @@ class SmoothedValue(object):
 
     def __str__(self):
         return self.fmt.format(
-            median=self.median,
-            avg=self.avg,
-            global_avg=self.global_avg,
-            max=self.max,
-            value=self.value)
+            median=self.median, avg=self.avg, global_avg=self.global_avg, max=self.max, value=self.value
+        )
 
 
 class MetricLogger(object):
@@ -86,15 +83,12 @@ class MetricLogger(object):
             return self.meters[attr]
         if attr in self.__dict__:
             return self.__dict__[attr]
-        raise AttributeError("'{}' object has no attribute '{}'".format(
-            type(self).__name__, attr))
+        raise AttributeError("'{}' object has no attribute '{}'".format(type(self).__name__, attr))
 
     def __str__(self):
         loss_str = []
         for name, meter in self.meters.items():
-            loss_str.append(
-                "{}: {}".format(name, str(meter))
-            )
+            loss_str.append("{}: {}".format(name, str(meter)))
         return self.delimiter.join(loss_str)
 
     def synchronize_between_processes(self):
@@ -113,14 +107,7 @@ class MetricLogger(object):
         iter_time = SmoothedValue(fmt='{avg:.4f}')
         data_time = SmoothedValue(fmt='{avg:.4f}')
         space_fmt = ':' + str(len(str(len(iterable)))) + 'd'
-        log_msg = [
-            header,
-            '[{0' + space_fmt + '}/{1}]',
-            'eta: {eta}',
-            '{meters}',
-            'time: {time}',
-            'data: {data}'
-        ]
+        log_msg = [header, '[{0' + space_fmt + '}/{1}]', 'eta: {eta}', '{meters}', 'time: {time}', 'data: {data}']
         if torch.cuda.is_available():
             log_msg.append('max mem: {memory:.0f}')
         log_msg = self.delimiter.join(log_msg)
@@ -133,22 +120,28 @@ class MetricLogger(object):
                 eta_seconds = iter_time.global_avg * (len(iterable) - i)
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
                 if torch.cuda.is_available():
-                    print(log_msg.format(
-                        i, len(iterable), eta=eta_string,
-                        meters=str(self),
-                        time=str(iter_time), data=str(data_time),
-                        memory=torch.cuda.max_memory_allocated() / MB))
+                    print(
+                        log_msg.format(
+                            i,
+                            len(iterable),
+                            eta=eta_string,
+                            meters=str(self),
+                            time=str(iter_time),
+                            data=str(data_time),
+                            memory=torch.cuda.max_memory_allocated() / MB,
+                        )
+                    )
                 else:
-                    print(log_msg.format(
-                        i, len(iterable), eta=eta_string,
-                        meters=str(self),
-                        time=str(iter_time), data=str(data_time)))
+                    print(
+                        log_msg.format(
+                            i, len(iterable), eta=eta_string, meters=str(self), time=str(iter_time), data=str(data_time)
+                        )
+                    )
             i += 1
             end = time.time()
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-        print('{} Total time: {} ({:.4f} s / it)'.format(
-            header, total_time_str, total_time / len(iterable)))
+        print('{} Total time: {} ({:.4f} s / it)'.format(header, total_time_str, total_time / len(iterable)))
 
 
 def setup_for_distributed(is_master):
@@ -197,56 +190,68 @@ def save_on_master(*args, **kwargs):
         torch.save(*args, **kwargs)
 
 
-def init_distributed_mode(args):
-    if 'SLURM_PROCID' in os.environ:
-        args.rank = int(os.environ['SLURM_PROCID'])
-        args.world_size = int(os.environ['SLURM_NTASKS'])
-        
+def init_distributed_mode(dist_url="env://", port=29529, backend="nccl", timeout_hours=2):
+    # SLURM path: derive env then fall back to env://
+    if "SLURM_PROCID" in os.environ:
+        rank = int(os.environ["SLURM_PROCID"])
+        world_size = int(os.environ["SLURM_NTASKS"])
         num_gpus = torch.cuda.device_count()
-        args.gpu = args.rank % num_gpus
-        args.local_rank = args.gpu
+        local_rank = rank % max(1, num_gpus)
 
-        node_list = os.environ['SLURM_NODELIST']
-        print(f'Node list: {node_list}')
-        addr = subprocess.getoutput(f'scontrol show hostname {node_list} | head -n1')
+        # pick first node as master
+        nodelist = os.environ["SLURM_NODELIST"]
+        print(f'Node list: {nodelist}')
+        master_addr = subprocess.getoutput(f"scontrol show hostname {nodelist} | head -n1")
 
-        os.environ['MASTER_PORT'] = str(getattr(args, 'port', '29529'))
-        os.environ['MASTER_ADDR'] = addr
-        os.environ['WORLD_SIZE'] = str(args.world_size)
-        os.environ['LOCAL_RANK'] = str(args.gpu)
-        os.environ['RANK'] = str(args.rank)
+        os.environ["MASTER_ADDR"] = master_addr
+        os.environ["MASTER_PORT"] = str(port)
+        os.environ["RANK"] = str(rank)
+        os.environ["WORLD_SIZE"] = str(world_size)
+        os.environ["LOCAL_RANK"] = str(local_rank)
+
+    # Fast-path: torchrun provides these
     elif 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
-        args.rank = int(os.environ["RANK"])
-        args.world_size = int(os.environ['WORLD_SIZE'])
-        args.gpu = int(os.environ['LOCAL_RANK'])
-        args.local_rank = args.gpu
+        rank = int(os.environ["RANK"])
+        world_size = int(os.environ["WORLD_SIZE"])
+        if "LOCAL_RANK" in os.environ:
+            local_rank = int(os.environ["LOCAL_RANK"])
+        elif "RANK" in os.environ:
+            # fallback: assume per-node GPU count n
+            num_gpus = torch.cuda.device_count()
+            local_rank = rank % max(1, num_gpus)
+        else:
+            local_rank = 0
+
     else:
-        print('Not using distributed mode')
-        setup_for_distributed(is_master=True)  # hack
-        args.distributed = False
-        return
+        print("Not using distributed mode")
+        setup_for_distributed(is_master=True)
+        return 0
 
-    args.distributed = True
+    import socket
 
-    torch.cuda.set_device(args.gpu)
-    args.dist_backend = 'nccl'
-    print('| distributed init (rank {}): {}, gpu {}'.format(args.rank, args.dist_url, args.gpu), flush=True)
-    dist.init_process_group(backend=args.dist_backend,
-                            init_method=args.dist_url,
-                            world_size=args.world_size,
-                            rank=args.rank,
-                            timeout=datetime.timedelta(0, 7200))
+    print(f"Rank {os.getenv('RANK')} / {os.getenv('WORLD_SIZE')} on {socket.gethostname()}:{os.getenv('MASTER_PORT')}")
+    print('| distributed init (rank {}): {}, gpu {}'.format(rank, dist_url, local_rank), flush=True)
+
+    # Device selection must happen before NCCL init
+    torch.cuda.set_device(local_rank)
+
+    dist.init_process_group(
+        backend=backend, init_method=dist_url, world_size=world_size, rank=rank, timeout=datetime.timedelta(0, 7200)
+    )
     dist.barrier()
-    setup_for_distributed(args.rank == 0)
+    setup_for_distributed(dist.get_rank() == 0)
+    return local_rank
+
 
 def save_model(args, epoch, model_without_ddp, optimizer, checkpoint_path):
     to_save = {
-                'model': model_without_ddp.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'epoch': epoch,
-                'args': args,
-            }
+        'model': model_without_ddp.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'epoch': epoch,
+        'args': args,
+    }
     save_on_master(to_save, checkpoint_path)
+
 
 def all_reduce_mean(x):
     world_size = get_world_size()
@@ -257,11 +262,16 @@ def all_reduce_mean(x):
         return x_reduce.item()
     else:
         return x
-    
+
+
 def fsdp_auto_wrap_policy(model, transformer_layer_names):
     import functools
 
-    from torch.distributed.fsdp.wrap import _or_policy, lambda_auto_wrap_policy, transformer_auto_wrap_policy
+    from torch.distributed.fsdp.wrap import (
+        _or_policy,
+        lambda_auto_wrap_policy,
+        transformer_auto_wrap_policy,
+    )
 
     def lambda_policy_fn(module):
         if (
@@ -274,8 +284,7 @@ def fsdp_auto_wrap_policy(model, transformer_layer_names):
 
     lambda_policy = functools.partial(lambda_auto_wrap_policy, lambda_fn=lambda_policy_fn)
     transformer_wrap_policy = functools.partial(
-        transformer_auto_wrap_policy,
-        transformer_layer_cls=set(transformer_layer_names)
+        transformer_auto_wrap_policy, transformer_layer_cls=set(transformer_layer_names)
     )
 
     auto_wrap_policy = functools.partial(_or_policy, policies=[lambda_policy, transformer_wrap_policy])

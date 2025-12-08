@@ -49,8 +49,8 @@ eval_cfg = EvalCfg(
     task=TaskCfg(
         task_name='test_evaluation',
         task_settings={
-            'env_num': 2,
-            'use_distributed': True,  # Ray distributed framework
+            'env_num': 1,
+            'use_distributed': False,  # Ray distributed framework
             'proc_num': 4,
         },
         scene=SceneCfg(
@@ -70,7 +70,12 @@ eval_cfg = EvalCfg(
             'filter_stairs': False,
         },
     ),
-    eval_settings={'save_to_json': False, 'vis_output': False},  # save result to video under logs/
+    eval_type='vln_distributed',
+    eval_settings={
+        'save_to_json': False,
+        'vis_output': False,
+        'use_agent_server': True,
+    },  # save result to video under logs/
 )
 
 

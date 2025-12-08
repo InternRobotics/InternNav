@@ -72,6 +72,6 @@ habitat:
 
   dataset:
     type: R2RVLN-v1
-    split: val_seen
+    split: val_unseen
     scenes_dir: data/scene_data/mp3d_ce
     data_path: data/vln_ce/raw_data/r2r/{split}/{split}.json.gz

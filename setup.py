@@ -52,7 +52,7 @@ with open('requirements/internvla_n1.txt', 'r') as f:
 
 setuptools.setup(
     name='internnav',
-    version='0.0.1',
+    version='0.2.0',
     packages=setuptools.find_packages(),
     author='Intern Robotics',
     author_email='embodiedai@pjlab.org.cn',

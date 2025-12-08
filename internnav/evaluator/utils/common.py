@@ -1,9 +1,5 @@
-import copy
-import gzip
-import json
 import math
 import os
-from collections import defaultdict
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -131,143 +127,6 @@ def check_is_on_track(
             log.debug(f'[yaw_diff: {round(yaw_diff * (180 / math.pi))} 度 > 30 度] replanning')
             return False
     return True
-
-
-def has_stairs(item, height_threshold=0.3):
-    has_stairs = False
-    if 'stair' in item['instruction']['instruction_text']:
-        latest_height = item['reference_path'][0][-1]
-        for index in range(1, len(item['reference_path'])):
-            position = item['reference_path'][index]
-            if abs(position[-1] - latest_height) >= height_threshold:
-                has_stairs = True
-                break
-            else:
-                latest_height = position[-1]
-    return has_stairs
-
-
-def different_height(item):
-    different_height = False
-    paths = item['reference_path']
-    for path_idx in range(len(paths) - 1):
-        if abs(paths[path_idx + 1][2] - paths[path_idx][2]) > 0.3:
-            different_height = True
-            break
-    return different_height
-
-
-def transform_rotation_z_90degrees(rotation):
-    z_rot_90 = [np.cos(np.pi / 4), 0, 0, np.sin(np.pi / 4)]  # 90 degrees = pi/2 radians
-    w1, x1, y1, z1 = rotation
-    w2, x2, y2, z2 = z_rot_90
-    revised_rotation = [
-        w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,  # w
-        w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,  # x
-        w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,  # y
-        w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,  # z
-    ]
-    return revised_rotation
-
-
-def load_data(dataset_root_dir, split, filter_same_trajectory=True, filter_stairs=True, dataset_type='mp3d'):
-    with gzip.open(os.path.join(dataset_root_dir, split, f"{split}.json.gz"), 'rt', encoding='utf-8') as f:
-        data = json.load(f)['episodes']
-
-    if dataset_type == 'mp3d':
-        scenes = list(set([x['scene_id'] for x in data]))  # e.g. 'mp3d/zsNo4HB9uLZ/zsNo4HB9uLZ.glb'
-    elif dataset_type == 'kujiale':
-        scenes = list(set([x['scan'] for x in data]))
-    else:
-        raise Exception(f"Unsupported dataset type {dataset_type}, please update cfg to contain valid dataset_type")
-    scenes.sort()
-    new_data = {}
-    for scene in scenes:
-        if dataset_type == 'mp3d':
-            scene_data = [x for x in data if x['scene_id'] == scene]
-            scan = scene.split('/')[1]  # e.g. 'zsNo4HB9uLZ'
-        else:
-            scene_data = [x for x in data if x['scan'] == scene]
-            scan = scene
-        new_scene_data = []
-        for item in scene_data:
-            new_item = copy.deepcopy(item)
-            new_item['scan'] = scan
-            new_item['original_start_position'] = item['start_position']
-            new_item['original_start_rotation'] = item['start_rotation']
-            if dataset_type == 'mp3d':
-                x, z, y = item['start_position']
-                new_item['start_position'] = [x, -y, z]
-                r1, r2, r3, r4 = item['start_rotation']
-                new_item['start_rotation'] = transform_rotation_z_90degrees([-r4, r1, r3, -r2])
-                new_item['reference_path'] = [[x, -y, z] for x, z, y in item['reference_path']]
-            new_scene_data.append(new_item)
-
-        new_data[scan] = new_scene_data
-
-    data = copy.deepcopy(new_data)
-    new_data = defaultdict(list)
-
-    # filter_same_trajectory
-    if filter_same_trajectory:
-        total_count = 0
-        remaining_count = 0
-        trajectory_list = []
-        for scan, data_item in data.items():
-            for item in data_item:
-                total_count += 1
-                if item['trajectory_id'] in trajectory_list:
-                    continue
-                remaining_count += 1
-                trajectory_list.append(item['trajectory_id'])
-                new_data[scan].append(item)
-        log.info(f'[split:{split}]filter_same_trajectory remain: [ {remaining_count} / {total_count} ]')
-        data = new_data
-        new_data = defaultdict(list)
-
-    if filter_stairs:
-        total_count = 0
-        remaining_count = 0
-        for scan, data_item in data.items():
-            for item in data_item:
-                total_count += 1
-                if has_stairs(item) or different_height(item):
-                    continue
-                remaining_count += 1
-                new_data[scan].append(item)
-        log.info(f'[split:{split}]filter_stairs remain: [ {remaining_count} / {total_count} ]')
-        data = new_data
-
-    return data
-
-
-def load_scene_usd(mp3d_data_dir, scan):
-    """Load scene USD based on the scan"""
-    from internutopia.core.util import is_in_container
-
-    find_flag = False
-    for root, dirs, files in os.walk(os.path.join(mp3d_data_dir, scan)):
-        target_file_name = 'fixed_docker.usd' if is_in_container() else 'fixed.usd'
-        for file in files:
-            if file == target_file_name:
-                scene_usd_path = os.path.join(root, file)
-                find_flag = True
-                break
-        if find_flag:
-            break
-    if not find_flag:
-        log.error('Scene USD not found for scan %s', scan)
-        return None
-    return scene_usd_path
-
-
-def load_kujiale_scene_usd(kujiale_iros_data_dir, scan):
-    """Load scene USD based on the scan"""
-    scene_usd_path = os.path.join(kujiale_iros_data_dir, scan, f'{scan}.usda')
-    if not os.path.exists(scene_usd_path):
-        log.error('Scene USD not found for scan %s', scan)
-        return None
-    return scene_usd_path
 
 
 def get_new_position_and_rotation(robot_position, robot_rotation, action):
@@ -605,7 +464,7 @@ def obs_to_image(obs_lst, action, output_path: str, reference_path, normalize: b
     topdown_array = first_obs['topdown_rgb']
 
     # draw array on rgb array
-    rgb_array = draw_action_pil(rgb_array, action)
+    rgb_array = cv2.resize(draw_action_pil(rgb_array, action), (256, 256))
 
     # draw trajectory on depth
     topdown_array = crop(draw_trajectory(topdown_array, obs_lst, reference_path))
