@@ -149,8 +149,9 @@ class NDTW(Measure):
         self._config = config
         self.dtw_func = dtw
 
-        # Load ground truth paths from rxr dataset, update this path as needed
-        with gzip.open("val_unseen_guide_gt.json.gz", "rt") as f:
+        # Load ground truth paths from rxr dataset, update this path in habitat config as needed
+        gt_json_path = 'data/vln_ce/raw_data/rxr/val_unseen/val_unseen_guide_gt.json.gz'
+        with gzip.open(gt_json_path, "rt") as f:
             self.gt_json = json.load(f)
 
         super().__init__()
