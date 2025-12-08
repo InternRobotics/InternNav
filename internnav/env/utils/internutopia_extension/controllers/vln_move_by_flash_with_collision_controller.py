@@ -7,13 +7,16 @@ from internutopia.core.robot.controller import BaseController
 from internutopia.core.robot.robot import BaseRobot
 from internutopia.core.scene.scene import IScene
 
+from internnav.evaluator.utils.path_plan import world_to_pixel
+
 from ..configs.controllers.flash_controller import VlnMoveByFlashControllerCfg
 
 
-@BaseController.register('VlnMoveByFlashController')
-class VlnMoveByFlashController(BaseController):  # codespell:ignore
-    """Discrete Controller, direct set robot world position to achieve teleport-type locomotion.
-    a general controller adaptable to different type of robots.
+@BaseController.register('VlnMoveByFlashCollisionController')
+class VlnMoveByFlashCollisionController(BaseController):  # codespell:ignore
+    """
+    Discrete Controller, direct set robot world position to achieve teleport-type locomotion.
+       a general controller adaptable to different type of robots.
     """
 
     def __init__(self, config: VlnMoveByFlashControllerCfg, robot: BaseRobot, scene: IScene) -> None:
@@ -96,8 +99,50 @@ class VlnMoveByFlashController(BaseController):  # codespell:ignore
         robot._articulation.set_joint_positions(np.zeros(len(robot.dof_names)))
         robot._articulation.set_joint_efforts(np.zeros(len(robot.dof_names)))
 
+    def get_map_info(self, topdown_global_map_camera, dilation_iterations=0, voxel_size=0.1, agent_radius=0.25):
+        # 获取 free_map
+        min_height = self.robot.get_robot_base().get_world_pose()[0][2] + 0.6  # default robot height
+        max_height = 1.55 + 8
+        data_info = topdown_global_map_camera.get_data()
+        depth = np.array(data_info['depth'])
+        flat_surface_mask = np.ones_like(depth, dtype=bool)
+        if self.robot.config.type == 'VLNH1Robot':
+            depth_mask = ((depth >= min_height) & (depth < max_height)) | ((depth <= 0.5) & (depth > 0.02))
+        elif self.robot.config.type == 'VLNAliengoRobot':
+            base_height = self.robot.get_robot_base().get_world_pose()[0][2]
+            foot_height = self.robot.get_ankle_height()
+            min_height = base_height - foot_height + 0.05
+            depth_mask = (depth >= min_height) & (depth < max_height)
+        free_map = np.zeros_like(depth, dtype=int)
+        free_map[flat_surface_mask & depth_mask] = 1
+        # free_map[robot_mask == 1] = 1    # This mask is too large, cover all obstacles around the robot
+        return free_map
+
+    def check_collision(self, position, aperture=200) -> bool:
+        """
+        Check if there are any obstacles at the position.
+        Generate a depth map based on a top down camera and check the position
+
+        Return:
+            bool: True if the position is already occupied
+        """
+        topdown_global_map_camera = self.robot.sensors['topdown_camera_500']
+        free_map = self.get_map_info(topdown_global_map_camera, dilation_iterations=2)
+
+        # convert position to free map pixel
+        camera_pose = topdown_global_map_camera.get_world_pose()[0]
+        width, height = topdown_global_map_camera.resolution
+        px, py = world_to_pixel(position, camera_pose, aperture, width, height)
+
+        px_int, py_int = int(px), int(py)
+        # Get a region: (px, py) and one pixel right/down
+        robot_size = 3
+        sub_map = free_map[px_int - robot_size : px_int + robot_size, py_int - robot_size : py_int + robot_size]
+        return np.any(sub_map == 0)  # 1 = free, so True = collision
+
     def forward(self, action: int) -> ArticulationAction:
-        """Teleport robot by position, orientation and action
+        """
+        Teleport robot by position, orientation and action
 
         Args:
             action: int
@@ -110,14 +155,19 @@ class VlnMoveByFlashController(BaseController):  # codespell:ignore
         positions, orientations = self.robot.articulation.get_world_pose()
         new_robot_position, new_robot_rotation = self.get_new_position_and_rotation(positions, orientations, action)
 
-        # set robot to new state
-        self.reset_robot_state(new_robot_position, new_robot_rotation)
+        # Check if there is a collision with obstacles. Abort the teleport if there is
+        if action != 1 or not self.check_collision(new_robot_position):
+            # set robot to new state
+            self.reset_robot_state(new_robot_position, new_robot_rotation)
+        else:
+            print("[FLASH CONTROLLER]: Collision detected, flash abort")
 
         # Dummy action to do nothing
         return ArticulationAction()
 
     def action_to_control(self, action: List | np.ndarray) -> ArticulationAction:
-        """Convert input action (in 1d array format) to joint signals to apply.
+        """
+        Convert input action (in 1d array format) to joint signals to apply.
 
         Args:
             action (List | np.ndarray): 1-element 1d array containing

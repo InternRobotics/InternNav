@@ -10,7 +10,7 @@ from internnav.utils.geometry_utils import quat_to_euler_angles
 
 
 def create_robot_mask(topdown_global_map_camera, mask_size=20):
-    height, width = topdown_global_map_camera._camera._resolution
+    height, width = topdown_global_map_camera.resolution
     center_x, center_y = width // 2, height // 2
     # Calculate the top-left and bottom-right coordinates
     half_size = mask_size // 2

@@ -239,6 +239,9 @@ def get_config(evaluator_cfg: EvalCfg):
 
     # add the flash controller in, by flash flag.
     if evaluator_cfg.task.robot_flash:
+        vln_move_by_flash_cfg.type = (
+            'VlnMoveByFlashCollisionController' if evaluator_cfg.task.flash_collision else 'VlnMoveByFlashController'
+        )
         robot.controllers.append(ControllerCfg(controller_settings=vln_move_by_flash_cfg.model_dump()))
 
     if evaluator_cfg.task.robot_flash or evaluator_cfg.eval_settings.get('vis_output', True):

@@ -44,7 +44,7 @@ eval_cfg = EvalCfg(
         },
     ),
     task=TaskCfg(
-        task_name='test',
+        task_name='test_flash',
         task_settings={
             'env_num': 1,
             'use_distributed': False,  # If the others setting in task_settings, please set use_distributed = False.
@@ -57,6 +57,7 @@ eval_cfg = EvalCfg(
         ),
         robot_name='h1',
         robot_flash=True,  # If robot_flash is True, the mode is flash (set world_pose directly); else you choose physical mode.
+        flash_collision=True,  # If flash_collision is True, the robot will stop when collision detected.
         robot_usd_path='data/Embodiments/vln-pe/h1/h1_internvla.usd',
         camera_resolution=[640, 480],  # (W,H)
         camera_prim_path='torso_link/h1_1_25_down_30',
@@ -75,7 +76,7 @@ eval_cfg = EvalCfg(
     eval_type='vln_distributed',
     eval_settings={
         'save_to_json': True,
-        'vis_output': False,
+        'vis_output': True,
         'use_agent_server': False,  # If use_agent_server=True, please start the agent server first.
     },
 )
