@@ -149,8 +149,9 @@ class NDTW(Measure):
         self._config = config
         self.dtw_func = dtw
 
+        # Load ground truth paths from rxr dataset, update this path as needed
         with gzip.open("val_unseen_guide_gt.json.gz", "rt") as f:
-            self.gt_json = json.load(f)  # HARDCODED
+            self.gt_json = json.load(f)
 
         super().__init__()
 

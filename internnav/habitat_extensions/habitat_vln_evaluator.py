@@ -2,7 +2,7 @@ import argparse
 import json
 import os
 import sys
-from enum import Enum
+from enum import IntEnum
 
 sys.path.append('./src/diffusion-policy')
 import copy
@@ -32,7 +32,13 @@ from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 
 from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator import DistributedEvaluator, Evaluator
-from internnav.habitat_extensions.utils import preprocess_depth_image_v2
+from internnav.habitat_extensions.utils import (
+    get_axis_align_matrix,
+    get_intrinsic_matrix,
+    pixel_to_gps,
+    preprocess_depth_image_v2,
+    xyz_yaw_pitch_to_tf_matrix,
+)
 from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
 from internnav.model.utils.vln_utils import split_and_clean, traj_to_actions
 
@@ -46,7 +52,7 @@ MAX_STEPS = 8
 MAX_LOCAL_STEPS = 4
 
 
-class action_code(Enum):
+class action_code(IntEnum):
     STOP = 0
     FORWARD = 1
     LEFT = 2
@@ -618,7 +624,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
             agent = ShortestPathFollower(self.env._env.sim, 0.25, False)
 
-            intrinsic_matrix = self.get_intrinsic_matrix(
+            intrinsic_matrix = get_intrinsic_matrix(
                 self.config.habitat.simulator.agents.main_agent.sim_sensors.rgb_sensor
             )
 
@@ -662,8 +668,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                 height = agent_state.position[1] - initial_height  # Habitat GPS makes west negative, so flip y
                 camera_position = np.array([x, -y, self._camera_height + height])
                 tf_camera_to_episodic = (
-                    self.xyz_yaw_pitch_to_tf_matrix(camera_position, camera_yaw, np.deg2rad(30))
-                    @ self.get_axis_align_matrix()
+                    xyz_yaw_pitch_to_tf_matrix(camera_position, camera_yaw, np.deg2rad(30)) @ get_axis_align_matrix()
                 )
 
                 image = Image.fromarray(rgb).convert('RGB')
@@ -748,7 +753,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         self.env.step(action_code.LOOKUP)
                         self.env.step(action_code.LOOKUP)
 
-                        goal = self.pixel_to_gps(pixel_goal, depth / 1000, intrinsic_matrix, tf_camera_to_episodic)
+                        goal = pixel_to_gps(pixel_goal, depth / 1000, intrinsic_matrix, tf_camera_to_episodic)
 
                         goal = (transformation_matrix @ np.array([-goal[1], 0, -goal[0], 1]))[:3]
 
