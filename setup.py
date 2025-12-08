@@ -47,6 +47,9 @@ with open('requirements/model_requirements.txt', 'r') as f:
 with open('requirements/isaac_requirements.txt', 'r') as f:
     isaac_requires = f.read().splitlines()
 
+with open('requirements/habitat_requirements.txt', 'r') as f:
+    habitat_requires = f.read().splitlines()
+
 with open('requirements/internvla_n1.txt', 'r') as f:
     n1_requires = f.read().splitlines()
 
@@ -74,7 +77,7 @@ setuptools.setup(
     extras_require={
         # envs
         "isaac": isaac_requires,
-        "habitat": [],
+        "habitat": habitat_requires,
         "demo": [
             "gradio==5.45",
             "hf-xet==1.1.5",

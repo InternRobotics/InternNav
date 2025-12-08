@@ -3,7 +3,7 @@ azure-core==1.28.0
 azure-identity==1.13.0
 azure-storage-blob==12.17.0
 depth-camera-filtering @ git+https://github.com/naokiyokoyama/depth_camera_filtering.git
-diffusers==0.33.1
+diffusers==0.32.2
 diffusion_policy @ git+https://github.com/real-stanford/diffusion_policy.git@5ba07ac6661db573af695b419a7947ecb704690f
 distro==1.9.0
 docstring_parser==0.16

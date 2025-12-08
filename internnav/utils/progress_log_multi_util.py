@@ -61,13 +61,13 @@ def init(dataset_name, path_count):
     global INITED
     PROGRESS = ProgressInfo(dataset_name, path_count)
     log_dir = f'{PROJECT_ROOT_PATH}/logs/{get_task_name()}/progress/'
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+    os.makedirs(log_dir, exist_ok=True)
     file_handler = logging.FileHandler(f'{log_dir}/{dataset_name}.log')
     file_handler.setLevel(logging.INFO)
     formatter = logging.Formatter('[%(asctime)s][%(levelname)s] %(message)s')
     file_handler.setFormatter(formatter)
     progress_logger_multi.addHandler(file_handler)
+    progress_logger_multi.disabled = False
     INITED = True
 
 

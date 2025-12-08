@@ -7,12 +7,14 @@ import numpy as np
 
 
 class DataCollector:
-    def __init__(self, lmdb_path):
+    def __init__(self, lmdb_path, rank=0, world_size=1):
         if not os.path.exists(lmdb_path):
             os.makedirs(lmdb_path)
         self.lmdb_path = lmdb_path
         self.episode_total_data = []
         self.actions = []
+        self.rank = rank
+        self.world_size = world_size
 
     def collect_observation(self, rgb, depth, step, process, camera_pose, robot_pose):
         from omni.isaac.core.utils.rotations import quat_to_euler_angles
@@ -104,7 +106,12 @@ class DataCollector:
         if result != 'success':
             finish_flag = 'fail'
         lmdb_file = os.path.join(self.lmdb_path, 'sample_data.lmdb')
-        database = lmdb.open(lmdb_file, map_size=1 * 1024 * 1024 * 1024 * 1024, max_dbs=0)
+        database = lmdb.open(
+            lmdb_file,
+            map_size=1 * 1024 * 1024 * 1024 * 1024,
+            max_dbs=0,
+            lock=True,
+        )
         with database.begin(write=True) as txn:
             encode_key = key.encode()
             episode_datas = self.merge_data(self.episode_total_data, self.actions)
@@ -126,9 +133,10 @@ class DataCollector:
         if result != 'success':
             finish_flag = 'fail'
         database_write = lmdb.open(
-            f'{self.lmdb_path}/sample_data.lmdb',
+            f'{self.lmdb_path}/sample_data{self.rank}.lmdb',
             map_size=1 * 1024 * 1024 * 1024 * 1024,
             max_dbs=0,
+            lock=True,
         )
         with database_write.begin(write=True) as txn:
             key_write = key.encode()

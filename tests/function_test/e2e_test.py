@@ -37,7 +37,7 @@ def teardown_function(function):
     if os.path.exists('./test_result.json'):
         case_info = {}
         test_name = function.__name__
-        case_info['case_info'] = test_name + '_' + os.environ.get('JOB_ID')
+        case_info['case_info'] = f"{test_name}_{os.environ.get('JOB_ID', 'local')}"
         update_jsonl_from_json('./test_result.json', '../total_result.jsonl', case_info)
     else:
         print('Warning! There is no test_result.json')
