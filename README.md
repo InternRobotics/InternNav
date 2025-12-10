@@ -3,7 +3,8 @@
 [![demo](assets/InternNav.gif "demo")](https://www.youtube.com/watch?v=fD0F1jIax5Y)
 
 [![HomePage](https://img.shields.io/badge/HomePage-144B9E?logo=ReactOS&logoColor=white)](https://internrobotics.github.io/internvla-n1.github.io/)
-[![Technique Report](https://img.shields.io/badge/Paper-B31B1B?logo=arXiv&logoColor=white)](https://internrobotics.github.io/internvla-n1.github.io/static/pdfs/InternVLA_N1.pdf)
+[![Technical Report — InternVLA-N1](https://img.shields.io/badge/Technical_Report-InternVLA--N1-BB2649?logo=adobeacrobatreader&logoColor=white)](https://internrobotics.github.io/internvla-n1.github.io/static/pdfs/InternVLA_N1.pdf)
+[![DualVLN Paper — arXiv](https://img.shields.io/badge/arXiv-DualVLN-B31B1B?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2512.08186)
 [![doc](https://img.shields.io/badge/Document-FFA500?logo=readthedocs&logoColor=white)](https://internrobotics.github.io/user_guide/internnav/index.html)
 [![GitHub star chart](https://img.shields.io/github/stars/InternRobotics/InternNav?style=square)](https://github.com/InternRobotics/InternNav)
 [![GitHub Issues](https://img.shields.io/github/issues/InternRobotics/InternNav)](https://github.com/InternRobotics/InternNav/issues)
@@ -34,12 +35,15 @@ The toolbox supports the most comprehensive 6 datasets \& benchmarks and 10+ pop
 The toolbox supports the most advanced high-quality navigation dataset, InternData-N1, which includes 3k+ scenes and 830k VLN data covering diverse embodiments and scenes, and the first dual-system navigation foundation model with leading performance on all the benchmarks and zero-shot generalization capability in the real world, InternVLA-N1.
 
 ## 🔥 News
-- [2025/12] Training code for InternVLA-N1 is now available. This official release provides two dual-system configurations: **InternVLA-N1 (Dual System)**<span style="color: #28a745; font-size: 0.9em"> with NavDP*</span> and **InternVLA-N1 (Dual System)**<span style="color: #28a745; font-size: 0.9em"> DualVLN</span>. For model architecture and training details, please refer to the [DualVLN paper](TO_BE_UPDATED).
-- [2025/10] Add a simple [inference-only demo](scripts/notebooks/inference_only_demo.ipynb) of InternVLA-N1.
-- [2025/10] InternVLA-N1 [technical report](https://internrobotics.github.io/internvla-n1.github.io/static/pdfs/InternVLA_N1.pdf) is released. Please check our [homepage](https://internrobotics.github.io/internvla-n1.github.io/).
-- [2025/09] Real-world deployment code of InternVLA-N1 is released. Upload 3D printing [files](assets/3d_printing_files/go2_stand.STEP) for Unitree Go2.
-- [2025/07] We are hosting 🏆IROS 2025 Grand Challenge, stay tuned at [official website](https://internrobotics.shlab.org.cn/challenge/2025/).
-- [2025/07] InternNav v0.1.1 released.
+| Time   | Update |
+|---------|--------|
+| 2025/12 | Training code for InternVLA-N1 is now available. This release provides two model configurations: InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> with NavDP*</span> and InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> DualVLN </span>. For model architecture and training details, please refer to the [DualVLN paper](https://arxiv.org/abs/2512.08186).|
+| 2025/11 | InternNav v0.2.0 released — added distributed evaluation support for VLN-PE.|
+| 2025/10 | Add a [inference-only demo](scripts/notebooks/inference_only_demo.ipynb) of InternVLA-N1. |
+| 2025/10 | InternVLA-N1 [technical report](https://internrobotics.github.io/internvla-n1.github.io/static/pdfs/InternVLA_N1.pdf) is released. Please check our [homepage](https://internrobotics.github.io/internvla-n1.github.io/). |
+| 2025/09 | Real-world deployment code of InternVLA-N1 released. Upload 3D printing [files](assets/3d_printing_files/go2_stand.STEP) for Unitree Go2. |
+| 2025/07 | Hosting the 🏆 IROS 2025 Grand Challenge (see updates at [official website](https://internrobotics.shlab.org.cn/challenge/2025/)) |
+| 2025/07 | InternNav v0.1.1 released |
 
 ## 📋 Table of Contents
 - [🏠 Introduction](#-introduction)
@@ -251,11 +255,14 @@ If you use the specific pretrained models and benchmarks, please kindly cite the
     year = {2025},
     booktitle={arXiv},
 }
-@misc{dualvln,
-    title = {{InternVLA-N1: An} Open Dual-System Navigation Foundation Model with Learned Latent Plans},
-    author = {InternVLA-N1 Team},
-    year = {2025},
-    booktitle={arXiv},
+@misc{wei2025groundslowfastdualsystem,
+      title={Ground Slow, Move Fast: A Dual-System Foundation Model for Generalizable Vision-and-Language Navigation}, 
+      author={Meng Wei and Chenyang Wan and Jiaqi Peng and Xiqian Yu and Yuqiang Yang and Delin Feng and Wenzhe Cai and Chenming Zhu and Tai Wang and Jiangmiao Pang and Xihui Liu},
+      year={2025},
+      eprint={2512.08186},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2512.08186}, 
 }
 ```
 
