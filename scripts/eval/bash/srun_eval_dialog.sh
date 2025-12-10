@@ -1,6 +1,6 @@
 # use to run distributed eval with 8 gpus on single node
 export MAGNUM_LOG=quiet HABITAT_SIM_LOG=quiet
-export NCCL_SOCKET_IFNAME=bond0 
+export NCCL_SOCKET_IFNAME=bond0
 export NCCL_IB_HCA=mlx5_2,mlx5_3,mlx5_4,mlx5_5
 
 srun -p mozi_t \

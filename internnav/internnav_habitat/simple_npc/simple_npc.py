@@ -1,6 +1,8 @@
 import base64
 import random
-from .prompt import TEMPLATE, DISAMBIGUATION_PROMPT
+
+from .prompt import DISAMBIGUATION_PROMPT, TEMPLATE
+
 
 class SimpleNPC:
     def __init__(
@@ -43,21 +45,33 @@ class SimpleNPC:
         }
         return room_name_dict[room]
 
-    def answer_question(self, question: str, instance_id: str,  object_dict: dict, task_done: bool, path_description: str, mode: str):
+    def answer_question(
+        self, question: str, instance_id: str, object_dict: dict, task_done: bool, path_description: str, mode: str
+    ):
         if mode == 'one_turn':
             goal_information = ''
             goal_information += 'room: ' + self.get_room_name(object_dict[instance_id]['room']) + '\n'
-            goal_information += '\n'.join([f'{a.lower()}: {i.lower()}' for a,i in object_dict[instance_id]['unique_description'].items() if a in ['color','texture','material','shape','placement'] and len(i)>0])
-            nearby_objects = [object_dict[obj]['unique_description']['fine grained category'].lower() for obj, _ in object_dict[instance_id]['nearby_objects'].items() if obj in object_dict and isinstance(object_dict[obj]['unique_description'], dict)]
+            goal_information += '\n'.join(
+                [
+                    f'{a.lower()}: {i.lower()}'
+                    for a, i in object_dict[instance_id]['unique_description'].items()
+                    if a in ['color', 'texture', 'material', 'shape', 'placement'] and len(i) > 0
+                ]
+            )
+            nearby_objects = [
+                object_dict[obj]['unique_description']['fine grained category'].lower()
+                for obj, _ in object_dict[instance_id]['nearby_objects'].items()
+                if obj in object_dict and isinstance(object_dict[obj]['unique_description'], dict)
+            ]
             if len(nearby_objects) > 0:
                 goal_information += '\nnearby objects: ' + ','.join(nearby_objects)
             goal_information += 'whole description: ' + object_dict[instance_id]['caption']
             answer = self.ask_directly(
                 template_type="one_turn_prompt",
                 question=question,
-                goal_information = goal_information,
-                path_description = path_description,
-                task_done = task_done,
+                goal_information=goal_information,
+                path_description=path_description,
+                task_done=task_done,
             )
             return answer
         elif mode == 'two_turn':
@@ -75,17 +89,27 @@ class SimpleNPC:
             elif 'information' in answer.lower():
                 goal_information = ''
                 goal_information += 'room: ' + self.get_room_name(object_dict[instance_id]['room']) + '\n'
-                goal_information += '\n'.join([f'{a.lower()}: {i.lower()}' for a,i in object_dict[instance_id]['unique_description'].items() if a in ['color','texture','material','shape','placement'] and len(i)>0])
-                nearby_objects = [object_dict[obj]['unique_description']['fine grained category'].lower() for obj, _ in object_dict[instance_id]['nearby_objects'].items() if obj in object_dict and isinstance(object_dict[obj]['unique_description'], dict)]
+                goal_information += '\n'.join(
+                    [
+                        f'{a.lower()}: {i.lower()}'
+                        for a, i in object_dict[instance_id]['unique_description'].items()
+                        if a in ['color', 'texture', 'material', 'shape', 'placement'] and len(i) > 0
+                    ]
+                )
+                nearby_objects = [
+                    object_dict[obj]['unique_description']['fine grained category'].lower()
+                    for obj, _ in object_dict[instance_id]['nearby_objects'].items()
+                    if obj in object_dict and isinstance(object_dict[obj]['unique_description'], dict)
+                ]
                 if len(nearby_objects) > 0:
                     goal_information += '\nnearby objects: ' + ','.join(nearby_objects)
                 goal_information += 'whole description: ' + object_dict[instance_id]['caption']
                 answer = self.ask_directly(
                     template_type="one_turn_prompt",
                     question=question,
-                    goal_information = goal_information,
-                    path_description = path_description,
-                    task_done = task_done,
+                    goal_information=goal_information,
+                    path_description=path_description,
+                    task_done=task_done,
                 )
                 answer = self.answer_question(question, instance_id, object_dict, task_done, answer, 'one_turn')
             return answer
@@ -110,6 +134,7 @@ class SimpleNPC:
                 raise ValueError(f"Template type '{template_type}' not found.")
             prompt = prompt.format(**kwargs)
             return prompt
+
         messages = []
         image_bufs = kwargs.get('images', None)
         cnt = 0

@@ -1,19 +1,21 @@
 import json
 import os
-import quaternion
-import numpy as np
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+import quaternion
+from depth_camera_filtering import filter_depth
 from habitat.config.default import get_agent_config
 
-from depth_camera_filtering import filter_depth
 from internnav.configs.evaluator import EnvCfg, TaskCfg
 from internnav.env import base
+
 from .dialog_mp3d import MP3DGTPerception
+
 
 @base.Env.register('habitat')
 class HabitatEnv(base.Env):
-    def __init__(self, env_config: EnvCfg, task_config: TaskCfg= None):
+    def __init__(self, env_config: EnvCfg, task_config: TaskCfg = None):
         """
         env_settings include:
             - habitat_config: loaded from get_habitat_config
@@ -153,11 +155,21 @@ class HabitatEnv(base.Env):
         return tf_episodic_to_global
 
     def get_semantic(self, obs: dict):
-        targets = [self.get_current_episode().goals[idx].bbox for idx, _ in enumerate(self.get_current_episode().instruction.instance_id)]
-        targets = np.array([[target[0], min(-target[2], -target[5]) , target[1], target[3], max(-target[5], -target[2]), target[4]] for target in targets])
+        targets = [
+            self.get_current_episode().goals[idx].bbox
+            for idx, _ in enumerate(self.get_current_episode().instruction.instance_id)
+        ]
+        targets = np.array(
+            [
+                [target[0], min(-target[2], -target[5]), target[1], target[3], max(-target[5], -target[2]), target[4]]
+                for target in targets
+            ]
+        )
         depth = filter_depth(obs["depth"].reshape(obs["depth"].shape[:2]), blur_type=None)
         tf_camera_to_global = self.get_tf_episodic_to_global()
         tf_camera_to_global[1, 3] = self._camera_height + self._env.sim.get_agent_state().position[1]
-        tf_camera_to_ply = np.dot(np.array([[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0], [0, 0, 0, 1]]), tf_camera_to_global)
+        tf_camera_to_ply = np.dot(
+            np.array([[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0], [0, 0, 0, 1]]), tf_camera_to_global
+        )
         semantic = self.segmentation.predict(depth, targets, tf_camera_to_ply)
         return semantic

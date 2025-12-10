@@ -6,7 +6,7 @@ exp:
   seed: 1
   visualize: True
   print_images: 0
-  num_sem_categories: 10  
+  num_sem_categories: 10
   goal_type: object
   goal_map_only: False
   detector: mp3d_gt
@@ -57,8 +57,8 @@ agent:
     goal_dilation_selem_radius: 5  # radius (in cells) of goal dilation structuring element
     use_dilation_for_stg: True      # use dilated goals for estimating short-term goals - or just reaching
     map_downsample_factor: 1            # optional downsampling of traversible and goal map before fmm distance call (1 for no downsampling, 2 for halving resolution)
-    map_update_frequency: 1             # compute fmm distance map every n steps 
+    map_update_frequency: 1             # compute fmm distance map every n steps
     step_size: 10                    # maximum distance of the short-term goal selected by the planner
     magnify_goal_when_hard: 100
-    discrete_actions: True  
+    discrete_actions: True
     verbose: False

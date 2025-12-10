@@ -1,4 +1,5 @@
-TEMPLATE = {'one_turn_prompt': """
+TEMPLATE = {
+    'one_turn_prompt': """
 You are a helpful assistant in helping agent to finish its navigation task.
 
 ## Here is the ground truth information you know more than the agent
@@ -6,10 +7,10 @@ You are a helpful assistant in helping agent to finish its navigation task.
 'GOAL INFORMATION' shows the goal object's information.
 'CORRECT PATH' shows the correct path description to the goal object.
 
-TASK DONE: 
+TASK DONE:
 {task_done}
 
-GOAL INFORMATION: 
+GOAL INFORMATION:
 {goal_information}
 
 CORRECT PATH:
@@ -22,8 +23,7 @@ CORRECT PATH:
 ## Here is the question you need to answer
 QUESTION: {question}
 """,
-
-"two_turn_prompt_0": """
+    "two_turn_prompt_0": """
 You are a helpful assistant in helping agent to finish its navigation task. You will be given a question among the following three types:
 1. Disambiguation: This question is asked to check whether the agent has found the goal object. Like "Is it the object you are looking for?"
 2. Path: This question is asked to get the path to the goal object. Like "Where should I go now?"
@@ -34,20 +34,20 @@ You need to classify the question into one of the three types. Only output the n
 ## Here is the question you need to answer
 QUESTION: {question}
 """,
-
-"two_turn_prompt_1": """
+    "two_turn_prompt_1": """
 You are a helpful assistant in answering the question. Here follows the ground truth information about the goal object. You need to answer the question based on the ground truth information.
 
 ## Here is the ground truth information about the goal object
-GOAL INFORMATION: 
-{goal_information}  
+GOAL INFORMATION:
+{goal_information}
 
 ## Here is the question you need to answer
 QUESTION: {question}
-"""}
+""",
+}
 
-DISAMBIGUATION_PROMPT = {            
-    'yes':[
+DISAMBIGUATION_PROMPT = {
+    'yes': [
         "Yes, you are in the correct position.",
         "That's right, you are at the intended location.",
         "Yes, you have reached the right spot.",
@@ -64,9 +64,9 @@ DISAMBIGUATION_PROMPT = {
         "Yes, you are at the specified position.",
         "Everything is aligned properly, you're in the correct spot.",
         "Yes, you are where you should be.",
-        "Yes, this is the right place."
+        "Yes, this is the right place.",
     ],
-    'no':[
+    'no': [
         "This is not the intended location.",
         "You are not in the proper place.",
         "No, you are not where you need to be.",
@@ -82,5 +82,6 @@ DISAMBIGUATION_PROMPT = {
         "You haven't reached the proper location.",
         "No, you are not at the specified position.",
         "The alignment is off, you are in the wrong spot.",
-        "This is not the right place."
-    ]}
+        "This is not the right place.",
+    ],
+}

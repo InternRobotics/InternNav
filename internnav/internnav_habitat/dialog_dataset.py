@@ -1,19 +1,26 @@
-
 import gzip
 import json
 import os
-import attr
 from typing import TYPE_CHECKING, List, Optional
 
+import attr
 from habitat.core.dataset import Dataset
 from habitat.core.registry import registry
 from habitat.datasets.utils import VocabDict
-from .dialog_episodes import DialogEpisode, DialogGoal, DialogViewLocation, AgentPosition
+
+from .dialog_episodes import (
+    AgentPosition,
+    DialogEpisode,
+    DialogGoal,
+    DialogViewLocation,
+)
+
 if TYPE_CHECKING:
     from omegaconf import DictConfig
 
 
 DEFAULT_SCENE_PATH_PREFIX = "data/scene_datasets/"
+
 
 @attr.s(auto_attribs=True, kw_only=True)
 class DialogInstructionData:
@@ -21,6 +28,7 @@ class DialogInstructionData:
     instruction_text: str
     instance_id: List[str]
     instruction_info: Optional[List[str]] = None
+
 
 @registry.register_dataset(name="dialog")
 class DialogDatasetV1(Dataset):
@@ -33,9 +41,7 @@ class DialogDatasetV1(Dataset):
 
     @staticmethod
     def check_config_paths_exist(config: "DictConfig") -> bool:
-        return os.path.exists(
-            config.data_path.format(split=config.split)
-        ) and os.path.exists(config.scenes_dir)
+        return os.path.exists(config.data_path.format(split=config.split)) and os.path.exists(config.scenes_dir)
 
     def __init__(self, config: Optional["DictConfig"] = None) -> None:
         self.episodes = []
@@ -47,13 +53,9 @@ class DialogDatasetV1(Dataset):
         with gzip.open(dataset_filename, "rt") as f:
             self.from_json(f.read(), scenes_dir=config.scenes_dir)
 
-        self.episodes = list(
-            filter(self.build_content_scenes_filter(config), self.episodes)
-        )
+        self.episodes = list(filter(self.build_content_scenes_filter(config), self.episodes))
 
-    def from_json(
-        self, json_str: str, scenes_dir: Optional[str] = None
-    ) -> None:
+    def from_json(self, json_str: str, scenes_dir: Optional[str] = None) -> None:
 
         deserialized = json.loads(json_str)
         # self.instruction_vocab = VocabDict(
@@ -67,9 +69,7 @@ class DialogDatasetV1(Dataset):
 
             if scenes_dir is not None:
                 if episode.scene_id.startswith(DEFAULT_SCENE_PATH_PREFIX):
-                    episode.scene_id = episode.scene_id[
-                        len(DEFAULT_SCENE_PATH_PREFIX) :
-                    ]
+                    episode.scene_id = episode.scene_id[len(DEFAULT_SCENE_PATH_PREFIX) :]
 
                 episode.scene_id = os.path.join(scenes_dir, episode.scene_id)
             episode.instruction = DialogInstructionData(**episode.instruction)

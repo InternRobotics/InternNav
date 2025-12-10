@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from typing import List, Tuple, Union
+
 
 def fill_small_holes(depth_img: np.ndarray, area_thresh: int) -> np.ndarray:
     """
@@ -33,6 +33,7 @@ def fill_small_holes(depth_img: np.ndarray, area_thresh: int) -> np.ndarray:
 
     return filled_depth_img
 
+
 class MP3DGTPerception:
     def __init__(self, max_depth, min_depth, fx, fy):
         self.max_depth = max_depth
@@ -55,20 +56,20 @@ class MP3DGTPerception:
         mask = scaled_depth < self.max_depth
         point_cloud_camera_frame = get_point_cloud(scaled_depth, mask, self.fx, self.fy)
         point_cloud_ply_frame = transform_points(tf_camera_to_ply, point_cloud_camera_frame)
-            
+
         # mark the points in the target objects' bboxes
         semantic_images = []
         for target in targets:
             min_x, min_y, min_z = target[:3]
             max_x, max_y, max_z = target[3:]
-            
+
             in_bbox = (
-                (point_cloud_ply_frame[:, 0] >= min_x) & 
-                (point_cloud_ply_frame[:, 0] <= max_x) &
-                (point_cloud_ply_frame[:, 1] >= min_y) & 
-                (point_cloud_ply_frame[:, 1] <= max_y) &
-                (point_cloud_ply_frame[:, 2] >= min_z) & 
-                (point_cloud_ply_frame[:, 2] <= max_z)
+                (point_cloud_ply_frame[:, 0] >= min_x)
+                & (point_cloud_ply_frame[:, 0] <= max_x)
+                & (point_cloud_ply_frame[:, 1] >= min_y)
+                & (point_cloud_ply_frame[:, 1] <= max_y)
+                & (point_cloud_ply_frame[:, 2] >= min_z)
+                & (point_cloud_ply_frame[:, 2] <= max_z)
             )
             in_bbox_points = point_cloud_ply_frame[in_bbox]
             semantic_image = np.zeros(depth.shape, dtype=np.uint8)
@@ -77,12 +78,14 @@ class MP3DGTPerception:
                 in_bbox_camera_frame = inverse_transform_points(tf_camera_to_ply, in_bbox_points)
                 in_box_image_coords = project_points_to_image(in_bbox_camera_frame, self.fx, self.fy, depth.shape)
                 try:
-                    mask = [in_box_image_coords[i, 0] < 480 and in_box_image_coords[i, 1] < 640 for i in range(len(in_box_image_coords))]
+                    mask = [
+                        in_box_image_coords[i, 0] < 480 and in_box_image_coords[i, 1] < 640
+                        for i in range(len(in_box_image_coords))
+                    ]
                     in_box_image_coords = in_box_image_coords[mask]
                     semantic_image[in_box_image_coords[:, 0], in_box_image_coords[:, 1]] = 1
-                except:
-                    import ipdb; ipdb.set_trace()
-                    print()
+                except Exception as e:
+                    print(e)
                 semantic_image = fill_small_holes(semantic_image, area_threshold)
             semantic_images.append(semantic_image)
         if len(semantic_images) > 0:
@@ -90,6 +93,7 @@ class MP3DGTPerception:
         else:
             semantic_images = np.zeros((1, depth.shape[0], depth.shape[1]), dtype=np.uint8)
         return semantic_images
+
 
 def transform_points(transformation_matrix: np.ndarray, points: np.ndarray) -> np.ndarray:
     # Add a homogeneous coordinate of 1 to each point for matrix multiplication
@@ -124,48 +128,50 @@ def get_point_cloud(depth_image: np.ndarray, mask: np.ndarray, fx: float, fy: fl
 
     return cloud
 
+
 def inverse_transform_points(transformation_matrix: np.ndarray, points: np.ndarray) -> np.ndarray:
     """Convert point cloud from episodic coordinate system to camera coordinate system
-    
+
     Args:
         transformation_matrix (np.ndarray): 4x4 transformation matrix
         points (np.ndarray): Point cloud coordinates (N, 3)
-        
+
     Returns:
         np.ndarray: Point cloud coordinates in camera coordinate system (N, 3)
     """
     # Calculate the inverse of the transformation matrix
     inv_matrix = np.linalg.inv(transformation_matrix)
-    
+
     # Add a homogeneous coordinate of 1 to each point for matrix multiplication
     homogeneous_points = np.hstack((points, np.ones((points.shape[0], 1))))
-    
+
     # Apply the inverse transformation
     transformed_points = np.dot(inv_matrix, homogeneous_points.T).T
-    
+
     # Remove the added homogeneous coordinate
     return transformed_points[:, :3] / transformed_points[:, 3:]
 
+
 def project_points_to_image(points: np.ndarray, fx: float, fy: float, image_shape: tuple) -> np.ndarray:
     """Project points from camera coordinate system to image plane
-    
+
     Args:
         points (np.ndarray): Points in camera coordinate system (N, 3)
         fx (float): x-axis focal length
         fy (float): y-axis focal length
         image_shape (tuple): Image dimensions (height, width)
-        
+
     Returns:
         np.ndarray: Image coordinates (N, 2)
     """
-    points = np.stack((points[:,0], -points[:,1], -points[:,2]), axis=-1)
+    points = np.stack((points[:, 0], -points[:, 1], -points[:, 2]), axis=-1)
     # Ensure points are in front of the camera
     valid_mask = points[:, 2] > 0  # z > 0
-    
+
     # Calculate image coordinates
     u = points[:, 0] * fx / points[:, 2] + image_shape[1] // 2
     v = points[:, 1] * fy / points[:, 2] + image_shape[0] // 2
-    
+
     # Combine coordinates
     image_coords = np.stack((v, u), axis=-1)
     image_coords = image_coords.astype(np.int32)
