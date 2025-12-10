@@ -47,9 +47,13 @@ class DistributedEvaluator(Evaluator):
                 cfg.agent.agent_settings['port'] = 8000 + get_rank()
                 self.agent = AgentClient(cfg.agent)
             else:
-                from internnav.agent import Agent
+                if cfg.agent.model_name == 'dialog':
+                    from internnav.agent import DialogAgent
+                    self.agent = DialogAgent(cfg.agent, cfg.task, self.rank)
+                else:
+                    from internnav.agent import Agent
 
-                self.agent = Agent(cfg.agent)
+                    self.agent = Agent(cfg.agent)
 
     def eval(self):
         """

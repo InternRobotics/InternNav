@@ -39,8 +39,8 @@ class MetricCfg(BaseModel):
 
 class TaskCfg(BaseModel):
     task_name: Optional[str] = None
-    task_settings: Dict[str, Any]
-    scene: SceneCfg
+    task_settings: Dict[str, Any] = None
+    scene: SceneCfg = None
     robot_name: Optional[str] = None
     robot: Optional[RobotCfg] = None
     robot_flash: Optional[bool] = None
@@ -56,6 +56,7 @@ class EvalDatasetCfg(BaseModel):
 
 
 class EvalCfg(BaseModel):
+    remote_agent: Optional[bool] = None
     eval_type: Optional[str] = None
     eval_settings: Optional[Dict[str, Any]] = {}
     agent: Optional[AgentCfg] = None

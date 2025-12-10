@@ -1,2 +1,2 @@
-from internnav.internnav_habitat.habitat_env import HabitatEnv
 from internnav.internnav_habitat.habitat_vln_evaluator import HabitatVlnEvaluator
+from internnav.internnav_habitat.habitat_dialog_evaluator import HabitatDialogEvaluator
