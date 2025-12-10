@@ -20,7 +20,6 @@ from transformers.image_utils import to_numpy_array
 
 from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator import DistributedEvaluator, Evaluator
-from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
 from internnav.model.utils.vln_utils import (
     chunk_token,
     open_image,

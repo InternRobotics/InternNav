@@ -27,7 +27,7 @@ eval_cfg = EvalCfg(
             'num_frames': 32,
             'num_history': 8,
             'num_future_steps': 4,
-            'device': 'cuda:1',
+            'device': 'cuda:0',
             'predict_step_nums': 32,
             'continuous_traj': True,
             'infer_mode': 'partial_async',  # You can choose "sync" or "partial_async", but for this model, "partial_async" is better.
@@ -49,7 +49,7 @@ eval_cfg = EvalCfg(
             'env_num': 1,
             'use_distributed': False,  # If the others setting in task_settings, please set use_distributed = False.
             'proc_num': 1,
-            # 'max_step': 1000, #If use flash mode，default 1000; descrete mode, set 50000
+            'max_step': 1000,  # If use flash mode，default 1000; descrete mode, set 50000
         },
         scene=SceneCfg(
             scene_type='mp3d',
@@ -66,10 +66,16 @@ eval_cfg = EvalCfg(
         dataset_type="mp3d",
         dataset_settings={
             'base_data_dir': 'data/vln_pe/raw_data/r2r',
-            'split_data_types': ['val_seen', 'val_unseen'],  # 'val_seen'
-            'filter_stairs': False,  # For iros challenge, this is False; For results in the paper, this is True.
+            'split_data_types': ['val_unseen'],  # 'val_seen'
+            'filter_stairs': True,  # For iros challenge, this is False; For results in the paper, this is True.
             # 'selected_scans': ['zsNo4HB9uLZ'],
             # 'selected_scans': ['8194nk5LbLH', 'pLe4wQe7qrG'],
         },
     ),
+    eval_type='vln_distributed',
+    eval_settings={
+        'save_to_json': True,
+        'vis_output': False,
+        'use_agent_server': False,  # If use_agent_server=True, please start the agent server first.
+    },
 )

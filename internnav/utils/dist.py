@@ -225,7 +225,7 @@ def init_distributed_mode(dist_url="env://", port=29529, backend="nccl", timeout
     else:
         print("Not using distributed mode")
         setup_for_distributed(is_master=True)
-        return
+        return 0
 
     import socket
 

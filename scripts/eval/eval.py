@@ -37,13 +37,10 @@ def main():
     evaluator_cfg = load_eval_cfg(args.config, attr_name='eval_cfg')
 
     # fill in evaluator default config
-    if evaluator_cfg.eval_type == 'vln_multi':
+    if evaluator_cfg.eval_type == 'vln_distributed':
         from internnav.configs.evaluator.vln_default_config import get_config
 
         evaluator_cfg = get_config(evaluator_cfg)
-    elif evaluator_cfg.eval_type == 'habitat_vln':
-        # TODO: add default config
-        pass
 
     # create evaluator based on sim backend and run eval
     evaluator = Evaluator.init(evaluator_cfg)

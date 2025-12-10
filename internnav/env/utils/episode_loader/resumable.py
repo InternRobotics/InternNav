@@ -1,13 +1,14 @@
+import os
+
 import lmdb
 import msgpack_numpy
 
 from internnav.evaluator.utils.config import get_lmdb_path
 
-from .base import BasePathKeyDataloader
-from .data_reviser import skip_list
+from .base import BasePathKeyEpisodeloader
 
 
-class ResumablePathKeyDataloader(BasePathKeyDataloader):
+class ResumablePathKeyEpisodeloader(BasePathKeyEpisodeloader):
     def __init__(
         self,
         dataset_type,
@@ -19,6 +20,8 @@ class ResumablePathKeyDataloader(BasePathKeyDataloader):
         run_type,
         retry_list,
         filter_stairs,
+        rank=0,
+        world_size=1,
     ):
         # 加载所有数据
         super().__init__(
@@ -29,23 +32,26 @@ class ResumablePathKeyDataloader(BasePathKeyDataloader):
             filter_same_trajectory=filter_same_trajectory,
             revise_data=True,
             filter_stairs=filter_stairs,
+            rank=rank,
+            world_size=world_size,
         )
         self.task_name = task_name
         self.run_type = run_type
         self.lmdb_path = get_lmdb_path(task_name)
         self.retry_list = retry_list
+
+        if not os.path.exists(self.lmdb_path):
+            os.makedirs(self.lmdb_path, exist_ok=True)
+
         database = lmdb.open(
-            f'{self.lmdb_path}/sample_data.lmdb',
+            f'{self.lmdb_path}/sample_data{rank}.lmdb',
             map_size=1 * 1024 * 1024 * 1024 * 1024,
-            readonly=True,
-            lock=False,
+            lock=True,
         )
 
         filtered_target_path_key_list = []
         for path_key in self.path_key_data.keys():
-            trajectory_id = int(path_key.split('_')[0])
-            if trajectory_id in skip_list:
-                continue
+            # trajectory_id = int(path_key.split('_')[0])
             with database.begin() as txn:
                 value = txn.get(path_key.encode())
                 if value is None:

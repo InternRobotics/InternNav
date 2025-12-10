@@ -59,9 +59,9 @@ class DialogAgent(Agent):
     agent template, override the functions for custom policy
     """
 
-    def __init__(self, agent_config: AgentCfg, task_config: TaskCfg, local_rank: int):
+    def __init__(self, agent_config: AgentCfg):
         self.agent_config = agent_config
-        self.task_config = task_config
+        self.task_name = self.agent_config.model_settings['task_name']
 
         # sensor config
         self.sim_sensors_config = self.agent_config.model_settings['sim_sensors_config']
@@ -84,7 +84,7 @@ class DialogAgent(Agent):
         processor.tokenizer = tokenizer
         processor.tokenizer.padding_side = 'left'
 
-        self.device = torch.device('cuda', local_rank)
+        self.device = torch.device('cuda', self.agent_config.model_settings['local_rank'])
         if self.model_args.mode == 'dual_system':
             model = InternVLAN1ForCausalLM.from_pretrained(
                 self.model_args.model_path,
@@ -109,7 +109,7 @@ class DialogAgent(Agent):
         self.num_history = self.model_args.num_history
 
         # prompt
-        if 'dialog' in self.task_config.task_name or self.agent_config.model_settings['dialog_enabled']:
+        if 'dialog' in self.task_name or self.agent_config.model_settings['dialog_enabled']:
             prompt = f"You are an autonomous navigation assistant. Your task is to <instruction>. Where should you go next to stay on track? There is an oracle can help you to complete the task in current environment, you can either choose to move or talk. If choosing to talk, please say something that can help you better to find the target object. If choosing to move, when you want to output a waypoint you need to TILT DOWN (↓) by 30 degrees then output the next waypoint\'s coordinates in the image. In case the next waypoint is out of view, utilize the turn actions: TURN LEFT (←) or TURN RIGHT (→) by 15 degrees. Please output STOP when you have successfully completed the task."
         else:
             prompt = f"You are an autonomous navigation assistant. Your task is to <instruction>. Where should you go next to stay on track? When you want to output a waypoint you need to TILT DOWN (↓) by 30 degrees then output the next waypoint\'s coordinates in the image. In case the next waypoint is out of view, utilize the turn actions: TURN LEFT (←) or TURN RIGHT (→) by 15 degrees. Please output STOP when you have successfully completed the task."

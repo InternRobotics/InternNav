@@ -1,20 +1,28 @@
-# use to run distributed eval with 4 gpus on single node
+# use to run distributed eval with multi gpus
 
-MID_RUN_NAME="InternVLA-N1"
+CONFIG=scripts/eval/configs/h1_internvla_n1_async_cfg.py
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --config)
+            CONFIG="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown argument: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# Extract the prefix from the config filename
+CONFIG_BASENAME=$(basename "$CONFIG" .py)
+CONFIG_PREFIX=$(echo "$CONFIG_BASENAME" | sed 's/_cfg$//')
+EVAL_LOG="logs/${CONFIG_PREFIX}_eval.log"
+
 torchrun \
-  --nproc_per_node=8 \
+  --nproc_per_node=1 \
   --master_port=2333 \
   scripts/eval/eval.py \
-    --config scripts/eval/configs/habitat_cfg.py \
-  > logs/${MID_RUN_NAME}_log.txt 2>&1
-
-# CUDA_VISIBLE_DEVICES=6,7
-# MID_RUN_NAME="InternVLA-N1"
-# torchrun \
-#   --nproc_per_node=8 \
-#   --master_port=29501 \
-#   scripts/eval/eval_habitat.py \
-#     --model_path checkpoints/InternVLA-N1 \
-#     --continuous_traj \
-#     --output_path logs/habitat/test_new_checkpoint2 \
-#   > logs/${MID_RUN_NAME}_old_log1.txt 2>&1
+    --config $CONFIG \
+  > $EVAL_LOG 2>&1
