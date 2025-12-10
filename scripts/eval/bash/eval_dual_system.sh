@@ -1,7 +1,7 @@
 MID_RUN_NAME="InternVLA-N1"
 CONFIG="scripts/eval/configs/habitat_dual_system_cfg.py"
 
-srun -p gpu_partition \
+srun -p <YOUR_PARTITION_NAME> \
     --gres=gpu:8 \
     --ntasks=8 \
     --time=0-20:00:00 \
