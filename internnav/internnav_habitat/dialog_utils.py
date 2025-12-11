@@ -7,11 +7,12 @@ import habitat_sim
 import numpy as np
 import quaternion
 from habitat_baselines.config.default import get_config as get_habitat_config
-from npc.utils.get_description import (
+from omegaconf import DictConfig, OmegaConf, open_dict
+
+from internnav.internnav_habitat.simple_npc.get_description import (
     get_path_description,
     get_path_description_without_additional_info,
 )
-from omegaconf import DictConfig, OmegaConf, open_dict
 
 DEFAULT_IMAGE_TOKEN = "<image>"
 

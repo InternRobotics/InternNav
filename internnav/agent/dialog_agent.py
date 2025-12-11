@@ -19,7 +19,13 @@ from transformers import (
 
 from internnav.agent import Agent
 from internnav.configs.agent import AgentCfg
-from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
+
+try:
+    from internnav.model.basemodel.internvla_n1.internvla_n1 import (
+        InternVLAN1ForCausalLM,
+    )
+except Exception as e:
+    print(f"Warning: ({e}), Ignore this if not using dual_system.")
 
 try:
     from depth_camera_filtering import filter_depth

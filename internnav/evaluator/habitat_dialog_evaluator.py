@@ -1,53 +1,37 @@
 import argparse
+import itertools
 import json
 import os
-import sys
-
-import copy
-import itertools
-import random
 import re
-from collections import OrderedDict
 
 import numpy as np
-import quaternion
 import torch
-import tqdm
-from depth_camera_filtering import filter_depth
 from PIL import Image, ImageDraw, ImageFont
-from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 from transformers.image_utils import to_numpy_array
 
 from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator import DistributedEvaluator, Evaluator
-from internnav.model.utils.vln_utils import (
-    chunk_token,
-    open_image,
-    split_and_clean,
-    traj_to_actions,
-)
-from internnav.agent.dialog_agent import DialogAgent
 from internnav.internnav_habitat.dialog_utils import get_config, get_path_description_
 from internnav.internnav_habitat.simple_npc.simple_npc import SimpleNPC
+from internnav.model.utils.vln_utils import open_image
 
 try:
     import habitat
-    from habitat.config.default import get_agent_config
     from habitat.config.default_structured_configs import (
         CollisionsMeasurementConfig,
         FogOfWarConfig,
         TopDownMapMeasurementConfig,
     )
-    from habitat.utils.visualizations.utils import observations_to_image
 
     # Import for Habitat registry side effects — do not remove
-    import internnav.internnav_habitat.measures  # noqa: F401 
-    from internnav.internnav_habitat.dialog_dataset import DialogDatasetV1
+    import internnav.internnav_habitat.measures  # noqa: F401
+
     # isort: skip
 except Exception as e:
     print(f"Warning: ({e}), Habitat Evaluation is not loaded in this runtime. Ignore this if not using Habitat.")
 
 DEFAULT_IMAGE_TOKEN = "<image>"
+
 
 @Evaluator.register('habitat_dialog')
 class HabitatDialogEvaluator(DistributedEvaluator):
@@ -57,18 +41,18 @@ class HabitatDialogEvaluator(DistributedEvaluator):
         self.max_steps_per_episode = args.max_steps_per_episode
         self.scene_summary = args.scene_summary
         self.output_path = args.output_path
- 
+
         self.task = cfg.task.task_name
         self.turn = args.turn
         self.dialog_enabled = cfg.agent.model_settings['dialog_enabled']
         self.save_video = args.save_video
 
         self.npc = SimpleNPC(
-                max_interaction_turn=10,
-                model_name=args.model_name,
-                openai_api_key=args.openai_api_key,
-                base_url=args.base_url,
-            )
+            max_interaction_turn=10,
+            model_name=args.model_name,
+            openai_api_key=args.openai_api_key,
+            base_url=args.base_url,
+        )
 
         # create habitat config
         self.config_path = cfg.env.env_settings['habitat_config_path']
@@ -114,8 +98,8 @@ class HabitatDialogEvaluator(DistributedEvaluator):
         """
         sucs, spls, oss, nes = [], [], [], []
         done_res = []
-        if os.path.exists(os.path.join(self.output_path, f'result.json')):
-            with open(os.path.join(self.output_path, f'result.json'),'r') as f:
+        if os.path.exists(os.path.join(self.output_path, 'result.json')):
+            with open(os.path.join(self.output_path, 'result.json'), 'r') as f:
                 for line in f.readlines():
                     res = json.loads(line)
                     done_res.append([res["scene_id"], res["episode_id"], res["episode_instruction"]])
@@ -134,10 +118,16 @@ class HabitatDialogEvaluator(DistributedEvaluator):
             episode = env._env.current_episode
             scene_id = episode.scene_id.split('/')[-2]
             if 'coin' in self.task:
-                episode_instruction = self.objectnav_instruction.format(target_object=episode.object_category.replace('_', ' '))+", "+episode.instruction
+                episode_instruction = (
+                    self.objectnav_instruction.format(target_object=episode.object_category.replace('_', ' '))
+                    + ", "
+                    + episode.instruction
+                )
             elif 'objectnav' in self.task:
-                episode_instruction = self.objectnav_instruction.format(target_object=episode.object_category.replace('_', ' '))
-            else:    
+                episode_instruction = self.objectnav_instruction.format(
+                    target_object=episode.object_category.replace('_', ' ')
+                )
+            else:
                 episode_instruction = episode.instruction.instruction_text[:-1]
             episode_id = int(episode.episode_id)
             if [scene_id, episode_id, episode_instruction] in done_res:
@@ -147,15 +137,15 @@ class HabitatDialogEvaluator(DistributedEvaluator):
             Image.fromarray(obs['rgb']).save(os.path.join(self.output_path, 'check_sim', f'rgb_{self.rank}.jpg'))
             os.makedirs(os.path.join(self.output_path, 'action', f'{scene_id}'), exist_ok=True)
             # os.makedirs(os.path.join(self.output_path, 'debug_images'), exist_ok=True)
-            
+
             if self.save_video:
                 os.makedirs(os.path.join(self.output_path, 'vis', f'{scene_id}'), exist_ok=True)
-            
+
             # get agent ready
             self.agent.reset(env)
 
             # info for npc
-            if 'dialog' in self.task or self.dialog_enabled: # gt of env for npc
+            if 'dialog' in self.task or self.dialog_enabled:  # gt of env for npc
                 with open(os.path.join(self.scene_summary, scene_id, 'object_dict.json'), 'r', encoding='utf-8') as f:
                     object_dict = json.load(f)
                 with open(os.path.join(self.scene_summary, scene_id, 'region_dict.json'), 'r', encoding='utf-8') as f:
@@ -165,13 +155,18 @@ class HabitatDialogEvaluator(DistributedEvaluator):
             step_id = 0
 
             path_list = []
-            vis_frames = []
-            action_list = [] # params for saving results
+            action_list = []  # params for saving results
 
             while not env._env.episode_over and step_id <= self.max_steps_per_episode:
                 agent_state = env._env.sim.get_agent_state()
                 path_list.append(agent_state.position.tolist())
-                info = {'step': step_id, 'agent state': agent_state, 'episode_instruction': episode_instruction, 'output_path': os.path.join(self.output_path, 'action', f'{scene_id}', f'{episode_id}.txt'), 'info': env.get_metrics()}
+                info = {
+                    'step': step_id,
+                    'agent state': agent_state,
+                    'episode_instruction': episode_instruction,
+                    'output_path': os.path.join(self.output_path, 'action', f'{scene_id}', f'{episode_id}.txt'),
+                    'info': env.get_metrics(),
+                }
                 action = self.agent.step(obs, env, info=info)
                 print("step_id", step_id, "action", action)
                 action_list.append(action)
@@ -182,22 +177,22 @@ class HabitatDialogEvaluator(DistributedEvaluator):
                     obs, reward, done, info = env.step(action)
                     continue
                 elif action == 6:
-                    if len(self.agent.dialogs)/2>=self.turn:
+                    if len(self.agent.dialogs) / 2 >= self.turn:
                         npc_answer = 'Sorry, you have reached the question limit. No further answers are available.'
-                    else: 
+                    else:
                         path_description, pl = get_path_description_(env._env, object_dict, region_dict)
                         task_finish = obs['semantic'][0].sum() > 0 and pl < 3
                         npc_answer = self.npc.answer_question(
-                                                                question=self.agent.question,
-                                                                instance_id=env._env.current_episode.instruction.instance_id[0],
-                                                                object_dict=object_dict,
-                                                                task_done=task_finish,
-                                                                path_description=path_description,
-                                                                mode="two_turn",
-                                                            )
+                            question=self.agent.question,
+                            instance_id=env._env.current_episode.instruction.instance_id[0],
+                            object_dict=object_dict,
+                            task_done=task_finish,
+                            path_description=path_description,
+                            mode="two_turn",
+                        )
                     if npc_answer is None:
                         npc_answer = 'Sorry, I can not answer your question now.'
-                    
+
                     with open(os.path.join(self.output_path, 'action', f'{scene_id}', f'{episode_id}.txt'), 'a') as f:
                         f.write(npc_answer + "\n")
                     obs['npc_answer'] = npc_answer
@@ -222,19 +217,18 @@ class HabitatDialogEvaluator(DistributedEvaluator):
                 "episode_instruction": episode_instruction,
                 "path": path_list,
                 "action": action_list,
-                "object_category": episode.object_category if 'vln' not in self.task else ''
+                "object_category": episode.object_category if 'vln' not in self.task else '',
             }
-            with open(os.path.join(self.output_path, f'result.json'), 'a') as f:
+            with open(os.path.join(self.output_path, 'result.json'), 'a') as f:
                 f.write(json.dumps(result) + "\n")
 
         env.close()
-        return (
-            torch.tensor(sucs).to(self.device),
-            torch.tensor(spls).to(self.device),
-            torch.tensor(oss).to(self.device),
-            torch.tensor(nes).to(self.device),
-            torch.tensor(len(sucs)).to(self.device),
-        )
+        return {
+            "sucs": torch.tensor(sucs).to(self.agent.device),  # shape [N_local]
+            "spls": torch.tensor(spls).to(self.agent.device),  # shape [N_local]
+            "oss": torch.tensor(oss).to(self.agent.device),  # shape [N_local]
+            "nes": torch.tensor(nes).to(self.agent.device),  # shape [N_local]
+        }
 
     def calc_metrics(self, global_metrics: dict) -> dict:
         """
