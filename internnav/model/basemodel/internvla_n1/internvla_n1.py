@@ -221,19 +221,6 @@ class InternVLAN1ForCausalLM(Qwen2_5_VLForConditionalGeneration, InternVLAN1Meta
 
         loss = None
         if labels is not None:
-            # # Upcast to float if we need to compute the loss to avoid potential precision issues
-            # logits = logits.float()
-            # # Shift so that tokens < n predict n
-            # shift_logits = logits[..., :-1, :].contiguous()
-            # shift_labels = labels[..., 1:].contiguous()
-            # # Flatten the tokens
-            # loss_fct = torch.nn.CrossEntropyLoss()
-            # shift_logits = shift_logits.view(-1, self.config.vocab_size)
-            # shift_labels = shift_labels.view(-1)
-            # # Enable model parallelism
-            # shift_labels = shift_labels.to(shift_logits.device)
-            # loss = loss_fct(shift_logits, shift_labels)
-
             traj_hidden_states = []
             for b in range(hidden_states.shape[0]):
                 traj_hidden_states.append(hidden_states[b, t_s_pos[b] : t_s_pos[b] + self.config.n_query, :])

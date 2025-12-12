@@ -6,7 +6,7 @@ eval_cfg = EvalCfg(
         model_name='internvla_n1',
         model_settings={
             "mode": "system2",  # inference mode: dual_system or system2
-            "model_path": "checkpoints/checkpoints_weimeng/InternVLA-N1-System2",  # path to model checkpoint
+            "model_path": "checkpoints/InternVLA-N1-System2",  # path to model checkpoint
             "num_history": 8,
             "resize_w": 384,  # image resize width
             "resize_h": 384,  # image resize height

@@ -298,8 +298,6 @@ class InternVLAN1Agent(Agent):
                 if self.sys1_infer_times > 0:
                     self.dual_forward_step += 1
 
-            print('Output action:', output, self.dual_forward_step)
-
         else:
             self.look_down = False
             # 2. If output is in latent form, execute latent S1
