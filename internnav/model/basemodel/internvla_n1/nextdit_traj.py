@@ -315,11 +315,7 @@ class LuminaNextDiT2DModel(ModelMixin, ConfigMixin):
             encoder_hidden_states (torch.Tensor): Tensor of caption features of shape (N, D).
             encoder_mask (torch.Tensor): Tensor of caption masks of shape (N, L).
         """
-        # hidden_states = torch.randn((16,1792,16,16)).to(timestep.device).bfloat16()
-        # hidden_states, mask, img_size, image_rotary_emb = self.patch_embedder(hidden_states, image_rotary_emb)
-        # torch.Size([16, 256, 1792]) torch.Size([16, 256])
-        # image_rotary_emb = image_rotary_emb.to(hidden_states.device)
-        # breakpoint()
+
         mask = torch.ones(
             hidden_states.shape[0], hidden_states.shape[1], dtype=torch.int32, device=hidden_states.device
         )
@@ -365,15 +361,6 @@ class LuminaNextDiT2DModel(ModelMixin, ConfigMixin):
 
         hidden_states = self.norm_out(hidden_states, temb)
 
-        # unpatchify
-        # height_tokens = width_tokens = self.patch_size
-        # height, width = img_size[0]
-        # batch_size = hidden_states.size(0)
-        # sequence_length = (height // height_tokens) * (width // width_tokens)
-        # hidden_states = hidden_states[:, :sequence_length].view(
-        #     batch_size, height // height_tokens, width // width_tokens, height_tokens, width_tokens, self.out_channels
-        # )
-        # output = hidden_states.permute(0, 5, 1, 3, 2, 4).flatten(4, 5).flatten(2, 3)
         output = hidden_states
         if not return_dict:
             return (output,)

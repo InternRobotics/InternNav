@@ -17,7 +17,7 @@ eval_cfg = EvalCfg(
         env_type='habitat',
         env_settings={
             # habitat sim specifications - agent, sensors, tasks, measures etc. are defined in the habitat config file
-            'config_path': 'scripts/eval/configs/vln_rxr.yaml',
+            'config_path': 'scripts/eval/configs/vln_r2r.yaml',
         },
     ),
     eval_type='habitat_vln',
