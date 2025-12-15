@@ -20,7 +20,7 @@ from internnav.model import get_config, get_policy
 from internnav.model.utils.logger import MyLogger
 from internnav.model.utils.utils import load_dataset
 from internnav.trainer import CMATrainer, NavDPTrainer, RDPTrainer
-from scripts.train.configs import (
+from scripts.train.base_train.configs import (
     cma_exp_cfg,
     cma_plus_exp_cfg,
     navdp_exp_cfg,
