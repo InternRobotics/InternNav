@@ -28,7 +28,7 @@ from torchvision.transforms import v2
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
-from base import replace_qwen2_vl_attention_class
+from qwenvl_base import replace_qwen2_vl_attention_class
 from transformers import (
     AutoProcessor,
     Qwen2_5_VLForConditionalGeneration,
@@ -37,9 +37,9 @@ from transformers import (
     Trainer,
 )
 
-from internnav.dataset.internvla_n1_dataset_lerobot import make_supervised_data_module
+from internnav.dataset.internvla_n1_lerobot_dataset import make_supervised_data_module
 from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
-from internnav.qwenvl_trainer.internvla_n1_argument import (
+from internnav.trainer.internvla_n1_argument import (
     DataArguments,
     ModelArguments,
     TrainingArguments,
