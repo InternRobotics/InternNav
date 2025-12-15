@@ -4,7 +4,6 @@ CONFIG="scripts/eval/configs/habitat_dual_system_cfg.py"
 srun -p <YOUR_PARTITION_NAME> \
     --gres=gpu:8 \
     --ntasks=8 \
-    -x HOST-10-140-66-68,HOST-10-140-66-182,HOST-10-140-66-181 \
     --time=0-20:00:00 \
     --ntasks-per-node=8 \
     --cpus-per-task=16 \

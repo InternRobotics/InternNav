@@ -1,0 +1,8 @@
+accelerate==1.4.0
+depth-camera-filtering @ git+https://github.com/naokiyokoyama/depth_camera_filtering.git
+diffusers==0.32.2
+diffusion_policy @ git+https://github.com/real-stanford/diffusion_policy.git@5ba07ac6661db573af695b419a7947ecb704690f
+flash_attn==2.7.4.post1
+ftfy==6.3.1
+transformers==4.51.0
+dtw==1.4.0
