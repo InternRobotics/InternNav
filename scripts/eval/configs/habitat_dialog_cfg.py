@@ -47,8 +47,8 @@ eval_cfg = EvalCfg(
         # npc setting
         "base_url": 'http://35.220.164.252:3888/v1',
         "model_name": "gpt-4o",
-        "openai_api_key": 'internnav/internnav_habitat/simple_npc/api_key.txt',
-        "scene_summary": 'internnav/internnav_habitat/simple_npc/scene_summary',
+        "openai_api_key": 'internnav/habitat_vlln_extensions/simple_npc/api_key.txt',
+        "scene_summary": 'internnav/habitat_vlln_extensions/simple_npc/scene_summary',
         # distributed settings
         "port": "2333",  # communication port
         "dist_url": "env://",  # url for distributed setup
