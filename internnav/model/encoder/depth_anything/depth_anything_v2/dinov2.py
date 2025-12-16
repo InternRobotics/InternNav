@@ -7,18 +7,19 @@
 #   https://github.com/facebookresearch/dino/blob/main/vision_transformer.py
 #   https://github.com/rwightman/pytorch-image-models/tree/master/timm/models/vision_transformer.py
 
-from functools import partial
-import math
 import logging
-from typing import Sequence, Tuple, Union, Callable
+import math
+from functools import partial
+from typing import Callable, Sequence, Tuple, Union
 
 import torch
 import torch.nn as nn
 import torch.utils.checkpoint
 from torch.nn.init import trunc_normal_
 
-from .dinov2_layers import Mlp, PatchEmbed, SwiGLUFFNFused, MemEffAttention, NestedTensorBlock as Block
-
+from .dinov2_layers import MemEffAttention, Mlp
+from .dinov2_layers import NestedTensorBlock as Block
+from .dinov2_layers import PatchEmbed, SwiGLUFFNFused
 
 logger = logging.getLogger("dinov2")
 
@@ -165,8 +166,7 @@ class DinoVisionTransformer(nn.Module):
         self.norm = norm_layer(embed_dim)
         self.head = nn.Identity()
 
-        # TODO: Hack for navdp training using transformers 4.51.0
-        # self.mask_token = nn.Parameter(torch.zeros(1, embed_dim))
+        self.mask_token = nn.Parameter(torch.zeros(1, embed_dim))
 
         self.init_weights()
 
@@ -194,7 +194,7 @@ class DinoVisionTransformer(nn.Module):
         # DINOv2 with register modify the interpolate_offset from 0.1 to 0.0
         w0, h0 = w0 + self.interpolate_offset, h0 + self.interpolate_offset
         # w0, h0 = w0 + 0.1, h0 + 0.1
-        
+
         sqrt_N = math.sqrt(N)
         sx, sy = float(w0) / sqrt_N, float(h0) / sqrt_N
         patch_pos_embed = nn.functional.interpolate(
@@ -202,9 +202,9 @@ class DinoVisionTransformer(nn.Module):
             scale_factor=(sx, sy),
             # (int(w0), int(h0)), # to solve the upsampling shape issue
             mode="bicubic",
-            antialias=self.interpolate_antialias
+            antialias=self.interpolate_antialias,
         )
-        
+
         assert int(w0) == patch_pos_embed.shape[-2]
         assert int(h0) == patch_pos_embed.shape[-1]
         patch_pos_embed = patch_pos_embed.permute(0, 2, 3, 1).view(1, -1, dim)
@@ -301,7 +301,7 @@ class DinoVisionTransformer(nn.Module):
         n: Union[int, Sequence] = 1,  # Layers or n last layers to take
         reshape: bool = False,
         return_class_token: bool = False,
-        norm=True
+        norm=True,
     ) -> Tuple[Union[torch.Tensor, Tuple[torch.Tensor]]]:
         if self.chunked_blocks:
             outputs = self._get_intermediate_layers_chunked(x, n)
@@ -310,7 +310,7 @@ class DinoVisionTransformer(nn.Module):
         if norm:
             outputs = [self.norm(out) for out in outputs]
         class_tokens = [out[:, 0] for out in outputs]
-        outputs = [out[:, 1 + self.num_register_tokens:] for out in outputs]
+        outputs = [out[:, 1 + self.num_register_tokens :] for out in outputs]
         if reshape:
             B, _, w, h = x.shape
             outputs = [
@@ -397,13 +397,8 @@ def vit_giant2(patch_size=16, num_register_tokens=0, **kwargs):
 
 
 def DINOv2(model_name):
-    model_zoo = {
-        "vits": vit_small, 
-        "vitb": vit_base, 
-        "vitl": vit_large, 
-        "vitg": vit_giant2
-    }
-    
+    model_zoo = {"vits": vit_small, "vitb": vit_base, "vitl": vit_large, "vitg": vit_giant2}
+
     return model_zoo[model_name](
         img_size=518,
         patch_size=14,
@@ -412,5 +407,5 @@ def DINOv2(model_name):
         block_chunks=0,
         num_register_tokens=0,
         interpolate_antialias=False,
-        interpolate_offset=0.1
+        interpolate_offset=0.1,
     )
