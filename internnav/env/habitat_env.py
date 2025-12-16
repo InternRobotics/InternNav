@@ -6,7 +6,7 @@ from internnav.configs.evaluator import EnvCfg, TaskCfg
 from internnav.env import base
 
 
-# @base.Env.register('habitat')
+@base.Env.register('habitat')
 class HabitatEnv(base.Env):
     def __init__(self, env_config: EnvCfg, task_config: TaskCfg = None):
         """

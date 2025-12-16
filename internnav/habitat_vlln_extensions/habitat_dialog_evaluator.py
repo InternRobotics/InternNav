@@ -20,14 +20,14 @@ try:
         FogOfWarConfig,
         TopDownMapMeasurementConfig,
     )
-    from habitat_vlln_extensions.utils.dialog_utils import (
-        get_config,
-        get_path_description_,
-    )
 
     # Import for Habitat registry side effects — do not remove
     import internnav.habitat_vlln_extensions.measures  # noqa: F401
     from internnav.habitat_vlln_extensions.simple_npc.simple_npc import SimpleNPC
+    from internnav.habitat_vlln_extensions.utils.dialog_utils import (
+        get_config,
+        get_path_description_,
+    )
 
     # isort: skip
 except Exception as e:
