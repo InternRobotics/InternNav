@@ -365,7 +365,7 @@ def enforce_simple_limit(conv, limit,
 class VLLN_Dataset(Dataset):
     def __init__(self, tokenizer: transformers.PreTrainedTokenizer, data_args):
         super(VLLN_Dataset, self).__init__()
-        dataset = data_args.vln_dataset_use.split(",")
+        dataset = data_args.iion_dataset_use.split(",")
         dataset_list = data_list(dataset)
         rank0_print(f"Loading datasets: {dataset_list}")
         self.video_max_total_pixels = getattr(
@@ -749,7 +749,7 @@ class FlattenedDataCollatorForSupervisedDataset(DataCollatorForSupervisedDataset
         return batch
 
 
-def make_supervised_data_module(
+def make_supervised_data_module_vlln(
     tokenizer: transformers.PreTrainedTokenizer, data_args
 ) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
