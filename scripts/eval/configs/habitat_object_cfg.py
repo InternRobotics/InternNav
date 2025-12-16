@@ -2,7 +2,6 @@ from internnav.configs.agent import AgentCfg
 from internnav.configs.evaluator import EnvCfg, EvalCfg, TaskCfg
 
 eval_cfg = EvalCfg(
-    remote_agent=False,
     agent=AgentCfg(
         server_port=8087,
         model_name='dialog',
@@ -19,7 +18,7 @@ eval_cfg = EvalCfg(
         },
     ),
     env=EnvCfg(
-        env_type='habitat',
+        env_type='habitat_vlln',
         env_settings={
             # habitat sim specifications - agent, sensors, tasks, measures etc. are defined in the habitat config file
             'baseline_config_path': 'scripts/eval/configs/gen_videos.yaml',

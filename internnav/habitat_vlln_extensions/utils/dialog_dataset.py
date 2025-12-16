@@ -8,7 +8,7 @@ from habitat.core.dataset import Dataset
 from habitat.core.registry import registry
 from habitat.datasets.utils import VocabDict
 
-from .dialog_episodes import (
+from ..dialog_episodes import (
     AgentPosition,
     DialogEpisode,
     DialogGoal,

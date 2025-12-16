@@ -18,9 +18,6 @@ def parse_args():
         default='scripts/eval/configs/h1_rdp_cfg.py',
         help='eval config file path, e.g. scripts/eval/configs/h1_cma_cfg.py',
     )
-    parser.add_argument('--port', type=int, default=None)
-    parser.add_argument('--host', type=str, default=None)
-    parser.add_argument('--dist_eval', action="store_true", default=False)
     return parser.parse_args()
 
 

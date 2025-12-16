@@ -11,8 +11,6 @@ from transformers.image_utils import to_numpy_array
 
 from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator import DistributedEvaluator, Evaluator
-from internnav.internnav_habitat.dialog_utils import get_config, get_path_description_
-from internnav.internnav_habitat.simple_npc.simple_npc import SimpleNPC
 from internnav.model.utils.vln_utils import open_image
 
 try:
@@ -22,9 +20,14 @@ try:
         FogOfWarConfig,
         TopDownMapMeasurementConfig,
     )
+    from habitat_vlln_extensions.utils.dialog_utils import (
+        get_config,
+        get_path_description_,
+    )
 
     # Import for Habitat registry side effects — do not remove
-    import internnav.internnav_habitat.measures  # noqa: F401
+    import internnav.habitat_vlln_extensions.measures  # noqa: F401
+    from internnav.habitat_vlln_extensions.simple_npc.simple_npc import SimpleNPC
 
     # isort: skip
 except Exception as e:
@@ -88,7 +91,7 @@ class HabitatDialogEvaluator(DistributedEvaluator):
         cfg.agent.model_settings['task'] = self.task
         cfg.agent.model_settings['sim_sensors_config'] = self.config.habitat.simulator.agents.main_agent.sim_sensors
         self.objectnav_instruction = "search for {target_object}."
-        super().__init__(cfg, init_agent=True, init_env=True)
+        super().__init__(cfg)
 
     def eval_action(self):
         """

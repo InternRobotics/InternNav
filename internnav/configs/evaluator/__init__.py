@@ -56,7 +56,6 @@ class EvalDatasetCfg(BaseModel):
 
 
 class EvalCfg(BaseModel):
-    remote_agent: Optional[bool] = None
     eval_type: Optional[str] = None
     eval_settings: Optional[Dict[str, Any]] = {}
     agent: Optional[AgentCfg] = None
