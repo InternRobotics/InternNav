@@ -1330,6 +1330,13 @@ class FlattenedDataCollatorForSupervisedDataset(DataCollatorForSupervisedDataset
         return batch
 
 class CombineDataset(Dataset):
+    """
+    Combine multiple datasets into a single dataset interface.
+
+    This class is used to merge different datasets for joint training.
+    It concatenates samples from all provided datasets and optionally shuffles
+    the global index mapping (without changing the underlying datasets).
+    """
     def __init__(self, datasets, shuffle=False):
         super(CombineDataset, self).__init__()
         self.datasets = datasets
@@ -1366,7 +1373,6 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, dat
     if data_args.vln_dataset_use:
         train_datasets.append(NavPixelGoalDataset(tokenizer=tokenizer, data_args=data_args))
     train_dataset = CombineDataset(train_datasets, shuffle=False)
-    # train_dataset = LazySupervisedDataset(tokenizer=tokenizer, data_args=data_args)
     if data_args.data_flatten:
         data_collator = FlattenedDataCollatorForSupervisedDataset(tokenizer=tokenizer)
         return dict(train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator)

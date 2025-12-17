@@ -30,7 +30,7 @@ min_pixels=3136
 iion_datasets=iion_split1,iion_split2 #,iion_split3
 
 # Output configuration
-run_name=InternVLA-N1-System2
+run_name=InternVLA-N1-vlln
 output_dir=checkpoints/${run_name}
 
 srun torchrun --nnodes=$SLURM_NNODES --nproc_per_node=8 \

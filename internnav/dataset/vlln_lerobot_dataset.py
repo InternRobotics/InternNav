@@ -749,21 +749,5 @@ class FlattenedDataCollatorForSupervisedDataset(DataCollatorForSupervisedDataset
         return batch
 
 
-def make_supervised_data_module_vlln(
-    tokenizer: transformers.PreTrainedTokenizer, data_args
-) -> Dict:
-    """Make dataset and collator for supervised fine-tuning."""
-    train_dataset = VLLN_Dataset(tokenizer=tokenizer, data_args=data_args)
-    if data_args.data_flatten:
-        data_collator = FlattenedDataCollatorForSupervisedDataset(tokenizer=tokenizer)
-        return dict(
-            train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator
-        )
-    data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
-    return dict(
-        train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator
-    )
-
-
 if __name__ == "__main__":
     pass
