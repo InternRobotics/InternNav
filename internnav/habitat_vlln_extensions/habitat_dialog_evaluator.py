@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 
+import numpy as np
 import torch
 from PIL import Image
 
@@ -14,6 +15,10 @@ try:
         CollisionsMeasurementConfig,
         FogOfWarConfig,
         TopDownMapMeasurementConfig,
+    )
+    from habitat.utils.visualizations.utils import (
+        images_to_video,
+        observations_to_image,
     )
 
     # Import for Habitat registry side effects — do not remove
@@ -136,7 +141,6 @@ class HabitatDialogEvaluator(DistributedEvaluator):
             os.makedirs(os.path.join(self.output_path, 'check_sim'), exist_ok=True)
             Image.fromarray(obs['rgb']).save(os.path.join(self.output_path, 'check_sim', f'rgb_{self.rank}.jpg'))
             os.makedirs(os.path.join(self.output_path, 'action', f'{scene_id}'), exist_ok=True)
-            # os.makedirs(os.path.join(self.output_path, 'debug_images'), exist_ok=True)
 
             if self.save_video:
                 os.makedirs(os.path.join(self.output_path, 'vis', f'{scene_id}'), exist_ok=True)
@@ -153,12 +157,19 @@ class HabitatDialogEvaluator(DistributedEvaluator):
 
             # initialization
             step_id = 0
-
+            vis_frames = []
             path_list = []
             action_list = []  # params for saving results
 
             # ---------- 2. Episode step loop -----------
             while not env._env.episode_over and step_id <= self.max_steps_per_episode:
+                # save frames
+                info = env.get_metrics()
+                if info['top_down_map'] is not None and self.save_video:
+                    save_image = Image.fromarray(obs["rgb"]).convert('RGB')
+                    frame = observations_to_image({'rgb': np.asarray(save_image)}, info)
+                    vis_frames.append(frame)
+
                 agent_state = env._env.sim.get_agent_state()
                 path_list.append(agent_state.position.tolist())
                 info = {
@@ -166,7 +177,7 @@ class HabitatDialogEvaluator(DistributedEvaluator):
                     'agent state': agent_state,
                     'episode_instruction': episode_instruction,
                     'output_path': os.path.join(self.output_path, 'action', f'{scene_id}', f'{episode_id}.txt'),
-                    'info': env.get_metrics(),
+                    'info': info,
                 }
                 action = self.agent.step(obs, env, info=info)
                 print("step_id", step_id, "action", action)
@@ -224,6 +235,15 @@ class HabitatDialogEvaluator(DistributedEvaluator):
             }
             with open(os.path.join(self.output_path, 'result.json'), 'a') as f:
                 f.write(json.dumps(result) + "\n")
+            if self.save_video:
+                images_to_video(
+                    vis_frames,
+                    os.path.join(self.output_path, f'vis_{self.epoch}', f'{scene_id}'),
+                    f'{episode_id:04d}',
+                    fps=6,
+                    quality=9,
+                )
+            vis_frames.clear()
 
         env.close()
         return {
