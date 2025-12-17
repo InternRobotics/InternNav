@@ -143,7 +143,7 @@ class HabitatDialogEvaluator(DistributedEvaluator):
             os.makedirs(os.path.join(self.output_path, 'action', f'{scene_id}'), exist_ok=True)
 
             if self.save_video:
-                os.makedirs(os.path.join(self.output_path, 'vis', f'{scene_id}'), exist_ok=True)
+                os.makedirs(os.path.join(self.output_path, 'vis_{self.epoch}', f'{scene_id}'), exist_ok=True)
 
             # get agent ready
             self.agent.reset(env)
