@@ -16,6 +16,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchcodec.decoders import VideoDecoder
 from transformers.image_utils import to_numpy_array
+from .dataset_utils import parse_sampling_rate, read_jsonl
 from .vlln_lerobot_dataset import VLLN_Dataset
 from .rope2d import get_rope_index_2, get_rope_index_25
 
@@ -143,13 +144,6 @@ data_dict = {
 }
 
 
-def parse_sampling_rate(dataset_name):
-    match = re.search(r"%(\d+)$", dataset_name)
-    if match:
-        return int(match.group(1)) / 100.0
-    return 1.0
-
-
 def data_list(dataset_names):
     config_list = []
     for dataset_name in dataset_names:
@@ -178,11 +172,6 @@ local_rank = None
 def rank0_print(*args):
     if local_rank == 0:
         print(*args)
-
-
-def read_jsonl(path):
-    with open(path, "r") as f:
-        return [json.loads(line) for line in f]
 
 
 def preprocess_qwen_2_visual(
@@ -1329,7 +1318,7 @@ class FlattenedDataCollatorForSupervisedDataset(DataCollatorForSupervisedDataset
 
         return batch
 
-class CombineDataset(Dataset):
+class CombinedDataset(Dataset):
     """
     Combine multiple datasets into a single dataset interface.
 
@@ -1338,7 +1327,7 @@ class CombineDataset(Dataset):
     the global index mapping (without changing the underlying datasets).
     """
     def __init__(self, datasets, shuffle=False):
-        super(CombineDataset, self).__init__()
+        super(CombinedDataset, self).__init__()
         self.datasets = datasets
         self.lengths = [len(dataset) for dataset in datasets]
         self.cum_lengths = np.cumsum(self.lengths)
@@ -1372,7 +1361,7 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, dat
         train_datasets.append(VLLN_Dataset(tokenizer=tokenizer, data_args=data_args))
     if data_args.vln_dataset_use:
         train_datasets.append(NavPixelGoalDataset(tokenizer=tokenizer, data_args=data_args))
-    train_dataset = CombineDataset(train_datasets, shuffle=False)
+    train_dataset = CombinedDataset(train_datasets, shuffle=False)
     if data_args.data_flatten:
         data_collator = FlattenedDataCollatorForSupervisedDataset(tokenizer=tokenizer)
         return dict(train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator)

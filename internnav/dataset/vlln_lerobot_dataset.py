@@ -17,8 +17,8 @@ from torch.utils.data import Dataset
 from torchcodec.decoders import VideoDecoder
 from transformers.image_utils import to_numpy_array
 from bisect import bisect_left
-
 from .rope2d import get_rope_index_2, get_rope_index_25
+from .dataset_utils import parse_sampling_rate, read_jsonl
 
 # Define placeholders for dataset paths
 IION_split1 = {
@@ -48,28 +48,6 @@ data_dict = {
     "iion_split3": IION_split3,
 }
 
-
-def parse_sampling_rate(dataset_name):
-    match = re.search(r"%(\d+)$", dataset_name)
-    if match:
-        return int(match.group(1)) / 100.0
-    return 1.0
-
-
-def data_list(dataset_names):
-    config_list = []
-    for dataset_name in dataset_names:
-        sampling_rate = parse_sampling_rate(dataset_name)
-        dataset_name = re.sub(r"%(\d+)$", "", dataset_name)
-        if dataset_name in data_dict.keys():
-            config = data_dict[dataset_name].copy()
-            config["sampling_rate"] = sampling_rate
-            config_list.append(config)
-        else:
-            raise ValueError(f"do not find {dataset_name}")
-    return config_list
-
-
 IGNORE_INDEX = -100
 IMAGE_TOKEN_INDEX = 151655
 VIDEO_TOKEN_INDEX = 151656
@@ -81,288 +59,10 @@ _ORACLE_BLOCK = re.compile(r'<\|oracle\|>.*?<\|dialog_end\|>', re.DOTALL)
 local_rank = None
 
 
-def rank0_print(*args):
-    if local_rank == 0:
-        print(*args)
-
-
-def read_jsonl(path):
-    with open(path, "r") as f:
-        return [json.loads(line) for line in f]
-
-
-def preprocess_qwen_2_visual(
-    sources,
-    tokenizer: transformers.PreTrainedTokenizer,
-    grid_thw_image: List = [],
-    grid_thw_video: List = [],
-) -> Dict:
-    roles = {"human": "user", "gpt": "assistant"}
-    system_message = "You are a helpful assistant."
-
-    tokenizer = copy.deepcopy(tokenizer)
-    chat_template = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
-    tokenizer.chat_template = chat_template
-
-    visual_replicate_index_image = 0
-    visual_replicate_index_video = 0
-    input_ids, targets = [], []
-
-    for i, source in enumerate(sources):
-        try:
-            if roles[source[0]["from"]] != roles["human"]:
-                source = source[1:]
-        except:
-            print(sources)
-
-        input_id, target = [], []
-
-        input_id += tokenizer.apply_chat_template(
-            [{"role": "system", "content": system_message}]
-        )
-        target += [IGNORE_INDEX] * len(input_id)
-
-        for conv in source:
-            try:
-                role = conv["role"]
-                content = conv["content"]
-            except:
-                role = conv["from"]
-                content = conv["value"]
-
-            role = roles.get(role, role)
-            if role == "user":
-                if "<image>" in content:
-                    parts = content.split("<image>")
-                    new_parts = []
-                    for i in range(len(parts) - 1):
-                        new_parts.append(parts[i])
-                        replacement = (
-                            "<|vision_start|>"
-                            + f"<|image_pad|>"
-                            * grid_thw_image[visual_replicate_index_image]
-                            + "<|vision_end|>"
-                        )
-                        new_parts.append(replacement)
-                        visual_replicate_index_image += 1
-                    new_parts.append(parts[-1])
-                    content = "".join(new_parts)
-
-                if "<video>" in content:
-                    parts = content.split("<video>")
-                    new_parts = []
-                    for i in range(len(parts) - 1):
-                        new_parts.append(parts[i])
-                        replacement = (
-                            "<|vision_start|>"
-                            + f"<|video_pad|>"
-                            * grid_thw_video[visual_replicate_index_video]
-                            + "<|vision_end|>"
-                        )
-                        new_parts.append(replacement)
-                        visual_replicate_index_video += 1
-                    new_parts.append(parts[-1])
-                    content = "".join(new_parts)
-
-            conv = [{"role": role, "content": content}]
-            encode_id = tokenizer.apply_chat_template(conv)
-            input_id += encode_id
-            if role in ["user", "system"]:
-                target += [IGNORE_INDEX] * len(encode_id)
-            else:
-                target_mask = encode_id.copy()
-                target_mask[:3] = [IGNORE_INDEX] * 3
-                target += target_mask
-
-        assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
-        input_ids.append(input_id)
-        targets.append(target)
-
-    input_ids = torch.tensor(input_ids, dtype=torch.long)
-    targets = torch.tensor(targets, dtype=torch.long)
-
-    return dict(
-        input_ids=input_ids,
-        labels=targets,
-    )
-
-def clip_or_pad(arr, fixed_len):
-    T, D = arr.shape
-    if T >= fixed_len:
-        return arr[:fixed_len]
-    else:
-        pad = np.zeros((fixed_len - T, D), dtype=arr.dtype)
-        return np.concatenate([arr, pad], axis=0)
-
-
-def get_annotations_from_lerobot_data(data_path, pitch_1, pitch_2, height):
-    import pyarrow.parquet as pq
-    import pandas as pd
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    setting = f'{height}cm_{pitch_2}deg'
-    setting_horizon = setting.replace(str(pitch_2), str(pitch_1))
-    annotations = {
-        "axis_align_matrix": [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]],    
-        "episodes": []
-    }
-    scene_ids = [d for d in os.listdir(data_path) if os.path.isdir(os.path.join(data_path, d))]
-
-    def process_scene(scene_id):
-        scene_path = os.path.join(data_path, scene_id)
-        episodes = read_jsonl(os.path.join(scene_path, "meta", "episodes.jsonl"))
-        scene_annotations = []
-
-        for ep in episodes:
-            ep_id = ep["episode_index"]
-            ep_instructions = ep["tasks"][0].split(";")
-            ep_len = ep["length"]
-            ep_dialogs = ep["dialogs"]
-            parquet_path = os.path.join(scene_path, "data", f"chunk-{ep_id // 1000:03d}", f"episode_{ep_id:06d}.parquet")
-            
-            table = pq.read_table(parquet_path)
-            df = table.to_pandas()
-
-            ep_actions = df["action"].tolist()
-            pose_key = f"pose.{setting}"
-            goal_key = f"goal.{setting}"
-            relative_goal_frame_id_key = f"relative_goal_frame_id.{setting}"
-            
-            ep_poses_horizon = df[f"pose.{setting_horizon}"].apply(lambda x: x.tolist()).tolist()
-            if pose_key in df.columns and goal_key in df.columns and relative_goal_frame_id_key in df.columns:
-                ep_poses = df[pose_key].apply(lambda x: x.tolist()).tolist()
-                ep_pixel_goals = [
-                    [df[relative_goal_frame_id_key][idx].tolist(), df[goal_key][idx].tolist()]
-                    for idx in range(len(df))
-                ]
-            else:
-                print(f"Warning: Missing data for setting {setting} in episode {ep_id}, filling with defaults.")
-
-            assert len(ep_actions) == ep_len, f"Action length mismatch in episode {ep_id}"
-
-            episode = {
-                "id": ep_id,
-                "video": f"{data_path}/{scene_id}/videos/chunk-{ep_id // 1000:03d}",
-                "instructions": ep_instructions[0],
-                "actions": ep_actions,
-                "length": ep_len,
-                f"poses_{setting}": ep_poses,
-                f"poses_{setting_horizon}": ep_poses_horizon,
-                "pixel_goals": ep_pixel_goals,
-                "dialogs": ep_dialogs
-            }
-            scene_annotations.append(episode)
-        
-        return scene_annotations
-
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {executor.submit(process_scene, scene_id): scene_id for scene_id in scene_ids}
-        for future in as_completed(futures):
-            scene_id = futures[future]
-            try:
-                scene_annotations = future.result()
-                annotations["episodes"].extend(scene_annotations)
-            except Exception as e:
-                print(f"Error processing scene {scene_id}: {e}")
-
-    return annotations
-
-def get_turn_actions(actions, start_frame_id, num_future_steps):
-    if not (0 <= start_frame_id < len(actions)):
-        return []
-    s = actions[start_frame_id : start_frame_id + num_future_steps]
-    first = s[0]
-    i = next((k for k, x in enumerate(s) if x != first), len(s))
-    return s[:i]
-
-def sort_dialogs_by_true_idx(dialogs):
-    groups = []
-    i, n = 0, len(dialogs)
-    while i < n:
-        groups.append(dialogs[i:i+2])
-        i += 2
-
-    def group_key(g):
-        return max(d.get("true_idx", float("inf")) for d in g)
-
-    keyed = [(g, group_key(g)) for g in groups]
-    keyed.sort(key=lambda x: x[1])
-
-    sorted_dialogs = []
-    unique_true_idx = []
-    seen = set()
-    for g, k in keyed:
-        sorted_dialogs.extend(g)
-        if k not in seen:
-            unique_true_idx.append(k)
-            seen.add(k)
-
-    return sorted_dialogs, unique_true_idx
-
-def get_history_dialogs(start_frame_id, dialogs, dia_idx):
-    i = bisect_left(dia_idx, start_frame_id) 
-    if i != 0:
-        return dialogs[:2*i]      
-    else:
-        return []
-
-def build_dialog_history(history_id, dialog_id, dialogs):
-    placeholder = [''] * (len(history_id)+1)
-    for n in dialog_id:
-        pos = history_id.index(n)
-        output = ""
-        for dialog in dialogs:
-            if dialog['true_idx'] == n:
-                output += f"<|{dialog['role']}|>{dialog['message']}"
-        placeholder[pos+1] = "<|dialog_start|>" + output + "<|dialog_end|>"
-    placeholder = ('<image>\n').join(placeholder)
-    return placeholder
-
-def enforce_simple_limit(conv, limit,
-    sorry_msg: str = "Sorry, you have reached the question limit. No further answers are available."):
-
-    conv = [dict(m) for m in conv[0]]  
-    answer_indices = []
-    replaced_indices = []
-
-    first_val = conv[0].get('value', '') if len(conv) >= 1 else ''
-    blocks = list(_ORACLE_BLOCK.finditer(first_val))
-    for i in range(len(blocks)):
-        answer_indices.append(('oracle', (0, i)))
-
-    talk_human_indices: List[int] = []
-    for k in range(len(conv) - 1):
-        if conv[k].get('from', '') == 'gpt' and conv[k].get('value', '').lstrip().startswith('<talk>'):
-            if conv[k + 1].get('from', '') == 'human':
-                talk_human_indices.append(k + 1)
-                answer_indices.append(('more', k + 1))
-
-    total_answers = len(answer_indices)
-    to_replace = {idx for idx, _ in enumerate(answer_indices) if idx >= limit}
-
-    if blocks:
-        block_idx = -1
-        def _repl(m):
-            nonlocal block_idx
-            block_idx += 1  
-            if block_idx in to_replace:
-                replaced_indices.append(('oracle', (0, block_idx)))
-                return '<|oracle|>' + sorry_msg + '<|dialog_end|>'
-            return m.group(0)
-
-        new_first_val = _ORACLE_BLOCK.sub(_repl, first_val)
-        if new_first_val != first_val:
-            conv[0]['value'] = new_first_val
-
-    for global_idx, (tag, loc) in enumerate(answer_indices):
-        if tag == 'more' and global_idx in to_replace:
-            human_idx = loc
-            if 0 <= human_idx < len(conv):
-                conv[human_idx]['value'] = sorry_msg
-                replaced_indices.append(('more', human_idx))
-
-    return [conv]
-
 class VLLN_Dataset(Dataset):
+    """
+    Dataset for Vision Language-Language Navigation (VL-LN) / IION-style training.
+    """
     def __init__(self, tokenizer: transformers.PreTrainedTokenizer, data_args):
         super(VLLN_Dataset, self).__init__()
         dataset = data_args.iion_dataset_use.split(",")
@@ -591,162 +291,307 @@ class VLLN_Dataset(Dataset):
         return data_dict
 
 
-def pad_and_cat(tensor_list):
-    max_length = max(tensor.shape[2] for tensor in tensor_list)
-
-    padded_tensors = []
-    for tensor in tensor_list:
-        pad_length = max_length - tensor.shape[2]
-        padded_tensor = torch.nn.functional.pad(tensor, (0, pad_length), "constant", 1)
-        padded_tensors.append(padded_tensor)
-
-    stacked_tensor = torch.cat(padded_tensors, dim=1)
-
-    return stacked_tensor
-
-
-@dataclass
-class DataCollatorForSupervisedDataset(object):
-    """Collate examples for supervised fine-tuning."""
-
-    tokenizer: transformers.PreTrainedTokenizer
-
-    def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        input_ids, labels, position_ids = tuple(
-            [instance[key] for instance in instances]
-            for key in ("input_ids", "labels", "position_ids")
-        )
-        input_ids = [ids.squeeze(0) for ids in input_ids]
-        labels = [ids.squeeze(0) for ids in labels]
-        input_ids = torch.nn.utils.rnn.pad_sequence(
-            input_ids, batch_first=True, padding_value=self.tokenizer.pad_token_id
-        )
-        labels = torch.nn.utils.rnn.pad_sequence(
-            labels, batch_first=True, padding_value=IGNORE_INDEX
-        )
-        position_ids = pad_and_cat(position_ids)
-        input_ids = input_ids[:, : self.tokenizer.model_max_length]
-        labels = labels[:, : self.tokenizer.model_max_length]
-        position_ids = position_ids[:, :, : self.tokenizer.model_max_length]
-        batch = dict(
-            input_ids=input_ids,
-            labels=labels,
-            attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
-        )
-        images = list(
-            instance["pixel_values"]
-            for instance in instances
-            if "pixel_values" in instance
-        )
-        videos = list(
-            instance["pixel_values_videos"]
-            for instance in instances
-            if "pixel_values_videos" in instance
-        )
-        if len(images) != 0:
-            concat_images = torch.cat([image for image in images], dim=0)
-            grid_thw = [
-                instance["image_grid_thw"]
-                for instance in instances
-                if "image_grid_thw" in instance
-            ]
-            grid_thw = torch.cat(grid_thw, dim=0)
+def data_list(dataset_names):
+    config_list = []
+    for dataset_name in dataset_names:
+        sampling_rate = parse_sampling_rate(dataset_name)
+        dataset_name = re.sub(r"%(\d+)$", "", dataset_name)
+        if dataset_name in data_dict.keys():
+            config = data_dict[dataset_name].copy()
+            config["sampling_rate"] = sampling_rate
+            config_list.append(config)
         else:
-            concat_images = None
-            grid_thw = None
-
-        if len(videos) != 0:
-            concat_videos = torch.cat([video for video in videos], dim=0)
-            video_grid_thw = [
-                instance["video_grid_thw"]
-                for instance in instances
-                if "video_grid_thw" in instance
-            ]
-            video_grid_thw = torch.cat(video_grid_thw, dim=0)
-        else:
-            concat_videos = None
-            video_grid_thw = None
-
-        batch["pixel_values"] = concat_images
-        batch["image_grid_thw"] = grid_thw
-        batch["pixel_values_videos"] = concat_videos
-        batch["video_grid_thw"] = video_grid_thw
-        batch["position_ids"] = position_ids
-        return batch
+            raise ValueError(f"do not find {dataset_name}")
+    return config_list
 
 
-@dataclass
-class FlattenedDataCollatorForSupervisedDataset(DataCollatorForSupervisedDataset):
-    """Collate examples into packed sequence with multi-modal support."""
+def rank0_print(*args):
+    if local_rank == 0:
+        print(*args)
 
-    tokenizer: transformers.PreTrainedTokenizer
 
-    def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        input_ids, labels, position_ids, attention_mask = tuple(
-            [instance[key] for instance in instances]
-            for key in ("input_ids", "labels", "position_ids", "attention_mask")
+def preprocess_qwen_2_visual(
+    sources,
+    tokenizer: transformers.PreTrainedTokenizer,
+    grid_thw_image: List = [],
+    grid_thw_video: List = [],
+) -> Dict:
+    roles = {"human": "user", "gpt": "assistant"}
+    system_message = "You are a helpful assistant."
+
+    tokenizer = copy.deepcopy(tokenizer)
+    chat_template = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
+    tokenizer.chat_template = chat_template
+
+    visual_replicate_index_image = 0
+    visual_replicate_index_video = 0
+    input_ids, targets = [], []
+
+    for i, source in enumerate(sources):
+        try:
+            if roles[source[0]["from"]] != roles["human"]:
+                source = source[1:]
+        except:
+            print(sources)
+
+        input_id, target = [], []
+
+        input_id += tokenizer.apply_chat_template(
+            [{"role": "system", "content": system_message}]
         )
-        attention_mask = list(
-            itertools.chain(
-                *(
-                    instance["attention_mask"]
-                    for instance in instances
-                    if "attention_mask" in instance
-                )
-            )
-        )
-        seq_lens = torch.tensor([0] + attention_mask, dtype=torch.int32)
-        cumsum_seq_lens = torch.cumsum(seq_lens, dim=0, dtype=torch.int32)
-        input_ids = torch.cat(input_ids, dim=1)
-        labels = torch.cat(labels, dim=1)
-        position_ids = torch.cat(position_ids, dim=2)
+        target += [IGNORE_INDEX] * len(input_id)
 
-        batch = dict(
-            input_ids=input_ids,
-            labels=labels,
-            attention_mask=cumsum_seq_lens,
-            position_ids=position_ids,
-        )
-        images = list(
-            instance["pixel_values"]
-            for instance in instances
-            if "pixel_values" in instance
-        )
-        videos = list(
-            instance["pixel_values_videos"]
-            for instance in instances
-            if "pixel_values_videos" in instance
-        )
-        if len(images) != 0:
-            concat_images = torch.cat([image for image in images], dim=0)
-            grid_thw = [
-                instance["image_grid_thw"]
-                for instance in instances
-                if "image_grid_thw" in instance
-            ]
-            grid_thw = torch.cat(grid_thw, dim=0)
-        else:
-            concat_images = None
-            grid_thw = None
+        for conv in source:
+            try:
+                role = conv["role"]
+                content = conv["content"]
+            except:
+                role = conv["from"]
+                content = conv["value"]
 
-        if len(videos) != 0:
-            concat_videos = torch.cat([video for video in videos], dim=0)
-            video_grid_thw = [
-                instance["video_grid_thw"]
-                for instance in instances
-                if "video_grid_thw" in instance
-            ]
-            video_grid_thw = torch.cat(video_grid_thw, dim=0)
-        else:
-            concat_videos = None
-            video_grid_thw = None
+            role = roles.get(role, role)
+            if role == "user":
+                if "<image>" in content:
+                    parts = content.split("<image>")
+                    new_parts = []
+                    for i in range(len(parts) - 1):
+                        new_parts.append(parts[i])
+                        replacement = (
+                            "<|vision_start|>"
+                            + f"<|image_pad|>"
+                            * grid_thw_image[visual_replicate_index_image]
+                            + "<|vision_end|>"
+                        )
+                        new_parts.append(replacement)
+                        visual_replicate_index_image += 1
+                    new_parts.append(parts[-1])
+                    content = "".join(new_parts)
 
-        batch["pixel_values"] = concat_images
-        batch["image_grid_thw"] = grid_thw
-        batch["pixel_values_videos"] = concat_videos
-        batch["video_grid_thw"] = video_grid_thw
+                if "<video>" in content:
+                    parts = content.split("<video>")
+                    new_parts = []
+                    for i in range(len(parts) - 1):
+                        new_parts.append(parts[i])
+                        replacement = (
+                            "<|vision_start|>"
+                            + f"<|video_pad|>"
+                            * grid_thw_video[visual_replicate_index_video]
+                            + "<|vision_end|>"
+                        )
+                        new_parts.append(replacement)
+                        visual_replicate_index_video += 1
+                    new_parts.append(parts[-1])
+                    content = "".join(new_parts)
 
-        return batch
+            conv = [{"role": role, "content": content}]
+            encode_id = tokenizer.apply_chat_template(conv)
+            input_id += encode_id
+            if role in ["user", "system"]:
+                target += [IGNORE_INDEX] * len(encode_id)
+            else:
+                target_mask = encode_id.copy()
+                target_mask[:3] = [IGNORE_INDEX] * 3
+                target += target_mask
+
+        assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
+        input_ids.append(input_id)
+        targets.append(target)
+
+    input_ids = torch.tensor(input_ids, dtype=torch.long)
+    targets = torch.tensor(targets, dtype=torch.long)
+
+    return dict(
+        input_ids=input_ids,
+        labels=targets,
+    )
+
+
+def get_annotations_from_lerobot_data(data_path, pitch_1, pitch_2, height):
+    """
+    Load LeRobot-style dataset and convert it into a unified annotations dict.
+    """
+    import pyarrow.parquet as pq
+    import pandas as pd
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    setting = f'{height}cm_{pitch_2}deg'
+    setting_horizon = setting.replace(str(pitch_2), str(pitch_1))
+    annotations = {
+        "axis_align_matrix": [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]],    
+        "episodes": []
+    }
+    scene_ids = [d for d in os.listdir(data_path) if os.path.isdir(os.path.join(data_path, d))]
+
+    def process_scene(scene_id):
+        scene_path = os.path.join(data_path, scene_id)
+        episodes = read_jsonl(os.path.join(scene_path, "meta", "episodes.jsonl"))
+        scene_annotations = []
+
+        for ep in episodes:
+            ep_id = ep["episode_index"]
+            ep_instructions = ep["tasks"][0].split(";")
+            ep_len = ep["length"]
+            ep_dialogs = ep["dialogs"]
+            parquet_path = os.path.join(scene_path, "data", f"chunk-{ep_id // 1000:03d}", f"episode_{ep_id:06d}.parquet")
+            
+            table = pq.read_table(parquet_path)
+            df = table.to_pandas()
+
+            ep_actions = df["action"].tolist()
+            pose_key = f"pose.{setting}"
+            goal_key = f"goal.{setting}"
+            relative_goal_frame_id_key = f"relative_goal_frame_id.{setting}"
+            
+            ep_poses_horizon = df[f"pose.{setting_horizon}"].apply(lambda x: x.tolist()).tolist()
+            if pose_key in df.columns and goal_key in df.columns and relative_goal_frame_id_key in df.columns:
+                ep_poses = df[pose_key].apply(lambda x: x.tolist()).tolist()
+                ep_pixel_goals = [
+                    [df[relative_goal_frame_id_key][idx].tolist(), df[goal_key][idx].tolist()]
+                    for idx in range(len(df))
+                ]
+            else:
+                print(f"Warning: Missing data for setting {setting} in episode {ep_id}, filling with defaults.")
+
+            assert len(ep_actions) == ep_len, f"Action length mismatch in episode {ep_id}"
+
+            episode = {
+                "id": ep_id,
+                "video": f"{data_path}/{scene_id}/videos/chunk-{ep_id // 1000:03d}",
+                "instructions": ep_instructions[0],
+                "actions": ep_actions,
+                "length": ep_len,
+                f"poses_{setting}": ep_poses,
+                f"poses_{setting_horizon}": ep_poses_horizon,
+                "pixel_goals": ep_pixel_goals,
+                "dialogs": ep_dialogs
+            }
+            scene_annotations.append(episode)
+        
+        return scene_annotations
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {executor.submit(process_scene, scene_id): scene_id for scene_id in scene_ids}
+        for future in as_completed(futures):
+            scene_id = futures[future]
+            try:
+                scene_annotations = future.result()
+                annotations["episodes"].extend(scene_annotations)
+            except Exception as e:
+                print(f"Error processing scene {scene_id}: {e}")
+
+    return annotations
+
+
+def get_turn_actions(actions, start_frame_id, num_future_steps):
+    """
+    Return the longest prefix of future actions that are identical to the first action.
+    """
+    if not (0 <= start_frame_id < len(actions)):
+        return []
+    s = actions[start_frame_id : start_frame_id + num_future_steps]
+    first = s[0]
+    i = next((k for k, x in enumerate(s) if x != first), len(s))
+    return s[:i]
+
+def sort_dialogs_by_true_idx(dialogs):
+    """
+    Sort dialog messages by their true_idx in pairs.
+    """
+    groups = []
+    i, n = 0, len(dialogs)
+    while i < n:
+        groups.append(dialogs[i:i+2])
+        i += 2
+
+    def group_key(g):
+        return max(d.get("true_idx", float("inf")) for d in g)
+
+    keyed = [(g, group_key(g)) for g in groups]
+    keyed.sort(key=lambda x: x[1])
+
+    sorted_dialogs = []
+    unique_true_idx = []
+    seen = set()
+    for g, k in keyed:
+        sorted_dialogs.extend(g)
+        if k not in seen:
+            unique_true_idx.append(k)
+            seen.add(k)
+
+    return sorted_dialogs, unique_true_idx
+
+
+def get_history_dialogs(start_frame_id, dialogs, dia_idx):
+    i = bisect_left(dia_idx, start_frame_id) 
+    if i != 0:
+        return dialogs[:2*i]      
+    else:
+        return []
+
+
+def build_dialog_history(history_id, dialog_id, dialogs):
+    """
+    Build a serialized string that interleaves visual placeholders (<image>) with
+    dialog blocks (<|dialog_start|>...<|dialog_end|>) aligned to history frames.
+    """
+    placeholder = [''] * (len(history_id)+1)
+    for n in dialog_id:
+        pos = history_id.index(n)
+        output = ""
+        for dialog in dialogs:
+            if dialog['true_idx'] == n:
+                output += f"<|{dialog['role']}|>{dialog['message']}"
+        placeholder[pos+1] = "<|dialog_start|>" + output + "<|dialog_end|>"
+    placeholder = ('<image>\n').join(placeholder)
+    return placeholder
+
+
+def enforce_simple_limit(conv, limit,
+    sorry_msg: str = "Sorry, you have reached the question limit. No further answers are available."):
+    """
+    Truncate / limit the number of answer-like items (oracle blocks and talk-human pairs)
+    by replacing extra parts with a fixed apology message.
+    """
+    conv = [dict(m) for m in conv[0]]  
+    answer_indices = []
+    replaced_indices = []
+
+    first_val = conv[0].get('value', '') if len(conv) >= 1 else ''
+    blocks = list(_ORACLE_BLOCK.finditer(first_val))
+    for i in range(len(blocks)):
+        answer_indices.append(('oracle', (0, i)))
+
+    talk_human_indices: List[int] = []
+    for k in range(len(conv) - 1):
+        if conv[k].get('from', '') == 'gpt' and conv[k].get('value', '').lstrip().startswith('<talk>'):
+            if conv[k + 1].get('from', '') == 'human':
+                talk_human_indices.append(k + 1)
+                answer_indices.append(('more', k + 1))
+
+    total_answers = len(answer_indices)
+    to_replace = {idx for idx, _ in enumerate(answer_indices) if idx >= limit}
+
+    if blocks:
+        block_idx = -1
+        def _repl(m):
+            nonlocal block_idx
+            block_idx += 1  
+            if block_idx in to_replace:
+                replaced_indices.append(('oracle', (0, block_idx)))
+                return '<|oracle|>' + sorry_msg + '<|dialog_end|>'
+            return m.group(0)
+
+        new_first_val = _ORACLE_BLOCK.sub(_repl, first_val)
+        if new_first_val != first_val:
+            conv[0]['value'] = new_first_val
+
+    for global_idx, (tag, loc) in enumerate(answer_indices):
+        if tag == 'more' and global_idx in to_replace:
+            human_idx = loc
+            if 0 <= human_idx < len(conv):
+                conv[human_idx]['value'] = sorry_msg
+                replaced_indices.append(('more', human_idx))
+
+    return [conv]
 
 
 if __name__ == "__main__":
