@@ -16,7 +16,9 @@ from ..configs.controllers.flash_controller import VlnMoveByFlashControllerCfg
 class VlnMoveByFlashCollisionController(BaseController):  # codespell:ignore
     """
     Discrete Controller, direct set robot world position to achieve teleport-type locomotion.
-       a general controller adaptable to different type of robots.
+    This controller adds collision checking based on depth map from a top-down camera before each flash move.
+    If there is an obstacle at the target position, the flash action will be aborted.
+    a general controller adaptable to different type of robots.
     """
 
     def __init__(self, config: VlnMoveByFlashControllerCfg, robot: BaseRobot, scene: IScene) -> None:
@@ -28,8 +30,6 @@ class VlnMoveByFlashCollisionController(BaseController):  # codespell:ignore
         self.rotation_angle = config.rotation_angle if config.rotation_angle is not None else 15.0  # in degrees
         self.physics_frequency = config.physics_frequency if config.physics_frequency is not None else 240
 
-        # self.forward_speed = config.forward_speed if config.forward_speed is not None else 0.25
-        # self.rotation_speed = config.rotation_speed if config.rotation_speed is not None else 1.0
         self.forward_speed = self.forward_distance / self.steps_per_action * self.physics_frequency
         self.rotation_speed = np.deg2rad(
             self.rotation_angle / self.steps_per_action * self.physics_frequency
@@ -87,7 +87,8 @@ class VlnMoveByFlashCollisionController(BaseController):  # codespell:ignore
         return new_robot_position, new_robot_rotation
 
     def reset_robot_state(self, position, orientation):
-        """Set robot state to the new position and orientation.
+        """
+        Set robot state to the new position and orientation.
 
         Args:
             position, orientation: np.array, issac_robot.get_world_pose()
@@ -99,8 +100,26 @@ class VlnMoveByFlashCollisionController(BaseController):  # codespell:ignore
         robot._articulation.set_joint_positions(np.zeros(len(robot.dof_names)))
         robot._articulation.set_joint_efforts(np.zeros(len(robot.dof_names)))
 
-    def get_map_info(self, topdown_global_map_camera, dilation_iterations=0, voxel_size=0.1, agent_radius=0.25):
-        # 获取 free_map
+    def get_map_info(self, topdown_global_map_camera):
+        """
+        Generate a binary free-space map from a top-down depth camera. Key function for collision checking.
+
+        This function converts depth observations from a top-down global map camera
+        into a 2D binary occupancy map, where free space is determined by height
+        thresholds relative to the robot base.
+
+        Args:
+            topdown_global_map_camera: A top-down depth camera instance providing
+                depth observations via `get_data()`.
+
+        Returns:
+            np.ndarray:
+                A 2D binary map with the same spatial resolution as the input depth
+                image. Values are:
+                - 1: free space
+                - 0: occupied or invalid space
+        """
+
         min_height = self.robot.get_robot_base().get_world_pose()[0][2] + 0.6  # default robot height
         max_height = 1.55 + 8
         data_info = topdown_global_map_camera.get_data()
@@ -114,8 +133,7 @@ class VlnMoveByFlashCollisionController(BaseController):  # codespell:ignore
             min_height = base_height - foot_height + 0.05
             depth_mask = (depth >= min_height) & (depth < max_height)
         free_map = np.zeros_like(depth, dtype=int)
-        free_map[flat_surface_mask & depth_mask] = 1
-        # free_map[robot_mask == 1] = 1    # This mask is too large, cover all obstacles around the robot
+        free_map[flat_surface_mask & depth_mask] = 1  # 1: free, 0: occupied
         return free_map
 
     def check_collision(self, position, aperture=200) -> bool:
@@ -138,7 +156,7 @@ class VlnMoveByFlashCollisionController(BaseController):  # codespell:ignore
         # Get a region: (px, py) and one pixel right/down
         robot_size = 3
         sub_map = free_map[px_int - robot_size : px_int + robot_size, py_int - robot_size : py_int + robot_size]
-        return np.any(sub_map == 0)  # 1 = free, so True = collision
+        return np.any(sub_map == 0)  # 1 = free, so (any 0) = collision exists
 
     def forward(self, action: int) -> ArticulationAction:
         """
