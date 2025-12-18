@@ -16,7 +16,7 @@ eval_cfg = EvalCfg(
         model_settings={
             'env_num': 1,
             'sim_num': 1,
-            'model_path': "checkpoints/InternVLA-N1",
+            'model_path': "checkpoints/InternVLA-N1-DualVLN",
             'camera_intrinsic': [[585.0, 0.0, 320.0], [0.0, 585.0, 240.0], [0.0, 0.0, 1.0]],
             'width': 640,
             'height': 480,
@@ -33,7 +33,7 @@ eval_cfg = EvalCfg(
             'infer_mode': 'partial_async',  # You can choose "sync" or "partial_async", but for this model, "partial_async" is better.
             # debug
             'vis_debug': True,  # If vis_debug=True, you can get visualization results
-            'vis_debug_path': './logs/test/vis_debug',
+            'vis_debug_path': './logs/test_n1/vis_debug',
         },
     ),
     env=EnvCfg(
@@ -44,12 +44,12 @@ eval_cfg = EvalCfg(
         },
     ),
     task=TaskCfg(
-        task_name='test_flash',
+        task_name='test_n1',
         task_settings={
             'env_num': 1,
             'use_distributed': False,  # If the others setting in task_settings, please set use_distributed = False.
             'proc_num': 1,
-            'max_step': 1000,  # If use flash mode，default 1000; descrete mode, set 50000
+            'max_step': 50000,  # If use flash mode，default 1000; descrete mode, set 50000
         },
         scene=SceneCfg(
             scene_type='mp3d',

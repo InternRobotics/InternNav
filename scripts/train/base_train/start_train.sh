@@ -75,12 +75,12 @@ if [[ "$MODEL" == "navdp" ]]; then
         --node_rank=0 \
         --master_addr=localhost \
         --master_port=12345 \
-        scripts/train/train.py \
+        scripts/base_train/train.py \
         --name "$NAME" \
         --model-name "$MODEL"
 else
     echo "Using python to start $MODEL training, using $NUM_GPUS GPUs (CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES)"
-    python scripts/train/train.py \
+    python scripts/base_train/train.py \
         --name "$NAME" \
         --model-name "$MODEL"
 fi
