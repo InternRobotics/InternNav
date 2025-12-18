@@ -192,7 +192,7 @@ class RDP_LerobotDataset(BaseDataset):
                 episodes_in_json = data_to_load['episodes_in_json']
 
                 instructions = [
-                    episodes_in_json[ep_idx]['instruction_text'][: self.config.model.text_encoder.max_length]
+                    episodes_in_json[ep_idx]['task'][: self.config.model.text_encoder.max_length]
                     for ep_idx in range(len(episodes_in_json))
                 ]
 
