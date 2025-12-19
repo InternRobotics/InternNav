@@ -4,10 +4,14 @@ from internnav.evaluator.vln_distributed_evaluator import VLNDistributedEvaluato
 
 # register habitat
 try:
-    import internnav.habitat_vln_extensions  # noqa: F401 # isort: skip
     import internnav.habitat_vlln_extensions  # noqa: F401 # isort: skip
 except Exception as e:
-    print(f"Warning: ({e}), Habitat Evaluation is not loaded in this runtime. Ignore this if not using Habitat.")
+    print(f"Warning: ({e}), Habitat vlln is not loaded in this runtime. Ignore this if not using Habitat vlln.")
+
+try:
+    import internnav.habitat_vln_extensions  # noqa: F401 # isort: skip
+except Exception as e:
+    print(f"Warning: ({e}), Habitat vln is not loaded in this runtime. Ignore this if not using Habitat vln.")
 
 
 __all__ = [

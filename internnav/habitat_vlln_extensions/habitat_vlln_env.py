@@ -1,4 +1,6 @@
-from typing import Any, List
+import os
+import json
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import quaternion
@@ -13,7 +15,30 @@ from internnav.env.utils.dialog_mp3d import MP3DGTPerception
 @base.Env.register('habitat_vlln')
 class HabitatVllnEnv(HabitatEnv):
     def __init__(self, env_config: EnvCfg, task_config: TaskCfg = None):
+        """
+        env_settings include:
+            - habitat_config: loaded from get_habitat_config
+            - rank: int, rank index for sharding
+            - world_size: int, total number of ranks
+        """
+        try:
+            from habitat import Env
+        except ImportError as e:
+            raise RuntimeError(
+                "Habitat modules could not be imported. " "Make sure both repositories are installed and on PYTHONPATH."
+            ) from e
+
         super().__init__(env_config, task_config)
+        self.config = env_config.env_settings['habitat_config']
+        self._env = Env(self.config)
+
+        self.rank = env_config.env_settings.get('rank', 0)
+        self.world_size = env_config.env_settings.get('world_size', 1)
+        self._current_episode_index: int = 0
+        self._last_obs: Optional[Dict[str, Any]] = None
+
+        self.is_running = True
+        self.output_path = env_config.env_settings.get('output_path', './output')
 
         agent_config = get_agent_config(self.config.habitat.simulator)
         self.min_depth = agent_config.sim_sensors.depth_sensor.min_depth
@@ -23,16 +48,44 @@ class HabitatVllnEnv(HabitatEnv):
         self._camera_height = agent_config.sim_sensors.rgb_sensor.position[1]
         self.segmentation = MP3DGTPerception(self.max_depth, self.min_depth, self._fx, self._fy)
 
+        # generate episodes
+        # self._env.episodes = self._env.episodes[0:1]  # for debug
+        self.episodes = self.generate_episodes()
+        # print(self.episodes)
+
     def reset(self):
-        self._last_obs = super().reset()
-        if self.task_config and "instance" in self.task_config.task_name:
+        """
+        load next episode and return first observation
+        """
+        # no more episodes
+        if not (0 <= self._current_episode_index < len(self.episodes)):
+            self.is_running = False
+            return
+
+        # Manually set to next episode in habitat
+        self._env.current_episode = self.episodes[self._current_episode_index]
+        self._current_episode_index += 1
+
+        # Habitat reset
+        self._last_obs = self._env.reset()
+        if "instance" in self.task_config.task_name:
             self._last_obs['semantic'] = self.get_semantic(self._last_obs)
         return self._last_obs
 
     def step(self, action: List[Any]):
-        obs, reward, done, info = super().step(action)
-        if self.task_config and "instance" in self.task_config.task_name:
+        """
+        step the environment with given action
+
+        Args: action: List[Any], action for each env in the batch
+
+        Return: obs, reward, done, info
+        """
+        obs = self._env.step(action)
+        if "instance" in self.task_config.task_name:
             obs['semantic'] = self.get_semantic(obs)
+        done = self._env.episode_over
+        info = self._env.get_metrics()
+        reward = info.get('reward', 0.0)
         return obs, reward, done, info
 
     def get_tf_episodic_to_global(self):
