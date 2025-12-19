@@ -3,7 +3,7 @@ export MAGNUM_LOG=quiet HABITAT_SIM_LOG=quiet
 export NCCL_SOCKET_IFNAME=bond0
 export NCCL_IB_HCA=mlx5_2,mlx5_3,mlx5_4,mlx5_5
 
-srun -p efm_t \
+srun -p <partition_name> \
     --gres=gpu:8 \
     --ntasks=8 \
     --time=0-20:00:00 \

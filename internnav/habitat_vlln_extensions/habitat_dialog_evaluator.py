@@ -209,6 +209,10 @@ class HabitatDialogEvaluator(DistributedEvaluator):
                         f.write(npc_answer + "\n")
                     obs['npc_answer'] = npc_answer
                     continue
+                elif action == 7:
+                    continue
+                else:
+                    raise ValueError(f"Invalid action {action}!")
 
                 step_id += 1
                 self.agent.messages = []

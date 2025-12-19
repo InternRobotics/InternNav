@@ -22,15 +22,11 @@ eval_cfg = EvalCfg(
         env_settings={
             # habitat sim specifications - agent, sensors, tasks, measures etc. are defined in the habitat config file
             'baseline_config_path': 'scripts/eval/configs/gen_videos.yaml',
-            # 'habitat_config_path': 'scripts/eval/configs/instance_dialog.yaml',
             'habitat_config_path': 'scripts/eval/configs/objectnav_hm3d.yaml',
-            # 'habitat_config_path': 'scripts/eval/configs/instance.yaml',
         },
     ),
     task=TaskCfg(
-        # task_name = "instance_dialog"
         task_name="objectnav",
-        # task_name = "instance",
     ),
     eval_type="habitat_dialog",
     eval_settings={
@@ -39,9 +35,7 @@ eval_cfg = EvalCfg(
         "epoch": 0,  # epoch number for logging
         "max_steps_per_episode": 500,  # maximum steps per episode
         # task setting
-        # "eval_split": "easy_same",
         "eval_split": "val",
-        # "eval_split": "easy_same",
         "turn": 5,
         "save_video": False,  # whether to save videos
         # npc setting

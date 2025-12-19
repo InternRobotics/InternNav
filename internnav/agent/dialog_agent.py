@@ -35,7 +35,6 @@ DEFAULT_IMAGE_TOKEN = "<image>"
 
 
 def split_and_clean(text):
-    # 按 <image> 分割，保留分割符
     import re
 
     parts = re.split(r'(<image>)', text)
@@ -44,9 +43,8 @@ def split_and_clean(text):
         if part == '<image>':
             results.append(part)
         else:
-            # 去除所有换行符，并strip两端空白
             clean_part = part.replace('\n', '').strip()
-            if clean_part:  # 跳过空字符串
+            if clean_part:
                 results.append(clean_part)
     return results
 
@@ -78,7 +76,7 @@ class DialogAgent(Agent):
         self.resize_w = self.model_args.resize_w
 
         tokenizer = AutoTokenizer.from_pretrained(self.model_args.model_path, use_fast=True)
-        processor = AutoProcessor.from_pretrained("/mnt/inspurfs/efm_t/weimeng/Qwen2.5-VL-7B-Instruct")
+        processor = AutoProcessor.from_pretrained(self.model_args.model_path)
         processor.tokenizer = tokenizer
         processor.tokenizer.padding_side = 'left'
 
@@ -149,6 +147,7 @@ class DialogAgent(Agent):
             self.xyz_yaw_pitch_to_tf_matrix(camera_position, camera_yaw, np.deg2rad(30)) @ self.get_axis_align_matrix()
         )  # get transformation from camera to agent
 
+        # if last action is look down, save the newest look down image for later pixel selection
         if self.last_action == 5:
             self.look_down_image = image
             self.save_raw_image = self.look_down_image.copy()
@@ -322,12 +321,14 @@ class DialogAgent(Agent):
                     self.forward_action = 0
                     end = time.time()
                     print(f'time: {round(end-start, 4)}s')
+                    # return a meaningless action to do nothing
                     return 7
                 if action == 0:
                     self.goal = None
                     self.messages = []
                     end = time.time()
                     print(f'time: {round(end-start, 4)}s')
+                    # return a meaningless action to do nothing
                     return 7
             else:
                 action = 0
