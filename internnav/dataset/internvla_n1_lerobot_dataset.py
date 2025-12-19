@@ -16,7 +16,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchcodec.decoders import VideoDecoder
 from transformers.image_utils import to_numpy_array
-from .dataset_utils import parse_sampling_rate, read_jsonl
+
 from .vlln_lerobot_dataset import VLLN_Dataset
 from .rope2d import get_rope_index_2, get_rope_index_25
 
@@ -142,6 +142,18 @@ data_dict = {
     "scalevln_125cm_0_45": SCALEVLN_125CM_0_45,
     "scalevln_60cm_30_30": SCALEVLN_60CM_30_30,
 }
+
+
+def parse_sampling_rate(dataset_name):
+    match = re.search(r"%(\d+)$", dataset_name)
+    if match:
+        return int(match.group(1)) / 100.0
+    return 1.0
+
+
+def read_jsonl(path):
+    with open(path, "r") as f:
+        return [json.loads(line) for line in f]
 
 
 def data_list(dataset_names):

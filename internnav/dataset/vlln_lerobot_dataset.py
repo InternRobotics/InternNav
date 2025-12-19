@@ -18,7 +18,7 @@ from torchcodec.decoders import VideoDecoder
 from transformers.image_utils import to_numpy_array
 from bisect import bisect_left
 from .rope2d import get_rope_index_2, get_rope_index_25
-from .dataset_utils import parse_sampling_rate, read_jsonl
+
 
 # Define placeholders for dataset paths
 IION_split1 = {
@@ -62,6 +62,20 @@ local_rank = None
 class VLLN_Dataset(Dataset):
     """
     Dataset for Vision Language-Language Navigation (VL-LN) / IION-style training.
+    
+    Args:
+        tokenizer (transformers.PreTrainedTokenizer): Tokenizer used to encode
+            the chat template and produce `input_ids` / `labels`.
+        data_args: A config-like object that must provide at least:
+            - iion_dataset_use (str): comma-separated dataset names, optionally
+              with sampling rate suffix like `iion_split1%50`.
+            - model_type (str): decides which rope-index function to use.
+            - sample_step (int): stride for sampling start frames.
+            - pixel_goal_only (bool): whether to keep only pixel-goal samples.
+            - num_future_steps (int): horizon for turn-action extraction.
+            - max_dialog_turns (int): max number of answers the agent can get from oracle.
+            - num_history (int): number of history frames in prompt.
+
     """
     def __init__(self, tokenizer: transformers.PreTrainedTokenizer, data_args):
         super(VLLN_Dataset, self).__init__()
@@ -81,7 +95,6 @@ class VLLN_Dataset(Dataset):
             self.get_rope_index = get_rope_index_2
         
         self.sample_step = data_args.sample_step
-        self.predict_step_num = data_args.predict_step_num
         self.pixel_goal_only = data_args.pixel_goal_only
         self.num_future_steps = data_args.num_future_steps
         self.max_dialog_turns = data_args.max_dialog_turns
@@ -291,6 +304,18 @@ class VLLN_Dataset(Dataset):
         return data_dict
 
 
+def parse_sampling_rate(dataset_name):
+    match = re.search(r"%(\d+)$", dataset_name)
+    if match:
+        return int(match.group(1)) / 100.0
+    return 1.0
+
+
+def read_jsonl(path):
+    with open(path, "r") as f:
+        return [json.loads(line) for line in f]
+
+
 def data_list(dataset_names):
     config_list = []
     for dataset_name in dataset_names:
@@ -316,6 +341,24 @@ def preprocess_qwen_2_visual(
     grid_thw_image: List = [],
     grid_thw_video: List = [],
 ) -> Dict:
+    """Tokenize multi-modal chat sources for Qwen2.5-VL style training.
+
+    Args:
+        sources (list): Conversation sources. Expected structure is a list of
+            conversations, where each conversation is a list of dict messages.
+            The dict keys may be either:
+            - {"from": "human"/"gpt", "value": "..."}, or
+            - {"role": "user"/"assistant", "value": "..."}
+        tokenizer (transformers.PreTrainedTokenizer): Tokenizer instance.
+        grid_thw_image (List[int]): For each "<image>" placeholder, provides the
+            number of visual tokens (after merge) to replicate `<|image_pad|>`.
+        grid_thw_video (List[int]): Same as above for "<video>".
+
+    Returns:
+        Dict[str, torch.Tensor]:
+            - input_ids: LongTensor of shape [B, L]
+            - labels: LongTensor of shape [B, L]
+    """
     roles = {"human": "user", "gpt": "assistant"}
     system_message = "You are a helpful assistant."
 
@@ -407,8 +450,29 @@ def preprocess_qwen_2_visual(
 
 
 def get_annotations_from_lerobot_data(data_path, pitch_1, pitch_2, height):
-    """
-    Load LeRobot-style dataset and convert it into a unified annotations dict.
+    """Load LeRobot-format dataset and convert it into unified annotations.
+
+    It scans scene directories under `data_path`, and for each scene:
+    - Reads `meta/episodes.jsonl` to get episode metadata, instructions, dialogs.
+    - Reads `data/chunk-xxx/episode_XXXXXX.parquet` to get actions, poses, goals.
+    - Constructs a unified dict `annotations` with an `episodes` list.
+
+    The output `annotations["episodes"]` items include:
+    - id, video, instructions, actions, length
+    - poses for both horizon and look-down settings
+    - pixel_goals in `[relative_goal_frame_id, goal]` format
+    - dialogs (list)
+
+    Args:
+        data_path (str): Root directory containing multiple scene folders.
+        pitch_1 (int): Horizon camera pitch (e.g., 0).
+        pitch_2 (int): Look-down camera pitch (e.g., 30).
+        height (int): Camera height in centimeters (e.g., 125).
+
+    Returns:
+        dict: A dict with keys:
+            - axis_align_matrix (List[List[float]]): identity by default
+            - episodes (List[dict]): unified episode entries
     """
     import pyarrow.parquet as pq
     import pandas as pd
@@ -482,9 +546,6 @@ def get_annotations_from_lerobot_data(data_path, pitch_1, pitch_2, height):
 
 
 def get_turn_actions(actions, start_frame_id, num_future_steps):
-    """
-    Return the longest prefix of future actions that are identical to the first action.
-    """
     if not (0 <= start_frame_id < len(actions)):
         return []
     s = actions[start_frame_id : start_frame_id + num_future_steps]
@@ -492,10 +553,8 @@ def get_turn_actions(actions, start_frame_id, num_future_steps):
     i = next((k for k, x in enumerate(s) if x != first), len(s))
     return s[:i]
 
+
 def sort_dialogs_by_true_idx(dialogs):
-    """
-    Sort dialog messages by their true_idx in pairs.
-    """
     groups = []
     i, n = 0, len(dialogs)
     while i < n:
@@ -532,6 +591,14 @@ def build_dialog_history(history_id, dialog_id, dialogs):
     """
     Build a serialized string that interleaves visual placeholders (<image>) with
     dialog blocks (<|dialog_start|>...<|dialog_end|>) aligned to history frames.
+
+    Args:
+        history_id (List[int]): History frame ids (sorted/unique).
+        dialog_id (Sequence[int]): Frame indices that have dialogs (true_idx).
+        dialogs (List[dict]): Dialog messages.
+
+    Returns:
+        str: Serialized history string aligned to `history_id`.
     """
     placeholder = [''] * (len(history_id)+1)
     for n in dialog_id:
@@ -547,9 +614,19 @@ def build_dialog_history(history_id, dialog_id, dialogs):
 
 def enforce_simple_limit(conv, limit,
     sorry_msg: str = "Sorry, you have reached the question limit. No further answers are available."):
-    """
-    Truncate / limit the number of answer-like items (oracle blocks and talk-human pairs)
-    by replacing extra parts with a fixed apology message.
+    """Limit the number of answer-like parts in a conversation.
+
+    This function truncates answer-like content beyond a given `limit`.
+    Extra units beyond `limit` are replaced by a fixed `sorry_msg`.
+
+    Args:
+        conv (list): A single conversation packed as `[conv0]`, where `conv0`
+            is a list of message dicts using keys `from/value`.
+        limit (int): Maximum number of answer-like units to keep.
+        sorry_msg (str): Replacement message inserted for truncated content.
+
+    Returns:
+        list: The updated conversation in the same format as input, i.e. `[conv0]`.
     """
     conv = [dict(m) for m in conv[0]]  
     answer_indices = []
