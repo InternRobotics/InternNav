@@ -21,6 +21,7 @@ class VLNCamera(BaseSensor):
         super().__init__(config, robot, scene)
         self.config = config
         self._camera = None
+        self.resolution = config.resolution
 
     def get_data(self) -> Dict:
         output_data = {}

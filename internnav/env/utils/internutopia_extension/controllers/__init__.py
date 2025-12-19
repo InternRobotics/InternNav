@@ -3,5 +3,6 @@ from .discrete_controller import DiscreteController
 from .h1_vln_move_by_flash_controller import VlnMoveByFlashController
 from .h1_vln_move_by_speed_controller import VlnMoveBySpeedController
 from .stand_still import StandStillController
-
-# from .h1_vln_dp_conrtroller import VlnDpMoveBySpeedController
+from .vln_move_by_flash_with_collision_controller import (
+    VlnMoveByFlashCollisionController,
+)
