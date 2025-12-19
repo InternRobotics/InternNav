@@ -3,7 +3,8 @@
 [![demo](assets/InternNav.gif "demo")](https://www.youtube.com/watch?v=fD0F1jIax5Y)
 
 [![HomePage](https://img.shields.io/badge/HomePage-144B9E?logo=ReactOS&logoColor=white)](https://internrobotics.github.io/internvla-n1.github.io/)
-[![Technique Report](https://img.shields.io/badge/Paper-B31B1B?logo=arXiv&logoColor=white)](https://internrobotics.github.io/internvla-n1.github.io/static/pdfs/InternVLA_N1.pdf)
+[![Technical Report — InternVLA-N1](https://img.shields.io/badge/Technical_Report-InternVLA--N1-BB2649?logo=adobeacrobatreader&logoColor=white)](https://internrobotics.github.io/internvla-n1.github.io/static/pdfs/InternVLA_N1.pdf)
+[![DualVLN Paper — arXiv](https://img.shields.io/badge/arXiv-DualVLN-B31B1B?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2512.08186)
 [![doc](https://img.shields.io/badge/Document-FFA500?logo=readthedocs&logoColor=white)](https://internrobotics.github.io/user_guide/internnav/index.html)
 [![GitHub star chart](https://img.shields.io/github/stars/InternRobotics/InternNav?style=square)](https://github.com/InternRobotics/InternNav)
 [![GitHub Issues](https://img.shields.io/github/issues/InternRobotics/InternNav)](https://github.com/InternRobotics/InternNav/issues)
@@ -34,9 +35,9 @@ The toolbox supports the most comprehensive 6 datasets \& benchmarks and 10+ pop
 The toolbox supports the most advanced high-quality navigation dataset, InternData-N1, which includes 3k+ scenes and 830k VLN data covering diverse embodiments and scenes, and the first dual-system navigation foundation model with leading performance on all the benchmarks and zero-shot generalization capability in the real world, InternVLA-N1.
 
 ## 🔥 News
-
 | Time   | Update |
 |---------|--------|
+| 2025/12 | Training code for InternVLA-N1 is now available. This release provides two model configurations: InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> with NavDP*</span> and InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> DualVLN </span>. For model architecture and training details, please refer to the [DualVLN paper](https://arxiv.org/abs/2512.08186).|
 | 2025/11 | InternNav v0.2.0 released — added distributed evaluation support for VLN-PE.|
 | 2025/10 | Add a [inference-only demo](scripts/notebooks/inference_only_demo.ipynb) of InternVLA-N1. |
 | 2025/10 | InternVLA-N1 [technical report](https://internrobotics.github.io/internvla-n1.github.io/static/pdfs/InternVLA_N1.pdf) is released. Please check our [homepage](https://internrobotics.github.io/internvla-n1.github.io/). |
@@ -59,133 +60,147 @@ The toolbox supports the most advanced high-quality navigation dataset, InternDa
 
 Please refer to the [documentation](https://internrobotics.github.io/user_guide/internnav/quick_start/index.html) for quick start with InternNav, from installation to training or evaluating supported models.
 
-## 📦 Overview of Benchmark and Model Zoo
+## 📦 Overview
 
-### Datasets \& Benchmarks
-
-<table align="center">
-  <tbody>
-    <tr align="center" valign="bottom">
-      <td>
-         <b>System2 (VLN-CE)</b>
-      </td>
-      <td>
-         <b>System1 (VN)</b>
-      </td>
-      <td>
-         <b>Whole-system (VLN)</b>
-      </td>
-   </tr>
-   <tr align="center" valign="top">
-      <td>
-         <ul>
-            <li align="left"><a href="">VLN-CE R2R</a></li>
-            <li align="left"><a href="">VLN-CE RxR</a></li>
-         </ul>
-      </td>
-      <td>
-         <ul>
-            <li align="left"><a href="">Cluttered Envs</a></li>
-            <li align="left"><a href="">GRScenes-100</a></li>
-         </ul>
-      </td>
-      <td>
-         <ul>
-            <li align="left"><a href="">VLN-CE</a></li>
-            <li align="left"><a href="">VLN-PE</a></li>
-         </ul>
-      </td>
-   </tbody>
-</table>
-
-### Models
+### 🧪 Supported Benchmarks
 
 <table align="center">
   <tbody>
     <tr align="center" valign="bottom">
       <td>
-         <b>System2 (VLN-CE)</b>
+         <b>VLN Benchmarks</b>
       </td>
       <td>
-         <b>System1 (VN)</b>
-      </td>
-      <td>
-         <b>Whole-system (VLN)</b>
+         <b>VN Benchmarks</b>
       </td>
    </tr>
    <tr align="center" valign="top">
       <td>
          <ul>
-            <li align="left"><a href="">StreamVLN</a></li>
-            <li align="left"><a href="">InternVLA-N1-Preview (S2)</a></li>
-            <li align="left"><a href="">InternVLA-N1 (S2)</a></li>
+            <li align="left"><a href="https://arxiv.org/abs/2004.02857">VLN-CE</a></li>
+            <li align="left"><a href="https://arxiv.org/abs/2507.13019">VLN-PE</a></li>
          </ul>
       </td>
       <td>
          <ul>
-            <li align="left"><a href="">DD-PPO</a></li>
-            <li align="left"><a href="">iPlanner</a></li>
-            <li align="left"><a href="">ViPlanner</a></li>
-            <li align="left"><a href="">GNM</a></li>
-            <li align="left"><a href="">ViNT</a></li>
-            <li align="left"><a href="">NoMad</a></li>
-            <li align="left"><a href="">NavDP</a></li>
-         </ul>
-      </td>
-      <td>
-         <ul>
-            <li align="left"><a href="">Seq2Seq</a></li>
-            <li align="left"><a href="">CMA</a></li>
-            <li align="left"><a href="">RDP</a></li>
-            <li align="left"><a href="">InternVLA-N1-Preview</a></li>
-            <li align="left"><a href="">InternVLA-N1</a></li>
+            <li align="left"><a href="https://arxiv.org/abs/2505.08712">Cluttered Environments</a></li>
+            <li align="left"><a href="https://arxiv.org/abs/2505.08712">GRScenes-100</a></li>
          </ul>
       </td>
    </tbody>
 </table>
 
-### Benchmark Results
+### 🤗 Model Zoo & Downloads
 
-#### VLN-CE Task
-| Model  | Dataset/Benchmark | NE | OS | SR | SPL | Download |
-| ------ | ----------------- | -- | -- | --------- |  -- | --------- |
-| `InternVLA-N1 (S2)` | R2R | 4.89 | 60.6 | 55.4 | 52.1| [Model](https://huggingface.co/InternRobotics/InternVLA-N1-S2) |
-| `InternVLA-N1` | R2R | **4.83** | **63.3** | **58.2** | **54.0** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1) |
-| `InternVLA-N1 (S2)` | RxR | 6.67 | 56.5 | 48.6 | 42.6 | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-S2) |
-| `InternVLA-N1` | RxR | **5.91** | **60.8** | **53.5** | **46.1** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1) |
-| `InternVLA-N1-Preview (S2)` | R2R | 5.09 | 60.9 | 53.7 | 49.7 | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-Preview-S2) |
-| `InternVLA-N1-Preview` | R2R | **4.76** | **63.4** | **56.7** | **52.6** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-Preview) |
-| `InternVLA-N1-Preview (S2)` | RxR | 6.39 | 60.1 | 50.5 | 43.3 | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-Preview-S2) |
-| `InternVLA-N1-Preview` | RxR | **5.65** | **63.2** | **53.5** | **45.7** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-Preview) |
+<table align="center">
+  <tbody>
+    <tr align="center" valign="bottom">
+      <td>
+         <b>🧠 VLN Single-System</b>
+      </td>
+      <td>
+         <b>🎯 VN System (System1)</b>
+      </td>
+      <td>
+         <b>🤝 VLN Multi-System</b>
+      </td>
+   </tr>
+   <tr align="center" valign="top">
+      <td>
+         <ul>
+            <li align="left"><a href="https://huggingface.co/InternRobotics/VLN-PE">Seq2Seq</a></li>
+            <li align="left"><a href="https://huggingface.co/InternRobotics/VLN-PE">CMA</a></li>
+            <li align="left"><a href="https://huggingface.co/InternRobotics/VLN-PE">RDP</a></li>
+            <li align="left"><a href="https://github.com/InternRobotics/StreamVLN">StreamVLN</a> <em>(coming soon)</em></li>
+         </ul>
+      </td>
+      <td>
+         <ul>
+            <li align="left"><a href="https://github.com/InternRobotics/NavDP?tab=readme-ov-file#%EF%B8%8F-installation-of-baseline-library">DD-PPO</a></li>
+            <li align="left"><a href="https://github.com/InternRobotics/NavDP?tab=readme-ov-file#%EF%B8%8F-installation-of-baseline-library">iPlanner</a></li>
+            <li align="left"><a href="https://github.com/InternRobotics/NavDP?tab=readme-ov-file#%EF%B8%8F-installation-of-baseline-library">ViPlanner</a></li>
+            <li align="left"><a href="https://github.com/InternRobotics/NavDP?tab=readme-ov-file#%EF%B8%8F-installation-of-baseline-library">GNM</a></li>
+            <li align="left"><a href="https://github.com/InternRobotics/NavDP?tab=readme-ov-file#%EF%B8%8F-installation-of-baseline-library">ViNT</a></li>
+            <li align="left"><a href="https://github.com/InternRobotics/NavDP?tab=readme-ov-file#%EF%B8%8F-installation-of-baseline-library">NoMad</a></li>
+            <li align="left"><a href="https://github.com/InternRobotics/NavDP?tab=readme-ov-file#%EF%B8%8F-installation-of-baseline-library">NavDP <small>InternVLA-N1 (System 1)</small></a></li>
+         </ul>
+      </td>
+      <td>
+         <ul>
+            <li align="left"><a href="https://huggingface.co/InternRobotics/InternVLA-N1-System2">InternVLA-N1 (System 2)</a> + <a href="https://github.com/InternRobotics/NavDP?tab=readme-ov-file#%EF%B8%8F-installation-of-baseline-library" style="color: #1e90ff;">Decoupled System1</a></li>
+            <li align="left"><a href="https://huggingface.co/InternRobotics/InternVLA-N1-w-NavDP">InternVLA-N1 (Dual System) <small>w/ NavDP*</small> </a>  <small> (NavDP*</small> indicates joint tuning with System 2)</li>
+            <li align="left"><a href="https://huggingface.co/InternRobotics/InternVLA-N1-DualVLN">InternVLA-N1 (Dual System) <small>DualVLN</small></a></li>
+         </ul>
+      </td>
+   </tbody>
+</table>
 
-#### VLN-PE Task
-| Model  | Dataset/Benchmark | NE | OS | SR | SPL | Download |
-| ------ | ----------------- | -- | -- | -- | --- | --- |
-| `Seq2Seq` | Flash | 8.27 | 43.0 | 15.7 | 9.7 | [Model](https://huggingface.co/InternRobotics/VLN-PE) |
-| `CMA` | Flash | 7.52 | 45.0 | 24.4 | 18.2 | [Model](https://huggingface.co/InternRobotics/VLN-PE) |
-| `RDP` | Flash | 6.98 | 42.5 | 24.9 | 17.5 | [Model](https://huggingface.co/InternRobotics/VLN-PE) |
-| `InternVLA-N1-Preview` | Flash | **4.21** | **68.0** | **59.8** | **54.0** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-Preview) |
-| `InternVLA-N1` | Flash | **4.13** | **67.6** | **60.4** | **54.9** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1) |
-| `Seq2Seq` | Physical | 7.88 | 28.1 | 15.1 | 10.7 | [Model](https://huggingface.co/InternRobotics/VLN-PE) |
-| `CMA` | Physical | 7.26 | 31.4 | 22.1 | 18.6 | [Model](https://huggingface.co/InternRobotics/VLN-PE) |
-| `RDP` | Physical | 6.72 | 36.9 | 25.2 | 17.7 | [Model](https://huggingface.co/InternRobotics/VLN-PE) |
-| `InternVLA-N1-Preview` | Physical | **5.31** | **49.0** | **42.6** | **35.8** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1-Preview) |
-| `InternVLA-N1` | Physical | **4.73** | **56.7** | **50.6** | **43.3** | [Model](https://huggingface.co/InternRobotics/InternVLA-N1) |
-
-#### Visual Navigation Task - PointGoal Navigation
-| Model  | Dataset/Benchmark | SR | SPL | Download |
-| ------ | ----------------- | -- | -- | --------- |
-| `iPlanner` | ClutteredEnv | 84.8 | 83.6 | [Model](https://github.com/InternRobotics/NavDP?tab=readme-ov-file#%EF%B8%8F-installation-of-baseline-library) |
-| `ViPlanner` | ClutteredEnv | 72.4 | 72.3 | [Model](https://github.com/InternRobotics/NavDP?tab=readme-ov-file#%EF%B8%8F-installation-of-baseline-library) |
-| `InternVLA-N1 (S1)` | ClutteredEnv | **89.8** | **87.7** | [Model](https://github.com/InternRobotics/NavDP?tab=readme-ov-file#%EF%B8%8F-installation-of-baseline-library) |
-| `iPlanner` | InternScenes | 48.8 | 46.7 | [Model](https://github.com/InternRobotics/NavDP?tab=readme-ov-file#%EF%B8%8F-installation-of-baseline-library) |
-| `ViPlanner` | InternScenes | 54.3 | 52.5 | [Model](https://github.com/InternRobotics/NavDP?tab=readme-ov-file#%EF%B8%8F-installation-of-baseline-library) |
-| `InternVLA-N1 (S1)` | InternScenes | **65.7** | **60.7** | [Model](https://github.com/InternRobotics/NavDP?tab=readme-ov-file#%EF%B8%8F-installation-of-baseline-library) |
+<!-- **📝 Note:**
+- VLN-CE RxR benchmark and StreamVLN model will be supported soon.
+- **NE**: Navigation Error (lower is better) • **OS**: Oracle Success (higher is better) • **SR**: Success Rate (higher is better) • **SPL**: Success weighted by Path Length (higher is better) -->
 
 
+### 📊 Benchmark Results
 
-**NOTE:**
-- VLN-CE RxR benchmark and StreamVLN will be supported soon.
+
+#### <u>VLN-CE Benchmarks</u>
+
+**📍 R2R Dataset**
+| Model | Observation | NE ↓ | OS ↑ | SR ↑ | SPL ↑ |
+|-------|-------------|------|------|------|-------|
+| InternVLA-N1-wo-dagger (S2) + [ShortestPathFollower](https://aihabitat.org/docs/habitat-lab/habitat.tasks.nav.shortest_path_follower.ShortestPathFollower.html) | - | 4.89 | 60.6 | 55.4 | 52.1 |
+| InternVLA-N1-wo-dagger (Dual System) <span style="color: #28a745; font-size: 0.9em"> with NavDP*</span>  | RGB-D | 4.83 | 63.3 | 58.2 | 54.0 |
+| InternVLA-N1 (S2) + [ShortestPathFollower](https://aihabitat.org/docs/habitat-lab/habitat.tasks.nav.shortest_path_follower.ShortestPathFollower.html) | - | 4.25 | 68.3 | 60.9 | 55.2 |
+| InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> with NavDP*</span> | RGB-D | 4.22 | 70.4 | 64.1 | 58.1 |
+| InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> DualVLN </span> | RGB | **4.05** | **70.7** | **64.3** | **58.5** |
+
+**📍 RxR Dataset**
+| Model | Observation | NE ↓ |  SR ↑ | SPL ↑ | nDTW ↑ |
+|-------|-------------|------|------|------|-------|
+| InternVLA-N1 (S2) + [ShortestPathFollower](https://aihabitat.org/docs/habitat-lab/habitat.tasks.nav.shortest_path_follower.ShortestPathFollower.html) | - | 5.71 | 63.5 | 55.0 | 46.8 |
+| InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> with NavDP*</span> | RGB-D | 4.70 | 59.7 | 50.6 | 69.7 |
+| InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> DualVLN </span> | RGB | **4.58** | **61.4** | **51.8** | **70.0** |
+
+---
+
+#### <u>VLN-PE Benchmarks</u>
+
+**📍 Flash Controller on R2R Unseen**
+| Model | NE ↓ | OS ↑ | SR ↑ | SPL ↑ |
+|-------|------|------|------|-------|
+| Seq2Seq | 8.27 | 43.0 | 15.7 | 9.7 |
+| CMA | 7.52 | 45.0 | 24.4 | 18.2 |
+| RDP | 6.98 | 42.5 | 24.9 | 17.5 |
+| InternVLA-N1 (System 2) + iPlanner | 4.91 | 55.53 | 47.07 | 41.09 |
+| InternVLA-N1 (System 2) + NavDP | 4.22 | 67.33 | 58.72 | 50.98 |
+| InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> DualVLN </span> | **3.90** | **69.93** | **63.62** | **56.49** |
+
+**📍 Physical Controller on R2R Unseen**
+| Model | NE ↓ | OS ↑ | SR ↑ | SPL ↑ |
+|-------|------|------|------|-------|
+| Seq2Seq | 7.88 | 28.1 | 15.1 | 10.7 |
+| CMA | 7.26 | 31.4 | 22.1 | 18.6 |
+| RDP | 6.72 | 36.9 | 25.2 | 17.7 |
+| InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> DualVLN </span> | **4.66** | **55.9** | **51.6** | **42.49** |
+
+
+#### <u>Visual Navigation Benchmarks</u>
+
+**📍 ClutteredEnv Dataset**
+| Model | SR ↑ | SPL ↑ |
+|-------|------|-------|
+| iPlanner | 84.8 | 83.6 |
+| ViPlanner | 72.4 | 72.3 |
+| NavDP <InternVLA-N1 (System 1)> | **89.8** | **87.7** |
+
+**📍 InternScenes Dataset**
+| Model | SR ↑ | SPL ↑ |
+|-------|------|-------|
+| iPlanner | 48.8 | 46.7 |
+| ViPlanner | 54.3 | 52.5 |
+| NavDP <InternVLA-N1 (System 1)> | **65.7** | **60.7** |
+
+---
 
 ## 🔧 Customization
 
@@ -239,6 +254,15 @@ If you use the specific pretrained models and benchmarks, please kindly cite the
     author = {Wenzhe Cai, Jiaqi Peng, Yuqiang Yang, Yujian Zhang, Meng Wei, Hanqing Wang, Yilun Chen, Tai Wang and Jiangmiao Pang},
     year = {2025},
     booktitle={arXiv},
+}
+@misc{wei2025groundslowfastdualsystem,
+      title={Ground Slow, Move Fast: A Dual-System Foundation Model for Generalizable Vision-and-Language Navigation}, 
+      author={Meng Wei and Chenyang Wan and Jiaqi Peng and Xiqian Yu and Yuqiang Yang and Delin Feng and Wenzhe Cai and Chenming Zhu and Tai Wang and Jiangmiao Pang and Xihui Liu},
+      year={2025},
+      eprint={2512.08186},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2512.08186}, 
 }
 ```
 

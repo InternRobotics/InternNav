@@ -21,9 +21,7 @@ from internnav.agent import Agent
 from internnav.configs.agent import AgentCfg
 
 try:
-    from internnav.model.basemodel.internvla_n1.internvla_n1 import (
-        InternVLAN1ForCausalLM,
-    )
+    pass
 except Exception as e:
     print(f"Warning: ({e}), Ignore this if not using dual_system.")
 
@@ -86,12 +84,7 @@ class DialogAgent(Agent):
 
         self.device = torch.device('cuda', self.agent_config.model_settings['local_rank'])
         if self.model_args.mode == 'dual_system':
-            model = InternVLAN1ForCausalLM.from_pretrained(
-                self.model_args.model_path,
-                torch_dtype=torch.bfloat16,
-                attn_implementation="flash_attention_2",
-                device_map={"": self.device},
-            )
+            raise NotImplementedError("Dual System mode is not supported in DialogAgent.")
         elif self.model_args.mode == 'system2':
             model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
                 self.model_args.model_path,

@@ -1,19 +1,13 @@
 import argparse
-import itertools
 import json
 import os
-import re
 
 import numpy as np
 import torch
-from PIL import Image, ImageDraw, ImageFont
-from transformers.image_utils import to_numpy_array
+from PIL import Image
 
 from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator import DistributedEvaluator, Evaluator
-from internnav.internnav_habitat.dialog_utils import get_config, get_path_description_
-from internnav.internnav_habitat.simple_npc.simple_npc import SimpleNPC
-from internnav.model.utils.vln_utils import open_image
 
 try:
     import habitat
@@ -22,9 +16,18 @@ try:
         FogOfWarConfig,
         TopDownMapMeasurementConfig,
     )
+    from habitat.utils.visualizations.utils import (
+        images_to_video,
+        observations_to_image,
+    )
 
     # Import for Habitat registry side effects — do not remove
-    import internnav.internnav_habitat.measures  # noqa: F401
+    import internnav.habitat_vlln_extensions.measures  # noqa: F401
+    from internnav.habitat_vlln_extensions.simple_npc.simple_npc import SimpleNPC
+    from internnav.habitat_vlln_extensions.utils.dialog_utils import (
+        get_config,
+        get_path_description_,
+    )
 
     # isort: skip
 except Exception as e:
@@ -81,14 +84,14 @@ class HabitatDialogEvaluator(DistributedEvaluator):
                     "collisions": CollisionsMeasurementConfig(),
                 }
             )
-        cfg.env.env_settings['habitat_config'] = self.config.habitat
+        cfg.env.env_settings['habitat_config'] = self.config
         cfg.env.env_settings['output_path'] = self.output_path
 
         # init agent and env
         cfg.agent.model_settings['task'] = self.task
         cfg.agent.model_settings['sim_sensors_config'] = self.config.habitat.simulator.agents.main_agent.sim_sensors
         self.objectnav_instruction = "search for {target_object}."
-        super().__init__(cfg, init_agent=True, init_env=True)
+        super().__init__(cfg)
 
     def eval_action(self):
         """
@@ -110,6 +113,8 @@ class HabitatDialogEvaluator(DistributedEvaluator):
         env = self.env
 
         while env.is_running:
+            # ------------ 1. Start of an episode ------------
+
             obs = env.reset()
             if not env.is_running or obs is None:
                 break
@@ -136,10 +141,9 @@ class HabitatDialogEvaluator(DistributedEvaluator):
             os.makedirs(os.path.join(self.output_path, 'check_sim'), exist_ok=True)
             Image.fromarray(obs['rgb']).save(os.path.join(self.output_path, 'check_sim', f'rgb_{self.rank}.jpg'))
             os.makedirs(os.path.join(self.output_path, 'action', f'{scene_id}'), exist_ok=True)
-            # os.makedirs(os.path.join(self.output_path, 'debug_images'), exist_ok=True)
 
             if self.save_video:
-                os.makedirs(os.path.join(self.output_path, 'vis', f'{scene_id}'), exist_ok=True)
+                os.makedirs(os.path.join(self.output_path, 'vis_{self.epoch}', f'{scene_id}'), exist_ok=True)
 
             # get agent ready
             self.agent.reset(env)
@@ -153,11 +157,19 @@ class HabitatDialogEvaluator(DistributedEvaluator):
 
             # initialization
             step_id = 0
-
+            vis_frames = []
             path_list = []
             action_list = []  # params for saving results
 
+            # ---------- 2. Episode step loop -----------
             while not env._env.episode_over and step_id <= self.max_steps_per_episode:
+                # save frames
+                info = env.get_metrics()
+                if info['top_down_map'] is not None and self.save_video:
+                    save_image = Image.fromarray(obs["rgb"]).convert('RGB')
+                    frame = observations_to_image({'rgb': np.asarray(save_image)}, info)
+                    vis_frames.append(frame)
+
                 agent_state = env._env.sim.get_agent_state()
                 path_list.append(agent_state.position.tolist())
                 info = {
@@ -165,7 +177,7 @@ class HabitatDialogEvaluator(DistributedEvaluator):
                     'agent state': agent_state,
                     'episode_instruction': episode_instruction,
                     'output_path': os.path.join(self.output_path, 'action', f'{scene_id}', f'{episode_id}.txt'),
-                    'info': env.get_metrics(),
+                    'info': info,
                 }
                 action = self.agent.step(obs, env, info=info)
                 print("step_id", step_id, "action", action)
@@ -201,6 +213,8 @@ class HabitatDialogEvaluator(DistributedEvaluator):
                 step_id += 1
                 self.agent.messages = []
 
+            # ---------- 3. End of an episode -----------
+            # collect the metric result of this episode and write progress to the output_path
             m = env.get_metrics()
             sucs.append(m["success"])
             spls.append(m["spl"])
@@ -221,6 +235,15 @@ class HabitatDialogEvaluator(DistributedEvaluator):
             }
             with open(os.path.join(self.output_path, 'result.json'), 'a') as f:
                 f.write(json.dumps(result) + "\n")
+            if self.save_video:
+                images_to_video(
+                    vis_frames,
+                    os.path.join(self.output_path, f'vis_{self.epoch}', f'{scene_id}'),
+                    f'{episode_id:04d}',
+                    fps=6,
+                    quality=9,
+                )
+            vis_frames.clear()
 
         env.close()
         return {
@@ -249,203 +272,3 @@ class HabitatDialogEvaluator(DistributedEvaluator):
             "nes_all": float(nes_all.mean().item()) if denom > 0 else 0.0,
             # "length" will be filled by base class
         }
-
-    def parse_actions(self, output):
-        action_patterns = '|'.join(re.escape(action) for action in self.actions2idx)
-        regex = re.compile(action_patterns)
-        matches = regex.findall(output)
-        actions = [self.actions2idx[match] for match in matches]
-        actions = itertools.chain.from_iterable(actions)
-        return list(actions)
-
-    def preprocess_depth_image_v2(
-        self, depth_image, do_depth_scale=True, depth_scale=1000, target_height=None, target_width=None
-    ):
-        if target_height is None:
-            target_height = self.image_processor.crop_size['height']  # 384
-            target_width = self.image_processor.crop_size['width']  # 384
-
-        resized_depth_image = depth_image.resize((target_width, target_height), Image.NEAREST)
-
-        img = to_numpy_array(resized_depth_image)
-        if do_depth_scale:
-            img = img / depth_scale
-
-        return img, (target_width, target_height)
-
-    def get_intrinsic_matrix(self, sensor_cfg) -> np.ndarray:
-        width = sensor_cfg.width
-        height = sensor_cfg.height
-        fov = sensor_cfg.hfov
-        fx = (width / 2.0) / np.tan(np.deg2rad(fov / 2.0))
-        fy = fx  # Assuming square pixels (fx = fy)
-        cx = (width - 1.0) / 2.0
-        cy = (height - 1.0) / 2.0
-
-        intrinsic_matrix = np.array(
-            [[fx, 0.0, cx, 0.0], [0.0, fy, cy, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
-        )
-        return intrinsic_matrix
-
-    def get_axis_align_matrix(self):
-        ma = np.array([[0, 0, 1, 0], [-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 0, 1]])
-        return ma
-
-    def xyz_yaw_to_tf_matrix(self, xyz: np.ndarray, yaw: float) -> np.ndarray:
-        x, y, z = xyz
-        transformation_matrix = np.array(
-            [
-                [np.cos(yaw), -np.sin(yaw), 0, x],
-                [np.sin(yaw), np.cos(yaw), 0, y],
-                [0, 0, 1, z],
-                [0, 0, 0, 1],
-            ]
-        )
-        return transformation_matrix
-
-    def xyz_pitch_to_tf_matrix(self, xyz: np.ndarray, pitch: float) -> np.ndarray:
-        """Converts a given position and pitch angle to a 4x4 transformation matrix.
-
-        Args:
-            xyz (np.ndarray): A 3D vector representing the position.
-            pitch (float): The pitch angle in radians for y axis.
-        Returns:
-            np.ndarray: A 4x4 transformation matrix.
-        """
-
-        x, y, z = xyz
-        transformation_matrix = np.array(
-            [
-                [np.cos(pitch), 0, np.sin(pitch), x],
-                [0, 1, 0, y],
-                [-np.sin(pitch), 0, np.cos(pitch), z],
-                [0, 0, 0, 1],
-            ]
-        )
-        return transformation_matrix
-
-    def xyz_yaw_pitch_to_tf_matrix(self, xyz: np.ndarray, yaw: float, pitch: float) -> np.ndarray:
-        """Converts a given position and yaw, pitch angles to a 4x4 transformation matrix.
-
-        Args:
-            xyz (np.ndarray): A 3D vector representing the position.
-            yaw (float): The yaw angle in radians.
-            pitch (float): The pitch angle in radians for y axis.
-        Returns:
-            np.ndarray: A 4x4 transformation matrix.
-        """
-        x, y, z = xyz
-        rot1 = self.xyz_yaw_to_tf_matrix(xyz, yaw)[:3, :3]
-        rot2 = self.xyz_pitch_to_tf_matrix(xyz, pitch)[:3, :3]
-        transformation_matrix = np.eye(4)
-        transformation_matrix[:3, :3] = rot1 @ rot2
-        transformation_matrix[:3, 3] = xyz
-        return transformation_matrix
-
-    def pixel_to_gps(self, pixel, depth, intrinsic, tf_camera_to_episodic):
-        '''
-        Args:
-            pixel: (2,) - [u, v] pixel coordinates
-            depth: (H, W) - depth image where depth[v, u] gives depth in meters
-            intrinsic: (4, 4) - camera intrinsic matrix
-            tf_camera_to_episodic: (4, 4) - transformation from camera to episodic frame
-        Returns:
-            (x, y): (x, y) coordinates in the episodic frame
-        '''
-        v, u = pixel
-        z = depth[v, u]
-        print("depthhhhhhhhhhhhhh", z)
-
-        x = (u - intrinsic[0, 2]) * z / intrinsic[0, 0]
-        y = (v - intrinsic[1, 2]) * z / intrinsic[1, 1]
-        point_camera = np.array([x, y, z, 1.0])
-
-        # Transform to episodic frame
-        point_episodic = tf_camera_to_episodic @ point_camera
-        point_episodic = point_episodic[:3] / point_episodic[3]
-
-        x = point_episodic[0]
-        y = point_episodic[1]
-
-        return (x, y)  # same as habitat gps
-
-    def dot_matrix_two_dimensional(
-        self,
-        image_or_image_path,
-        save_path=None,
-        dots_size_w=8,
-        dots_size_h=8,
-        save_img=False,
-        font_path='fonts/arial.ttf',
-        pixel_goal=None,
-    ):
-        """
-        takes an original image as input, save the processed image to save_path. Each dot is labeled with two-dimensional Cartesian coordinates (x,y). Suitable for single-image tasks.
-        control args:
-        1. dots_size_w: the number of columns of the dots matrix
-        2. dots_size_h: the number of rows of the dots matrix
-        """
-        with open_image(image_or_image_path) as img:
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
-            draw = ImageDraw.Draw(img, 'RGB')
-
-            width, height = img.size
-            grid_size_w = dots_size_w + 1
-            grid_size_h = dots_size_h + 1
-            cell_width = width / grid_size_w
-            cell_height = height / grid_size_h
-
-            font = ImageFont.truetype(font_path, width // 40)  # Adjust font size if needed; default == width // 40
-
-            target_i = target_j = None
-            if pixel_goal is not None:
-                y_pixel, x_pixel = pixel_goal[0], pixel_goal[1]
-                # Validate pixel coordinates
-                if not (0 <= x_pixel < width and 0 <= y_pixel < height):
-                    raise ValueError(f"pixel_goal {pixel_goal} exceeds image dimensions ({width}x{height})")
-
-                # Convert to grid coordinates
-                target_i = round(x_pixel / cell_width)
-                target_j = round(y_pixel / cell_height)
-
-                # Validate grid bounds
-                if not (1 <= target_i <= dots_size_w and 1 <= target_j <= dots_size_h):
-                    raise ValueError(
-                        f"pixel_goal {pixel_goal} maps to grid ({target_j},{target_i}), "
-                        f"valid range is (1,1)-({dots_size_h},{dots_size_w})"
-                    )
-
-            count = 0
-
-            for j in range(1, grid_size_h):
-                for i in range(1, grid_size_w):
-                    x = int(i * cell_width)
-                    y = int(j * cell_height)
-
-                    pixel_color = img.getpixel((x, y))
-                    # choose a more contrasting color from black and white
-                    if pixel_color[0] + pixel_color[1] + pixel_color[2] >= 255 * 3 / 2:
-                        opposite_color = (0, 0, 0)
-                    else:
-                        opposite_color = (255, 255, 255)
-
-                    if pixel_goal is not None and i == target_i and j == target_j:
-                        opposite_color = (255, 0, 0)  # Red for target
-
-                    circle_radius = width // 240  # Adjust dot size if needed; default == width // 240
-                    draw.ellipse(
-                        [(x - circle_radius, y - circle_radius), (x + circle_radius, y + circle_radius)],
-                        fill=opposite_color,
-                    )
-
-                    text_x, text_y = x + 3, y
-                    count_w = count // dots_size_w
-                    count_h = count % dots_size_w
-                    label_str = f"({count_w+1},{count_h+1})"
-                    draw.text((text_x, text_y), label_str, fill=opposite_color, font=font)
-                    count += 1
-            if save_img:
-                print(">>> dots overlaid image processed, stored in", save_path)
-                img.save(save_path)
-            return img

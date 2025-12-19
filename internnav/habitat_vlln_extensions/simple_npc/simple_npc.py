@@ -15,8 +15,8 @@ class SimpleNPC:
         try:
             from openai import OpenAI
         except ModuleNotFoundError:
-            print('ModuleNotFoundError: No module named \'openai\'. Please install it first.')
-            return
+            raise ImportError('ModuleNotFoundError: No module named \'openai\'. Please install it first.')
+
         self.model_name = model_name
         self.max_turn = max_interaction_turn
         self.history_messages = []

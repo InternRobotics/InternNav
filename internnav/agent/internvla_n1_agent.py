@@ -207,7 +207,7 @@ class InternVLAN1Agent(Agent):
         self.s2_thread.daemon = True
         self.s2_thread.start()
 
-    def should_infer_s2(self, mode="sync"):
+    def should_infer_s2(self, mode="partial_async"):
         """Function: Enables the sys2 inference thread depending on the mode.
         mode: just support 2 modes: "sync" and "partial_async".
         "sync": Synchronous mode (navdp_version >= 0.0), Sys1 and Sys2 execute in a sequential inference chain.
@@ -298,8 +298,6 @@ class InternVLAN1Agent(Agent):
                 if self.sys1_infer_times > 0:
                     self.dual_forward_step += 1
 
-            # print('Output action:', output, self.dual_forward_step)
-
         else:
             self.look_down = False
             # 2. If output is in latent form, execute latent S1
@@ -333,13 +331,9 @@ class InternVLAN1Agent(Agent):
                         .unsqueeze(-1)
                         .to(self.device)
                     )  # [1, 2, 224, 224, 1]
-                    self.s1_output = self.policy.s1_step_latent(
-                        rgbs, depths, self.s2_output.output_latent, use_async=True
-                    )
+                    self.s1_output = self.policy.s1_step_latent(rgbs, depths, self.s2_output.output_latent)
                 else:
-                    self.s1_output = self.policy.s1_step_latent(
-                        rgb, depth * 10000.0, self.s2_output.output_latent, use_async=False
-                    )
+                    self.s1_output = self.policy.s1_step_latent(rgb, depth * 10000.0, self.s2_output.output_latent)
 
             else:
                 assert False, f"S2 output should be either action or latent, but got neither!  {self.s2_output}"
@@ -372,6 +366,7 @@ class InternVLAN1Agent(Agent):
                     if self.dual_forward_step > self.sys2_max_forward_step:
                         print("!!!!!!!!!!!!")
                         print("ERR: self.dual_forward_step ", self.dual_forward_step, " > ", self.sys2_max_forward_step)
+                        print("Potential reason: sys1 infers empty trajectory list []")
                         print("!!!!!!!!!!!!")
 
         print('Output discretized traj:', output['action'], self.dual_forward_step)
