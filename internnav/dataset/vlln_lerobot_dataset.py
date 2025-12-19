@@ -352,8 +352,11 @@ def preprocess_qwen_2_visual(
         tokenizer (transformers.PreTrainedTokenizer): Tokenizer instance.
         grid_thw_image (List[int]): For each "<image>" placeholder, provides the
             number of visual tokens (after merge) to replicate `<|image_pad|>`.
+            Here "thw" refers to the visual token grid shape:
+            - t: temporal length in the visual grid
+            - h: grid height (number of patch rows)
+            - w: grid width (number of patch columns)
         grid_thw_video (List[int]): Same as above for "<video>".
-
     Returns:
         Dict[str, torch.Tensor]:
             - input_ids: LongTensor of shape [B, L]
@@ -669,7 +672,3 @@ def enforce_simple_limit(conv, limit,
                 replaced_indices.append(('more', human_idx))
 
     return [conv]
-
-
-if __name__ == "__main__":
-    pass
