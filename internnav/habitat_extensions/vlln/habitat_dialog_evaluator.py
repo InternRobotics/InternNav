@@ -22,9 +22,9 @@ try:
     )
 
     # Import for Habitat registry side effects — do not remove
-    import internnav.habitat_vlln_extensions.measures  # noqa: F401
-    from internnav.habitat_vlln_extensions.simple_npc.simple_npc import SimpleNPC
-    from internnav.habitat_vlln_extensions.utils.dialog_utils import (
+    import internnav.habitat_extensions.vlln.measures  # noqa: F401
+    from internnav.habitat_extensions.vlln.simple_npc.simple_npc import SimpleNPC
+    from internnav.habitat_extensions.vlln.utils.dialog_utils import (
         get_config,
         get_path_description_,
     )
@@ -101,8 +101,8 @@ class HabitatDialogEvaluator(DistributedEvaluator):
         """
         sucs, spls, oss, nes = [], [], [], []
         done_res = []
-        if os.path.exists(os.path.join(self.output_path, 'result.json')):
-            with open(os.path.join(self.output_path, 'result.json'), 'r') as f:
+        if os.path.exists(os.path.join(self.output_path, 'progress.json')):
+            with open(os.path.join(self.output_path, 'progress.json'), 'r') as f:
                 for line in f.readlines():
                     res = json.loads(line)
                     done_res.append([res["scene_id"], res["episode_id"], res["episode_instruction"]])
@@ -143,7 +143,7 @@ class HabitatDialogEvaluator(DistributedEvaluator):
             os.makedirs(os.path.join(self.output_path, 'action', f'{scene_id}'), exist_ok=True)
 
             if self.save_video:
-                os.makedirs(os.path.join(self.output_path, 'vis_{self.epoch}', f'{scene_id}'), exist_ok=True)
+                os.makedirs(os.path.join(self.output_path, f'vis_{self.epoch}', f'{scene_id}'), exist_ok=True)
 
             # get agent ready
             self.agent.reset(env)
@@ -237,7 +237,7 @@ class HabitatDialogEvaluator(DistributedEvaluator):
                 "action": action_list,
                 "object_category": episode.object_category if 'vln' not in self.task else '',
             }
-            with open(os.path.join(self.output_path, 'result.json'), 'a') as f:
+            with open(os.path.join(self.output_path, 'progress.json'), 'a') as f:
                 f.write(json.dumps(result) + "\n")
             if self.save_video:
                 images_to_video(

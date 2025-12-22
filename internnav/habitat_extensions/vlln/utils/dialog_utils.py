@@ -9,7 +9,7 @@ import quaternion
 from habitat_baselines.config.default import get_config as get_habitat_config
 from omegaconf import DictConfig, OmegaConf, open_dict
 
-from internnav.habitat_vlln_extensions.simple_npc.get_description import (
+from internnav.habitat_extensions.vlln.simple_npc.get_description import (
     get_path_description,
     get_path_description_without_additional_info,
 )
@@ -118,7 +118,7 @@ def unify_to_first(
     pad_color=(0, 0, 0),
     assume_rgb: bool = True,
 ):
-    assert len(vis_frames) > 0,
+    assert len(vis_frames) > 0
     h0, w0 = vis_frames[0].shape[:2]
     out = []
 
