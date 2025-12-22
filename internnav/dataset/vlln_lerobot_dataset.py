@@ -61,7 +61,7 @@ local_rank = None
 
 class VLLNDataset(Dataset):
     """
-    Dataset for Vision Language-Language Navigation (VL-LN) / IION-style training.
+    Dataset for 'Vision-Language'-'Language-Navigation' (VL-LN) / IION-style training.
     
     Args:
         tokenizer (transformers.PreTrainedTokenizer): Tokenizer used to encode
