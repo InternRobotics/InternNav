@@ -17,7 +17,7 @@ from torch.utils.data import Dataset
 from torchcodec.decoders import VideoDecoder
 from transformers.image_utils import to_numpy_array
 
-from .vlln_lerobot_dataset import VLLN_Dataset
+from .vlln_lerobot_dataset import VLLNDataset
 from .rope2d import get_rope_index_2, get_rope_index_25
 
 # Define placeholders for dataset paths
@@ -1370,7 +1370,7 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, dat
     """Make dataset and collator for supervised fine-tuning."""
     train_datasets = []
     if data_args.iion_dataset_use:
-        train_datasets.append(VLLN_Dataset(tokenizer=tokenizer, data_args=data_args))
+        train_datasets.append(VLLNDataset(tokenizer=tokenizer, data_args=data_args))
     if data_args.vln_dataset_use:
         train_datasets.append(NavPixelGoalDataset(tokenizer=tokenizer, data_args=data_args))
     train_dataset = CombinedDataset(train_datasets, shuffle=False)

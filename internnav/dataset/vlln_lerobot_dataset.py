@@ -59,7 +59,7 @@ _ORACLE_BLOCK = re.compile(r'<\|oracle\|>.*?<\|dialog_end\|>', re.DOTALL)
 local_rank = None
 
 
-class VLLN_Dataset(Dataset):
+class VLLNDataset(Dataset):
     """
     Dataset for Vision Language-Language Navigation (VL-LN) / IION-style training.
     
@@ -78,7 +78,7 @@ class VLLN_Dataset(Dataset):
 
     """
     def __init__(self, tokenizer: transformers.PreTrainedTokenizer, data_args):
-        super(VLLN_Dataset, self).__init__()
+        super(VLLNDataset, self).__init__()
         dataset = data_args.iion_dataset_use.split(",")
         dataset_list = data_list(dataset)
         rank0_print(f"Loading datasets: {dataset_list}")
