@@ -16,7 +16,7 @@ habitat_vlln_extensions/
 
 * `__init__.py` re-exports the public entry points so callers can import
   `HabitatVllnEnv`, `HabitatDialogEvaluator`, and `DialogDatasetV1` directly from
-  `internnav.habitat_vlln_extensions`.
+  `internnav.habitat_extensions`.
 * `habitat_vlln_env.py` extends the shared `HabitatEnv` wrapper to compute
   semantic masks for goal instances and expose depth camera intrinsics needed by
   dialog tasks.
