@@ -39,7 +39,7 @@ eval_cfg = EvalCfg(
         # npc setting
         "base_url": 'http://35.220.164.252:3888/v1',
         "model_name": "gpt-4o",
-        "openai_api_key": 'internnav/habitat_vlln_extensions/simple_npc/api_key.txt',
+        "openai_api_key": 'internnav/habitat_extensions/vlln/simple_npc/api_key.txt',
         "scene_summary": 'VL-LN-Bench/raw_data/mp3d/scene_summary',
         # distributed settings
         "port": "2333",  # communication port
