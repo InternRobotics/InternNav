@@ -26,7 +26,7 @@ try:
     from internnav.habitat_extensions.vlln.simple_npc.simple_npc import SimpleNPC
     from internnav.habitat_extensions.vlln.utils.dialog_utils import (
         get_config,
-        get_path_description_,
+        get_description,
     )
 
     # isort: skip
@@ -192,7 +192,7 @@ class HabitatDialogEvaluator(DistributedEvaluator):
                     if len(self.agent.dialogs) / 2 >= self.turn:
                         npc_answer = 'Sorry, you have reached the question limit. No further answers are available.'
                     else:
-                        path_description, pl = get_path_description_(env._env, object_dict, region_dict)
+                        path_description, pl = get_description(env._env, object_dict, region_dict)
                         task_finish = obs['semantic'][0].sum() > 0 and pl < 3
                         npc_answer = self.npc.answer_question(
                             question=self.agent.question,

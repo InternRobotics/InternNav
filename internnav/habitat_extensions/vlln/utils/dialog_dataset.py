@@ -32,10 +32,6 @@ class DialogInstructionData:
 
 @registry.register_dataset(name="dialog")
 class DialogDatasetV1(Dataset):
-    r"""Class inherited from Dataset that loads a Vision and Language
-    Navigation dataset.
-    """
-
     episodes: List[DialogEpisode]
     instruction_vocab: VocabDict
 
@@ -56,11 +52,7 @@ class DialogDatasetV1(Dataset):
         self.episodes = list(filter(self.build_content_scenes_filter(config), self.episodes))
 
     def from_json(self, json_str: str, scenes_dir: Optional[str] = None) -> None:
-
         deserialized = json.loads(json_str)
-        # self.instruction_vocab = VocabDict(
-        #     word_list=deserialized["instruction_vocab"]["word_list"]
-        # )
         if "category_to_task_category_id" in deserialized:
             self.category_to_task_category_id = deserialized["category_to_task_category_id"]
 

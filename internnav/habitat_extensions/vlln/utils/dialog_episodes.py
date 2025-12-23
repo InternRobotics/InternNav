@@ -20,8 +20,6 @@ class DialogViewLocation:
 
 @attr.s(auto_attribs=True, kw_only=True)
 class DialogGoal(NavigationGoal):
-    r"""Base class for a goal specification hierarchy."""
-
     position: List[float] = attr.ib(default=None, validator=not_none_validator)
     radius: Optional[float] = None
     bbox: Optional[List[float]] = None

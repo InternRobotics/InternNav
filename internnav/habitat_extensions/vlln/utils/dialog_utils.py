@@ -24,12 +24,16 @@ def get_config(
     configs_dir: str = os.path.dirname(inspect.getabsfile(inspect.currentframe())),
 ) -> DictConfig:
     """
-    Returns habitat_baselines config object composed of configs from yaml file (config_path) and overrides.
+    Compose and return a unified configuration for Habitat-based baselines.
 
-    :param config_path: path to the yaml config file.
-    :param overrides: list of config overrides. For example, :py:`overrides=["habitat_baselines.trainer_name=ddppo"]`.
-    :param configs_dir: path to the config files root directory (defaults to :ref:`_BASELINES_CFG_DIR`).
-    :return: composed config object.
+    Args:
+        habitat_config_path (str): Path to the Habitat YAML configuration file.
+        baseline_config_path (str): Path to the baseline YAML configuration file to be merged with the Habitat config.
+        opts (Optional[list]): Optional list of configuration override strings
+        configs_dir (str): Root directory containing configuration files. Defaults to the directory of the current source file.
+
+    Returns:
+        DictConfig: The merged configuration object combining Habitat and baseline settings.
     """
     habitat_config = get_habitat_config(habitat_config_path, overrides=opts, configs_dir=configs_dir)
     baseline_config = OmegaConf.load(baseline_config_path)
@@ -72,7 +76,7 @@ def get_navigable_path(env, start_position, target_positions: list, object_info:
         return [], False
 
 
-def get_path_description_(env, object_dict, region_dict):
+def get_description(env, object_dict, region_dict):
     goal_path, success = get_navigable_path(
         env,
         env.sim.get_agent_state().position,
@@ -94,63 +98,18 @@ def get_path_description_(env, object_dict, region_dict):
     idx_sorted = np.sort(idx)
     questioned_path = list(np.array(questioned_path)[idx_sorted])
     try:
-        path_description, _ = get_path_description(
+        path_description = get_path_description(
             quaternion.from_euler_angles([0, current_yaw, 0]),
             questioned_path,
             object_dict,
             region_dict,
-            return_finish=False,
             height_list=[env.sim.get_agent_state().position[1]] * len(questioned_path),
         )
     except Exception as e:
         print(e)
-        path_description, _ = get_path_description_without_additional_info(
+        path_description = get_path_description_without_additional_info(
             quaternion.from_euler_angles([0, current_yaw, 0]),
             questioned_path,
             height_list=[env.sim.get_agent_state().position[1]] * len(questioned_path),
         )
     return path_description, pl
-
-
-def unify_to_first(
-    vis_frames,
-    method: str = "resize",
-    pad_color=(0, 0, 0),
-    assume_rgb: bool = True,
-):
-    assert len(vis_frames) > 0
-    h0, w0 = vis_frames[0].shape[:2]
-    out = []
-
-    for i, f in enumerate(vis_frames):
-        f = np.asarray(f)
-
-        if f.ndim == 2:
-            f = np.stack([f] * 3, axis=2)
-        if f.shape[2] > 3:
-            f = f[:, :, :3]
-
-        if f.dtype != np.uint8:
-            fmax = float(np.nanmax(f)) if f.size else 1.0
-            f = (f * 255.0) if fmax <= 1.5 else np.clip(f, 0, 255)
-            f = f.astype(np.uint8)
-
-        h, w = f.shape[:2]
-        if (h, w) == (h0, w0):
-            out.append(np.ascontiguousarray(f))
-            continue
-
-        if method == "letterbox":
-            scale = min(w0 / w, h0 / h)
-            nw, nh = int(round(w * scale)), int(round(h * scale))
-            resized = cv2.resize(f, (nw, nh), interpolation=cv2.INTER_AREA if scale < 1 else cv2.INTER_LINEAR)
-            canvas = np.full((h0, w0, 3), pad_color, dtype=np.uint8)
-            top, left = (h0 - nh) // 2, (w0 - nw) // 2
-            canvas[top : top + nh, left : left + nw] = resized
-            f_out = canvas
-        else:
-            f_out = cv2.resize(f, (w0, h0), interpolation=cv2.INTER_AREA if (h * w) > (h0 * w0) else cv2.INTER_LINEAR)
-
-        out.append(np.ascontiguousarray(f_out))
-
-    return out

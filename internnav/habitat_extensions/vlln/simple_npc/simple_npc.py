@@ -5,6 +5,15 @@ from .prompt import DISAMBIGUATION_PROMPT, TEMPLATE
 
 
 class SimpleNPC:
+    """
+    A simple LLM-driven NPC for language-based navigation interaction.
+
+    Args:
+        max_interaction_turn (int): Maximum number of retry attempts when querying the language model.
+        model_name (str): Name of the LLM model to use.
+        openai_api_key (str): Path to a text file containing the OpenAI API key.
+        base_url (Optional[str]): Optional base URL for OpenAI-compatible APIs.
+    """
     def __init__(
         self,
         max_interaction_turn: int,
@@ -118,17 +127,6 @@ class SimpleNPC:
 
     def ask_directly(self, template_type, **kwargs):
         def generate_prompt(template_type, **kwargs):
-            """
-            Generate a complete prompt based on the template type and provided content.
-
-            Parameters:
-                template_type (str): The type of template to use.
-                **kwargs: The content to fill in the template.
-
-            Returns:
-                str: The complete prompt.
-            """
-
             prompt = TEMPLATE.get(template_type, None)
             if prompt is None:
                 raise ValueError(f"Template type '{template_type}' not found.")

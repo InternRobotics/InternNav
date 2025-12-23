@@ -12,13 +12,14 @@ from internnav.env.utils.dialog_mp3d import MP3DGTPerception
 
 @base.Env.register('habitat_vlln')
 class HabitatVllnEnv(HabitatEnv):
+    """
+    Habitat-based environment wrapper for VLLN-style tasks.
+
+    Args:
+        env_config (EnvCfg): Environment configuration.
+        task_config (TaskCfg): Task configuration.
+    """
     def __init__(self, env_config: EnvCfg, task_config: TaskCfg = None):
-        """
-        env_settings include:
-            - habitat_config: loaded from get_habitat_config
-            - rank: int, rank index for sharding
-            - world_size: int, total number of ranks
-        """
         try:
             from habitat import Env
         except ImportError as e:
@@ -28,7 +29,6 @@ class HabitatVllnEnv(HabitatEnv):
 
         super().__init__(env_config, task_config)
         self.config = env_config.env_settings['habitat_config']
-        self._env = Env(self.config)
 
         self.rank = env_config.env_settings.get('rank', 0)
         self.world_size = env_config.env_settings.get('world_size', 1)
@@ -47,14 +47,9 @@ class HabitatVllnEnv(HabitatEnv):
         self.segmentation = MP3DGTPerception(self.max_depth, self.min_depth, self._fx, self._fy)
 
         # generate episodes
-        # self._env.episodes = self._env.episodes[0:1]  # for debug
         self.episodes = self.generate_episodes()
-        # print(self.episodes)
 
     def reset(self):
-        """
-        load next episode and return first observation
-        """
         # no more episodes
         if not (0 <= self._current_episode_index < len(self.episodes)):
             self.is_running = False
@@ -66,18 +61,11 @@ class HabitatVllnEnv(HabitatEnv):
 
         # Habitat reset
         self._last_obs = self._env.reset()
-        if "instance" in self.task_config.task_name:
+        if self._last_obs and "instance" in self.task_config.task_name:
             self._last_obs['semantic'] = self.get_semantic(self._last_obs)
         return self._last_obs
 
     def step(self, action: List[Any]):
-        """
-        step the environment with given action
-
-        Args: action: List[Any], action for each env in the batch
-
-        Return: obs, reward, done, info
-        """
         obs = self._env.step(action)
         if "instance" in self.task_config.task_name:
             obs['semantic'] = self.get_semantic(obs)

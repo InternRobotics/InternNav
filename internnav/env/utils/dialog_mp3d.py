@@ -35,6 +35,16 @@ def fill_small_holes(depth_img: np.ndarray, area_thresh: int) -> np.ndarray:
 
 
 class MP3DGTPerception:
+    """
+    Ground-truth perception utility for projecting MP3D object 3D bounding boxes
+    into the current camera view to produce per-target semantic masks.
+
+    Args:
+        max_depth (float): Maximum metric depth (used for depth rescaling and masking).
+        min_depth (float): Minimum metric depth (used for depth rescaling).
+        fx (float): Camera focal length in pixels along x.
+        fy (float): Camera focal length in pixels along y.
+    """
     def __init__(self, max_depth, min_depth, fx, fy):
         self.max_depth = max_depth
         self.min_depth = min_depth
@@ -42,14 +52,20 @@ class MP3DGTPerception:
         self.fy = fy
 
     def predict(self, depth, targets, tf_camera_to_ply, area_threshold=2500):
-        '''
-        Get the gt semantic map of the target objects
-        image: (H, W, 3) current rgb frame
-        depth: (H, W) current depth frame
-        targets: (N, 6) bboxes of the target objects, first 3 are coordinates of min corner, last 3 are coordinates of max corner
-        area_threshold: int
-        return: (N, H, W) gt semantic map of the target objects
-        '''
+        """
+        Get ground-truth semantic masks for target objects by projecting 3D bboxes into the image.
+
+        Args:
+            depth (np.ndarray): Depth image of shape (H, W). Values are assumed to be normalized to [0, 1] and will be rescaled to metric depth using ``depth * (max_depth - min_depth) + min_depth``.
+            targets (np.ndarray): Target 3D axis-aligned bounding boxes of shape (N, 6), formatted as ``[min_x, min_y, min_z, max_x, max_y, max_z]`` in the PLY/world frame.
+            tf_camera_to_ply (np.ndarray): Homogeneous 4x4 transform from camera frame to the PLY/world frame.
+            area_threshold (int): Area threshold used by the hole-filling routine for both the depth map and the output masks.
+
+        Returns:
+            np.ndarray: Binary semantic masks of shape (N, H, W) with dtype ``np.uint8`` where
+            1 indicates pixels belonging to the corresponding target and 0 otherwise. If no
+            targets are provided, returns an all-zero array of shape (1, H, W).
+        """
         # get the point clouds of current frame
         filled_depth = fill_small_holes(depth, area_threshold)
         scaled_depth = filled_depth * (self.max_depth - self.min_depth) + self.min_depth

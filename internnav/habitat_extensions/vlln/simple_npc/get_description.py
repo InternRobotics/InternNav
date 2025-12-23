@@ -130,10 +130,6 @@ FINISH_DESCRIPTION = [
 
 
 def is_in_poly(ps, poly):
-    """
-    ps: a numpy array of shape (N, 2)
-    poly: a polygon represented as a list of (x, y) tuples
-    """
     if isinstance(ps, tuple):
         ps = np.array([ps])
     if len(ps.shape) == 1:
@@ -244,38 +240,6 @@ def get_start_description(angle2first_point, height_diff, room=None):
     return des
 
 
-def find_shortest_path(env, target_position):
-    """
-    Find the shortest path from the current position to the target position in the Habitat environment.
-
-    Args:
-        env: A Habitat environment instance.
-        target_position: Target position coordinates as a NumPy array [x, y, z].
-
-    Returns:
-        path: A list of waypoints along the path.
-        success: Whether a valid path was found.
-    """
-    current_position = [float(i) for i in env._sim.get_agent_state().position]
-
-    shortest_path = habitat_sim.ShortestPath()
-    shortest_path.requested_start = current_position
-    shortest_path.requested_end = target_position
-
-    success = env.sim.pathfinder.find_path(shortest_path)
-    path = shortest_path.points
-    return path, success
-
-
-def get_shortest_path_description(target_position, env, object_dict):
-    path, success = find_shortest_path(env, target_position)
-    if not success:
-        print("No valid path found!")
-        return ''
-    current_orientation = env.sim.get_agent_state().rotation
-    path_description = get_path_description(current_orientation, path, object_dict)
-    return path_description
-
 
 def get_object_name(point_info, object_dict):
     object_name = point_info['object']
@@ -317,6 +281,17 @@ def get_object_name(point_info, object_dict):
 def get_path_description_without_additional_info(
     orientation: np.ndarray, path: List[np.ndarray], height_list: list = None
 ):
+    """
+    Generate a natural-language description of a navigation path without using scene object/room metadata.
+
+    Args:
+        orientation (np.ndarray): Current agent orientation.
+        ppath (List[np.ndarray]): Sequence of 3D waypoints of length T that leads toward the target position.
+        height_list (Optional[list]): Optional per-step height values of length T.
+
+    Returns:
+        str: A multi-line path instruction string.
+    """
     if len(path) == 0:
         return ''
     path_info = {idx: {'position': i, 'calc_trun': False, 'turn': []} for idx, i in enumerate(path)}
@@ -407,7 +382,7 @@ def get_path_description_without_additional_info(
                 continue
         path_description += '\n'
         path_description += str(path_description.count('\n') + 1) + '. ' + np.random.choice(FORWARD) + ', '
-    return path_description, path_info
+    return path_description
 
 
 def get_path_description(
@@ -415,19 +390,20 @@ def get_path_description(
     path: List[np.ndarray],
     object_dict: Dict[str, Dict[str, Any]],
     region_dict: Dict[str, Dict[str, Any]],
-    return_finish: bool = True,
     height_list: list = None,
 ):
     """
-    Generate a description of the given path.
+    Generate a natural-language step-by-step description of a navigation path.
 
-    Parameters:
-        orientation (np.ndarray): The current orientation of the agent.
-        path (list): A list of points representing the path the agent needs to the target position.
-        object_dict (dict): A dictionary containing information about the objects in the scene.
+    Args:
+        orientation (np.ndarray): Current agent orientation.
+        path (List[np.ndarray]): Sequence of 3D waypoints of length T that leads toward the target position.
+        object_dict (Dict[str, Dict[str, Any]]): Object metadata dictionary.
+        region_dict (Dict[str, Dict[str, Any]]): Region/room metadata used to assign waypoints to rooms and detect room transitions.
+        height_list (Optional[list]): Optional per-step height values of length T.
 
     Returns:
-        str: A string describing the path. Returns an empty string if the path is empty.
+        str: A multi-line path instruction string.
     """
     if len(path) == 0:
         return ''
@@ -494,35 +470,7 @@ def get_path_description(
                 continue
         path_description += '\n'
         path_description += str(path_description.count('\n') + 1) + '. ' + np.random.choice(FORWARD) + ', '
-    if return_finish:
-        path_description += np.random.choice(CONJUNCTION) + ' ' + np.random.choice(FINISH_DESCRIPTION)
-        return path_description
-    else:
-        return path_description, path_info
-
-
-def plot_polygons(polygons, colors=None):
-    """
-    Args:
-        polygons: List[np.ndarray]. Each element is an (N, 2) array of polygon vertices.
-        colors: Optional list specifying the color for each polygon (as a string name or RGB value).
-    """
-    fig, ax = plt.subplots()
-    for i, poly in enumerate(polygons):
-        color = colors[i] if colors and i < len(colors) else 'blue'
-        patch = Polygon(poly, closed=True, facecolor=color, edgecolor='black', alpha=0.5)
-        ax.add_patch(patch)
-    all_points = np.vstack(polygons)
-    x_min, y_min = np.min(all_points, axis=0)
-    x_max, y_max = np.max(all_points, axis=0)
-    ax.set_xlim(x_min - 1, x_max + 1)
-    ax.set_ylim(y_min - 1, y_max + 1)
-
-    ax.set_aspect('equal')
-    plt.axis('on')
-    plt.savefig('polygons.png')
-    plt.close()
-
+    return path_description
 
 def fill_empty_with_nearest(strings):
     n = len(strings)
@@ -569,6 +517,17 @@ def minimize_unique_strings(list_of_lists):
 
 
 def get_nearest_object(path, region_dict, object_dict):
+    """
+    Determine the nearest valid object to each point along a navigation path.
+
+    Args:
+        path (List[List[float]]): Sequence of 3D positions of shape (T, 3).
+        region_dict (dict): Region/room metadata used to assign each path point to a room.
+        object_dict (dict): Object metadata dictionary.
+
+    Returns:
+        List[str]: A list of object identifiers of length ``T``, where each element corresponds to the nearest object associated with the same room as the corresponding path point.
+    """
     point_rooms = get_points_room(path, region_dict, object_dict, 'poly')
     point_rooms = minimize_unique_strings(point_rooms)
     point_rooms = fill_empty_with_nearest(point_rooms)
@@ -603,6 +562,24 @@ def get_nearest_object(path, region_dict, object_dict):
 
 
 def get_passed_objects_and_regions(path, object_dict, region_dict, height_list=None):
+    """
+    Annotate a navigation path with nearest objects, room transitions, and turn events.
+
+    Args:
+        path (List[List[float]]): Sequence of 3D positions of shape (T, 3).
+        object_dict (dict): Object metadata dictionary.
+        region_dict (dict): Region/room metadata used to compute nearest objects.
+        height_list (Optional[List[float]]): Optional per-step height values of length ``T``.
+
+    Returns:
+        dict: A dictionary keyed by waypoint index. Each entry contains:
+            - ``position``: The 3D position at this index.
+            - ``object``: Nearest object for this waypoint.
+            - ``calc_trun``: Whether this index is selected for turn computation.
+            - ``turn``: A list of turn annotations (may include "up"/"down" and/or
+              signed turn angles in degrees).
+            - ``new_room``: Whether this index marks entering a new room/region.
+    """
     nearest_objects = get_nearest_object(path, region_dict, object_dict)
     path_info = {
         idx: {'position': path[idx], 'object': obj, 'calc_trun': False, 'turn': [], 'new_room': False}
