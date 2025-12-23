@@ -21,7 +21,6 @@ eval_cfg = EvalCfg(
         env_type='habitat_vlln',
         env_settings={
             # habitat sim specifications - agent, sensors, tasks, measures etc. are defined in the habitat config file
-            'baseline_config_path': 'scripts/eval/configs/gen_videos.yaml',
             'habitat_config_path': 'scripts/eval/configs/objectnav_hm3d.yaml',
         },
     ),
