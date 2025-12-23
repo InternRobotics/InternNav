@@ -20,14 +20,12 @@ try:
         images_to_video,
         observations_to_image,
     )
+    from habitat_baselines.config.default import get_config as get_habitat_config
 
     # Import for Habitat registry side effects — do not remove
     import internnav.habitat_extensions.vlln.measures  # noqa: F401
     from internnav.habitat_extensions.vlln.simple_npc.simple_npc import SimpleNPC
-    from internnav.habitat_extensions.vlln.utils.dialog_utils import (
-        get_config,
-        get_description,
-    )
+    from internnav.habitat_extensions.vlln.utils.dialog_utils import get_description
 
     # isort: skip
 except Exception as e:
@@ -59,10 +57,9 @@ class HabitatDialogEvaluator(DistributedEvaluator):
 
         # create habitat config
         self.config_path = cfg.env.env_settings['habitat_config_path']
-        self.config = get_config(self.config_path, cfg.env.env_settings['baseline_config_path'])
+        self.config = get_habitat_config(self.config_path)
 
         with habitat.config.read_write(self.config):
-            self.config.exp.task = self.task
             self.config.habitat.dataset.split = args.eval_split
             self.config.habitat.task.measurements.update(
                 {
@@ -94,11 +91,6 @@ class HabitatDialogEvaluator(DistributedEvaluator):
         super().__init__(cfg)
 
     def eval_action(self):
-        """
-        Run local episodes on this rank.
-
-        Returns dict[str, Tensor] on GPU (1D tensors of same length).
-        """
         sucs, spls, oss, nes = [], [], [], []
         done_res = []
         if os.path.exists(os.path.join(self.output_path, 'progress.json')):
@@ -114,7 +106,6 @@ class HabitatDialogEvaluator(DistributedEvaluator):
 
         while env.is_running:
             # ------------ 1. Start of an episode ------------
-
             obs = env.reset()
             if not env.is_running or obs is None:
                 break
@@ -258,9 +249,6 @@ class HabitatDialogEvaluator(DistributedEvaluator):
         }
 
     def calc_metrics(self, global_metrics: dict) -> dict:
-        """
-        global_metrics["sucs"] etc. are global 1-D CPU tensors with all episodes.
-        """
         sucs_all = global_metrics["sucs"]
         spls_all = global_metrics["spls"]
         oss_all = global_metrics["oss"]

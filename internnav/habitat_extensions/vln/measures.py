@@ -19,8 +19,7 @@ def euclidean_distance(pos_a: Union[List[float], ndarray], pos_b: Union[List[flo
 
 @registry.register_measure
 class PathLength(Measure):
-    """
-    Measure the cumulative path length traveled by the agent by summing
+    """Measure the cumulative path length traveled by the agent by summing
     the Euclidean distance between consecutive agent positions.
 
     Args:
@@ -52,8 +51,7 @@ class PathLength(Measure):
 
 @registry.register_measure
 class OracleNavigationError(Measure):
-    """
-    Track the best (minimum) distance-to-goal achieved at any point along
+    """Track the best (minimum) distance-to-goal achieved at any point along
     the agent's trajectory during the episode.
 
     Returns:
@@ -78,8 +76,7 @@ class OracleNavigationError(Measure):
 
 @registry.register_measure
 class OracleSuccess(Measure):
-    """
-    Compute oracle success: whether the agent ever gets within a specified
+    """Compute oracle success: whether the agent ever gets within a specified
     goal radius of the target during the episode (OSR = I( min_t d_t <= r )).
 
     Args:
@@ -93,6 +90,7 @@ class OracleSuccess(Measure):
     """
 
     cls_uuid: str = "oracle_success"
+
     def __init__(self, *args: Any, config: Any, **kwargs: Any):
         print(f"in oracle success init: args = {args}, kwargs = {kwargs}")
         self._config = config
@@ -113,8 +111,7 @@ class OracleSuccess(Measure):
 
 @registry.register_measure
 class OracleSPL(Measure):
-    """
-    Oracle SPL: track the best (maximum) SPL achieved at any point along the
+    """Oracle SPL: track the best (maximum) SPL achieved at any point along the
     agent's trajectory during the episode.
 
     Returns:
@@ -138,8 +135,7 @@ class OracleSPL(Measure):
 
 @registry.register_measure
 class StepsTaken(Measure):
-    """
-    Count how many actions the agent has taken in the current episode by
+    """Count how many actions the agent has taken in the current episode by
     counting how many times ``update_metric`` is called (including STOP).
 
     Returns:
@@ -163,18 +159,17 @@ from dtw import dtw
 
 @registry.register_measure
 class NDTW(Measure):
-    """
-    NDTW (Normalized Dynamic Time Warping).
-    Computes nDTW between the agent trajectory and a reference (ground-truth) path as defined in: https://arxiv.org/abs/1907.05446. The agent trajectory is recorded as a list of 3D positions; consecutive duplicate positions are ignored. DTW is computed with Euclidean point-wise distance, and then normalized via an exponential decay.
+    r"""'NDTW <https://arxiv.org/abs/1907.05446>'. Computes nDTW between the agent trajectory and a reference (ground-truth) path
+    as defined in the paper.
 
     Args:
-        sim (:obj:`Simulator`): The simulator used to query the agent position.
-        config (Any): Measure configuration. Note: the current implementation
-            uses hard-coded constants for the normalization.
+        sim (Simulator): The simulator used to query the agent position.
+        config (Any): Measure configuration. Note: the current implementation uses
+            hard-coded constants for the normalization.
 
     Returns:
-        float: The normalized DTW score in [0, 1], where higher means the
-        executed trajectory is closer to the reference path.
+        float: The normalized DTW score in [0, 1], where higher means the executed
+        trajectory is closer to the reference path.
     """
 
     cls_uuid: str = "ndtw"

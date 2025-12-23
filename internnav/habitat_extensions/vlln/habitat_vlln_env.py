@@ -12,20 +12,14 @@ from internnav.env.utils.dialog_mp3d import MP3DGTPerception
 
 @base.Env.register('habitat_vlln')
 class HabitatVllnEnv(HabitatEnv):
-    """
-    Habitat-based environment wrapper for VLLN-style tasks.
+    """Habitat-based environment wrapper for VLLN-style tasks.
 
     Args:
         env_config (EnvCfg): Environment configuration.
         task_config (TaskCfg): Task configuration.
     """
+
     def __init__(self, env_config: EnvCfg, task_config: TaskCfg = None):
-        try:
-            from habitat import Env
-        except ImportError as e:
-            raise RuntimeError(
-                "Habitat modules could not be imported. " "Make sure both repositories are installed and on PYTHONPATH."
-            ) from e
 
         super().__init__(env_config, task_config)
         self.config = env_config.env_settings['habitat_config']

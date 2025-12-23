@@ -1,13 +1,6 @@
-import inspect
-import os
-from typing import Optional
-
-import cv2
 import habitat_sim
 import numpy as np
 import quaternion
-from habitat_baselines.config.default import get_config as get_habitat_config
-from omegaconf import DictConfig, OmegaConf, open_dict
 
 from internnav.habitat_extensions.vlln.simple_npc.get_description import (
     get_path_description,
@@ -15,33 +8,6 @@ from internnav.habitat_extensions.vlln.simple_npc.get_description import (
 )
 
 DEFAULT_IMAGE_TOKEN = "<image>"
-
-
-def get_config(
-    habitat_config_path: str,
-    baseline_config_path: str,
-    opts: Optional[list] = None,
-    configs_dir: str = os.path.dirname(inspect.getabsfile(inspect.currentframe())),
-) -> DictConfig:
-    """
-    Compose and return a unified configuration for Habitat-based baselines.
-
-    Args:
-        habitat_config_path (str): Path to the Habitat YAML configuration file.
-        baseline_config_path (str): Path to the baseline YAML configuration file to be merged with the Habitat config.
-        opts (Optional[list]): Optional list of configuration override strings
-        configs_dir (str): Root directory containing configuration files. Defaults to the directory of the current source file.
-
-    Returns:
-        DictConfig: The merged configuration object combining Habitat and baseline settings.
-    """
-    habitat_config = get_habitat_config(habitat_config_path, overrides=opts, configs_dir=configs_dir)
-    baseline_config = OmegaConf.load(baseline_config_path)
-
-    with open_dict(habitat_config):
-        config = OmegaConf.merge(habitat_config, baseline_config)
-
-    return config
 
 
 def calculate_path_length(path):

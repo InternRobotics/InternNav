@@ -80,4 +80,3 @@ habitat:
     split: val
     scenes_dir: data/scene_datasets/
     data_path: data/datasets/objectnav_hm3d_v2/{split}/{split}.json.gz
-    # data_path: data/datasets/objectnav/mp3d/v1/val/val.json.gz

@@ -8,13 +8,13 @@ from internnav.env import base
 
 @base.Env.register('habitat')
 class HabitatEnv(base.Env):
+    """A lightweight wrapper around `habitat.Env` that adapts Habitat to the project's `base.Env` interface.
+
+    Args:
+        env_config (EnvCfg): Environment configuration.
+        task_config (TaskCfg): Optional task configuration passed to the base environment.
+    """
     def __init__(self, env_config: EnvCfg, task_config: TaskCfg = None):
-        """
-        env_settings include:
-            - habitat_config: loaded from get_habitat_config
-            - rank: int, rank index for sharding
-            - world_size: int, total number of ranks
-        """
         try:
             from habitat import Env
         except ImportError as e:
@@ -39,10 +39,10 @@ class HabitatEnv(base.Env):
 
     def generate_episodes(self) -> List[Any]:
         """
-        Generate list of episodes for the current split, already:
-        - grouped by scene
-        - filtered by done_res (the path is self.output_path/progress.json)
-        - sharded by (rank, world_size)
+        Generate list of episodes for the current split.
+
+        Returns:
+            all_episodes (List[Any]): A list of episode objects for the current split.
         """
         all_episodes = []
 
@@ -77,9 +77,6 @@ class HabitatEnv(base.Env):
         return all_episodes
 
     def reset(self):
-        """
-        load next episode and return first observation
-        """
         # no more episodes
         if not (0 <= self._current_episode_index < len(self.episodes)):
             self.is_running = False
@@ -94,13 +91,6 @@ class HabitatEnv(base.Env):
         return self._last_obs
 
     def step(self, action: List[Any]):
-        """
-        step the environment with given action
-
-        Args: action: List[Any], action for each env in the batch
-
-        Return: obs, reward, done, info
-        """
         obs = self._env.step(action)
         done = self._env.episode_over
         info = self._env.get_metrics()

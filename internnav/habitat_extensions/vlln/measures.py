@@ -17,8 +17,7 @@ def euclidean_distance(pos_a: Union[List[float], ndarray], pos_b: Union[List[flo
 
 @registry.register_measure
 class PathLength(Measure):
-    """
-    Measure the cumulative path length traveled by the agent by summing
+    """Measure the cumulative path length traveled by the agent by summing
     the Euclidean distance between consecutive agent positions.
 
     Args:
@@ -28,7 +27,7 @@ class PathLength(Measure):
     Returns:
         float: The total path length accumulated over the current episode.
     """
-    
+
     cls_uuid: str = "path_length"
 
     def __init__(self, sim: Simulator, *args: Any, **kwargs: Any):
@@ -50,8 +49,7 @@ class PathLength(Measure):
 
 @registry.register_measure
 class OracleNavigationError(Measure):
-    """
-    Track the best (minimum) distance-to-goal achieved at any point along
+    """Track the best (minimum) distance-to-goal achieved at any point along
     the agent's trajectory during the episode.
 
     Returns:
@@ -76,14 +74,11 @@ class OracleNavigationError(Measure):
 
 @registry.register_measure
 class OracleSuccess(Measure):
-    """
-    Compute oracle success: whether the agent ever gets within a specified
+    """Compute oracle success: whether the agent ever gets within a specified
     goal radius of the target during the episode (OSR = I( min_t d_t <= r )).
 
     Args:
-        config (Any): Measure configuration. Typically contains a goal radius
-            (success threshold). Note: the current implementation uses a fixed
-            threshold (3.0) instead of reading from ``config``.
+        config (Any): Measure configuration. Typically contains a goal radius (success threshold). Note: the current implementation uses a fixed threshold (3.0) instead of reading from ``config``.
 
     Returns:
         float: 1.0 if the agent is (at the current step, or previously) within
@@ -91,6 +86,7 @@ class OracleSuccess(Measure):
     """
 
     cls_uuid: str = "oracle_success"
+
     def __init__(self, *args: Any, config: Any, **kwargs: Any):
         print(f"in oracle success init: args = {args}, kwargs = {kwargs}")
         self._config = config
@@ -112,12 +108,10 @@ class OracleSuccess(Measure):
 @registry.register_measure
 class OracleSPL(Measure):
     """
-    Oracle SPL: track the best (maximum) SPL achieved at any point along the
-    agent's trajectory during the episode.
+    Oracle SPL: track the best (maximum) SPL achieved at any point along the agent's trajectory during the episode.
 
     Returns:
-        float: The maximum SPL observed so far in the current episode
-        (initialized to 0.0 and updated each step).
+        float: The maximum SPL observed so far in the current episode (initialized to 0.0 and updated each step).
     """
 
     cls_uuid: str = "oracle_spl"
@@ -136,8 +130,7 @@ class OracleSPL(Measure):
 
 @registry.register_measure
 class StepsTaken(Measure):
-    """
-    Count how many actions the agent has taken in the current episode by
+    """Count how many actions the agent has taken in the current episode by
     counting how many times ``update_metric`` is called (including STOP).
 
     Returns:

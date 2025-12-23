@@ -51,8 +51,10 @@ def split_and_clean(text):
 
 @Agent.register('dialog')
 class DialogAgent(Agent):
-    """
-    agent template, override the functions for custom policy
+    """Vision-language navigation agent that can either move or ask an oracle via dialog. The agent builds a multimodal chat prompt from current/historical RGB observations (and optional look-down frames), runs a Qwen2.5-VL model to produce either an action sequence, a pixel waypoint, or a dialog query, then converts the model output into simulator actions and (optionally) a world-space navigation goal.
+
+    Args:
+        agent_config (AgentCfg): AgentCfg containing model_settings (e.g., task name, sensor config, model path, mode, resizing, dialog flags, and generation parameters) and runtime info such as local_rank.
     """
 
     def __init__(self, agent_config: AgentCfg):
@@ -277,8 +279,6 @@ class DialogAgent(Agent):
         # inference
         text = self.processor.apply_chat_template(self.messages, tokenize=False, add_generation_prompt=True)
         print('step_id', self.step_id, ' ', text)
-        # for image_idx, input_image in enumerate(self.input_images):
-        #     input_image.save(os.path.join('/'.join(info['output_path'].split('/')[:-3]), 'debug_images', f'image_{image_idx}.jpg'))
         inputs = self.processor(text=[text], images=self.input_images, return_tensors="pt").to(self.model.device)
         with torch.no_grad():
             output_ids = self.model.generate(
@@ -399,8 +399,9 @@ class DialogAgent(Agent):
         Args:
             xyz (np.ndarray): A 3D vector representing the position.
             pitch (float): The pitch angle in radians for y axis.
+
         Returns:
-            np.ndarray: A 4x4 transformation matrix.
+            transformation_matrix (np.ndarray): A 4x4 transformation matrix.
         """
 
         x, y, z = xyz
@@ -421,8 +422,9 @@ class DialogAgent(Agent):
             xyz (np.ndarray): A 3D vector representing the position.
             yaw (float): The yaw angle in radians.
             pitch (float): The pitch angle in radians for y axis.
+
         Returns:
-            np.ndarray: A 4x4 transformation matrix.
+            transformation_matrix (np.ndarray): A 4x4 transformation matrix.
         """
         x, y, z = xyz
         rot1 = self.xyz_yaw_to_tf_matrix(xyz, yaw)[:3, :3]
@@ -433,15 +435,17 @@ class DialogAgent(Agent):
         return transformation_matrix
 
     def pixel_to_gps(self, pixel, depth, intrinsic, tf_camera_to_episodic):
-        '''
+        """Back-project a 2D image pixel into 3D using the depth map and camera intrinsics.
+
         Args:
-            pixel: (2,) - [u, v] pixel coordinates
-            depth: (H, W) - depth image where depth[v, u] gives depth in meters
-            intrinsic: (4, 4) - camera intrinsic matrix
-            tf_camera_to_episodic: (4, 4) - transformation from camera to episodic frame
+            pixel (Tuple[int, int] | List[int] | np.ndarray): pixel coordinate in (v, u) indexing as used here.
+            depth (np.ndarray): depth image of shape (H, W) in meters, where depth[v, u] returns the metric depth.
+            intrinsic (np.ndarray): camera intrinsic matrix.
+            tf_camera_to_episodic (np.ndarray): homogeneous transform of shape (4, 4) mapping camera-frame points to the episodic frame.
+
         Returns:
-            (x, y): (x, y) coordinates in the episodic frame
-        '''
+            (x, y) (Tuple[float, float]): coordinates in the episodic frame.
+        """
         v, u = pixel
         z = depth[v, u]
         print("depth", z)

@@ -45,6 +45,7 @@ class MP3DGTPerception:
         fx (float): Camera focal length in pixels along x.
         fy (float): Camera focal length in pixels along y.
     """
+
     def __init__(self, max_depth, min_depth, fx, fy):
         self.max_depth = max_depth
         self.min_depth = min_depth

@@ -14,6 +14,7 @@ class SimpleNPC:
         openai_api_key (str): Path to a text file containing the OpenAI API key.
         base_url (Optional[str]): Optional base URL for OpenAI-compatible APIs.
     """
+
     def __init__(
         self,
         max_interaction_turn: int,

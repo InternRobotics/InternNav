@@ -1,12 +1,9 @@
 from collections import Counter, defaultdict
 from typing import Any, Dict, List
 
-import habitat_sim
 import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 import quaternion
-from matplotlib.patches import Polygon
 
 GO_INTO_ROOM = [
     "enter the {room}",
@@ -170,18 +167,18 @@ def get_points_room(points, region_dict, object_dict, poly_type):
 
 
 def get_point_room(point, region_poly):
-    """
-    Given a point coordinate and region polygons, return the list of regions that contain the point.
-
+    """Given a point coordinate and region polygons, return the list of regions that contain the point.
     The coordinate transform between the Habitat coordinate system and the PLY coordinate system is:
         x_habitat = x_ply
         y_habitat = z_ply
         z_habitat = -y_ply
 
     Args:
-        point: A NumPy array representing the point coordinate in the Habitat coordinate system.
-        region_poly: A dictionary of region polygons in the format {region_name: list of polygon vertices},
-                    where the vertices are in the PLY coordinate system.
+        point (np.ndarray): A NumPy array representing the point coordinate in the Habitat coordinate system.
+        region_poly (Dict[str, List[np.ndarray]]): A dictionary of region polygons.
+
+    Returns:
+        regions (List[str]): A list of region names whose polygon contains the given point(s).
     """
     if len(point.shape) == 1:
         point = np.expand_dims(point, axis=0)
@@ -240,7 +237,6 @@ def get_start_description(angle2first_point, height_diff, room=None):
     return des
 
 
-
 def get_object_name(point_info, object_dict):
     object_name = point_info['object']
     object_infos_in_room = {
@@ -281,16 +277,15 @@ def get_object_name(point_info, object_dict):
 def get_path_description_without_additional_info(
     orientation: np.ndarray, path: List[np.ndarray], height_list: list = None
 ):
-    """
-    Generate a natural-language description of a navigation path without using scene object/room metadata.
+    """Generate a natural-language description of a navigation path without using scene object/room metadata.
 
     Args:
         orientation (np.ndarray): Current agent orientation.
-        ppath (List[np.ndarray]): Sequence of 3D waypoints of length T that leads toward the target position.
+        path (List[np.ndarray]): Sequence of 3D waypoints of length T that leads toward the target position.
         height_list (Optional[list]): Optional per-step height values of length T.
 
     Returns:
-        str: A multi-line path instruction string.
+        path_description (str): A multi-line path instruction string.
     """
     if len(path) == 0:
         return ''
@@ -392,8 +387,7 @@ def get_path_description(
     region_dict: Dict[str, Dict[str, Any]],
     height_list: list = None,
 ):
-    """
-    Generate a natural-language step-by-step description of a navigation path.
+    """Generate a natural-language step-by-step description of a navigation path.
 
     Args:
         orientation (np.ndarray): Current agent orientation.
@@ -403,7 +397,7 @@ def get_path_description(
         height_list (Optional[list]): Optional per-step height values of length T.
 
     Returns:
-        str: A multi-line path instruction string.
+        path_description (str): A multi-line path instruction string.
     """
     if len(path) == 0:
         return ''
@@ -472,6 +466,7 @@ def get_path_description(
         path_description += str(path_description.count('\n') + 1) + '. ' + np.random.choice(FORWARD) + ', '
     return path_description
 
+
 def fill_empty_with_nearest(strings):
     n = len(strings)
     result = strings[:]
@@ -517,8 +512,7 @@ def minimize_unique_strings(list_of_lists):
 
 
 def get_nearest_object(path, region_dict, object_dict):
-    """
-    Determine the nearest valid object to each point along a navigation path.
+    """Determine the nearest valid object to each point along a navigation path.
 
     Args:
         path (List[List[float]]): Sequence of 3D positions of shape (T, 3).
@@ -526,7 +520,7 @@ def get_nearest_object(path, region_dict, object_dict):
         object_dict (dict): Object metadata dictionary.
 
     Returns:
-        List[str]: A list of object identifiers of length ``T``, where each element corresponds to the nearest object associated with the same room as the corresponding path point.
+        nearest_objects (List[str]): A list of object identifiers of length ``T``, where each element corresponds to the nearest object associated with the same room as the corresponding path point.
     """
     point_rooms = get_points_room(path, region_dict, object_dict, 'poly')
     point_rooms = minimize_unique_strings(point_rooms)
@@ -562,8 +556,7 @@ def get_nearest_object(path, region_dict, object_dict):
 
 
 def get_passed_objects_and_regions(path, object_dict, region_dict, height_list=None):
-    """
-    Annotate a navigation path with nearest objects, room transitions, and turn events.
+    """Annotate a navigation path with nearest objects, room transitions, and turn events.
 
     Args:
         path (List[List[float]]): Sequence of 3D positions of shape (T, 3).
@@ -572,7 +565,7 @@ def get_passed_objects_and_regions(path, object_dict, region_dict, height_list=N
         height_list (Optional[List[float]]): Optional per-step height values of length ``T``.
 
     Returns:
-        dict: A dictionary keyed by waypoint index. Each entry contains:
+        path_info (dict): A dictionary keyed by waypoint index. Each entry contains:
             - ``position``: The 3D position at this index.
             - ``object``: Nearest object for this waypoint.
             - ``calc_trun``: Whether this index is selected for turn computation.
@@ -619,16 +612,17 @@ def get_passed_objects_and_regions(path, object_dict, region_dict, height_list=N
 
 
 def sample_points(points, rooms, min_dist=1.0):
-    """
-    Subsample a list of 3D points so that the distance between any two selected points is greater than
+    """Subsample a list of 3D points so that the distance between any two selected points is greater than
     or equal to `min_dist`.
 
     Args:
-        points: A list of coordinates in the form [(x, y, z), (x, y, z), ...].
-        min_dist: The minimum sampling distance (in meters).
+        points (List[Tuple[float, float, float]] | np.ndarray): A list of coordinates in the form [(x, y, z), (x, y, z), ...].
+        rooms (List[str] | List[int] | np.ndarray): A sequence of room identifiers corresponding one-to-one with `points`. Each entry indicates the room in which the point lies.
+        min_dist (float): Minimum allowed Euclidean distance (in meters) between two selected points.
 
     Returns:
-        indices: Indices of the selected points in the original list.
+        selected_indices (List[int]): Indices of the selected points in the original `points` sequence.
+        room_change_indices (List[int]): Indices where the room label changes compared to the previous point.
     """
     points = np.array(points)
     selected_indices = [0]  # pick the first point
@@ -651,17 +645,16 @@ def sample_points(points, rooms, min_dist=1.0):
 
 
 def find_sharp_turns(path_points, threshold=30):
-    """
-    Identify all points along a path where the turning angle exceeds `threshold` degrees, and determine
+    """Identify all points along a path where the turning angle exceeds `threshold` degrees, and determine
     whether each turn is a left or right turn along with its angle.
 
     Args:
-        path_points: A list of path points in the form [(x, y, z), (x, y, z), ...].
-        threshold: Turning angle threshold in degrees (default: 30 degrees).
+        path_points (List[Tuple[float, float, float]] | np.ndarray): A list of path points in the form [(x, y, z), (x, y, z), ...].
+        threshold (float | int): Turning angle threshold in degrees (default: 30 degrees).
 
     Returns:
-        (turn_indices, turn_angles): A tuple of (list of turn point indices, list of turning angles),
-        where positive values indicate a left turn and negative values indicate a right turn.
+        sharp_turn_indices (np.ndarray): indices (into the original path) for sharp turns.
+        sharp_turn_angles (np.ndarray): signed turning angles (degrees) at those indices.
     """
     path_points = np.array(path_points)
 
@@ -689,18 +682,17 @@ def find_sharp_turns(path_points, threshold=30):
 
 
 def compute_yaw_rotation(agent_quat, current_pos, target_pos):
-    """
-    Compute the agent's rotation angle about the Y axis:
+    """Compute the agent's rotation angle about the Y axis:
     - Positive values indicate a left turn by that angle.
     - Negative values indicate a right turn by that angle.
 
     Args:
-        agent_quat: The agent's current quaternion (np.quaternion).
-        current_pos: Current position (x, y, z).
-        target_pos: Target position (x, y, z).
+        agent_quat (np.quaternion): The agent's current quaternion (np.quaternion).
+        current_pos (Tuple[float, float, float] | List[float] | np.ndarray): Current position (x, y, z).
+        target_pos (Tuple[float, float, float] | List[float] | np.ndarray): Target position (x, y, z).
 
     Returns:
-        Rotation angle in degrees (positive = left turn, negative = right turn).
+        theta_deg (float): Rotation angle in degrees (positive = left turn, negative = right turn).
     """
     direction = np.array(target_pos) - np.array(current_pos)
     direction[1] = 0

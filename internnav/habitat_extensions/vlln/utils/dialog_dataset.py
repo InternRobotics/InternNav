@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, List, Optional
 import attr
 from habitat.core.dataset import Dataset
 from habitat.core.registry import registry
-from habitat.datasets.utils import VocabDict
 
 from .dialog_episodes import (
     AgentPosition,
@@ -32,13 +31,6 @@ class DialogInstructionData:
 
 @registry.register_dataset(name="dialog")
 class DialogDatasetV1(Dataset):
-    episodes: List[DialogEpisode]
-    instruction_vocab: VocabDict
-
-    @staticmethod
-    def check_config_paths_exist(config: "DictConfig") -> bool:
-        return os.path.exists(config.data_path.format(split=config.split)) and os.path.exists(config.scenes_dir)
-
     def __init__(self, config: Optional["DictConfig"] = None) -> None:
         self.episodes = []
 
@@ -73,3 +65,7 @@ class DialogDatasetV1(Dataset):
                 goal['view_points'] = view_points
                 episode.goals[g_index] = DialogGoal(**goal)
             self.episodes.append(episode)
+
+    @staticmethod
+    def check_config_paths_exist(config: "DictConfig") -> bool:
+        return os.path.exists(config.data_path.format(split=config.split)) and os.path.exists(config.scenes_dir)
