@@ -29,6 +29,7 @@ class DataArguments:
     video_min_frame_pixels: int = field(default=4 * 28 * 28)
 
     vln_dataset_use: str = field(default="")
+    iion_dataset_use: str = field(default="")
     sample_step: int = field(default=4)
     num_history: Optional[int] = field(default=8)
     predict_step_num: Optional[int] = field(default=32)
@@ -38,6 +39,7 @@ class DataArguments:
     resize_h: Optional[int] = field(default=384)
     resize_w: Optional[int] = field(default=384)
     num_future_steps: Optional[int] = field(default=4)
+    max_dialog_turns: Optional[int] = field(default=6)
 
 
 @dataclass
