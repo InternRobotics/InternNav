@@ -17,12 +17,10 @@ def euclidean_distance(pos_a: Union[List[float], ndarray], pos_b: Union[List[flo
 
 @registry.register_measure
 class PathLength(Measure):
-    """Measure the cumulative path length traveled by the agent by summing
-    the Euclidean distance between consecutive agent positions.
+    """Measure the cumulative path length traveled by the agent by summing the Euclidean distance between consecutive agent positions.
 
     Args:
-        sim (Simulator): Simulator instance used to query the agent state
-            and its position at each step.
+        sim (Simulator): Simulator instance used to query the agent state and its position at each step.
 
     Returns:
         float: The total path length accumulated over the current episode.
@@ -49,8 +47,7 @@ class PathLength(Measure):
 
 @registry.register_measure
 class OracleNavigationError(Measure):
-    """Track the best (minimum) distance-to-goal achieved at any point along
-    the agent's trajectory during the episode.
+    """Track the best (minimum) distance-to-goal achieved at any point along the agent's trajectory during the episode.
 
     Returns:
         float: The minimum distance-to-goal observed so far in the current
@@ -74,15 +71,13 @@ class OracleNavigationError(Measure):
 
 @registry.register_measure
 class OracleSuccess(Measure):
-    """Compute oracle success: whether the agent ever gets within a specified
-    goal radius of the target during the episode (OSR = I( min_t d_t <= r )).
+    """Compute oracle success: whether the agent ever gets within a specified goal radius of the target during the episode (OSR = I( min_t d_t <= r )).
 
     Args:
         config (Any): Measure configuration. Typically contains a goal radius (success threshold). Note: the current implementation uses a fixed threshold (3.0) instead of reading from ``config``.
 
     Returns:
-        float: 1.0 if the agent is (at the current step, or previously) within
-        the success threshold of the goal, otherwise 0.0.
+        float: 1.0 if the agent is (at the current step, or previously) within the success threshold of the goal, otherwise 0.0.
     """
 
     cls_uuid: str = "oracle_success"
@@ -130,8 +125,7 @@ class OracleSPL(Measure):
 
 @registry.register_measure
 class StepsTaken(Measure):
-    """Count how many actions the agent has taken in the current episode by
-    counting how many times ``update_metric`` is called (including STOP).
+    """Count how many actions the agent has taken in the current episode by counting how many times ``update_metric`` is called (including STOP).
 
     Returns:
         float: The number of steps/actions taken so far in the episode.

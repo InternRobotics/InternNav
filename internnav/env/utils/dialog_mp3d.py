@@ -12,7 +12,7 @@ def fill_small_holes(depth_img: np.ndarray, area_thresh: int) -> np.ndarray:
         area_thresh (int): The area threshold for filling in holes
 
     Returns:
-        np.ndarray: The depth image with small holes filled in
+        filled_depth_img (np.ndarray): The depth image with small holes filled in
     """
     # Create a binary image where holes are 1 and the rest is 0
     binary_img = np.where(depth_img == 0, 1, 0).astype("uint8")
@@ -63,9 +63,7 @@ class MP3DGTPerception:
             area_threshold (int): Area threshold used by the hole-filling routine for both the depth map and the output masks.
 
         Returns:
-            np.ndarray: Binary semantic masks of shape (N, H, W) with dtype ``np.uint8`` where
-            1 indicates pixels belonging to the corresponding target and 0 otherwise. If no
-            targets are provided, returns an all-zero array of shape (1, H, W).
+            semantic_images (np.ndarray): Binary semantic masks of shape (N, H, W) with dtype ``np.uint8`` where 1 indicates pixels belonging to the corresponding target and 0 otherwise. If no targets are provided, returns an all-zero array of shape (1, H, W).
         """
         # get the point clouds of current frame
         filled_depth = fill_small_holes(depth, area_threshold)
@@ -135,7 +133,7 @@ def get_point_cloud(depth_image: np.ndarray, mask: np.ndarray, fx: float, fy: fl
         fy (float): Focal length in the y direction.
 
     Returns:
-        np.ndarray: Array of 3D coordinates (x, y, z) of the points in the image plane.
+        cloud (np.ndarray): Array of 3D coordinates (x, y, z) of the points in the image plane.
     """
     v, u = np.where(mask)
     z = depth_image[v, u]
@@ -154,7 +152,7 @@ def inverse_transform_points(transformation_matrix: np.ndarray, points: np.ndarr
         points (np.ndarray): Point cloud coordinates (N, 3)
 
     Returns:
-        np.ndarray: Point cloud coordinates in camera coordinate system (N, 3)
+        result_points (np.ndarray): Point cloud coordinates in camera coordinate system (N, 3)
     """
     # Calculate the inverse of the transformation matrix
     inv_matrix = np.linalg.inv(transformation_matrix)
@@ -166,7 +164,8 @@ def inverse_transform_points(transformation_matrix: np.ndarray, points: np.ndarr
     transformed_points = np.dot(inv_matrix, homogeneous_points.T).T
 
     # Remove the added homogeneous coordinate
-    return transformed_points[:, :3] / transformed_points[:, 3:]
+    result_points = transformed_points[:, :3] / transformed_points[:, 3:]
+    return result_points
 
 
 def project_points_to_image(points: np.ndarray, fx: float, fy: float, image_shape: tuple) -> np.ndarray:
@@ -179,7 +178,7 @@ def project_points_to_image(points: np.ndarray, fx: float, fy: float, image_shap
         image_shape (tuple): Image dimensions (height, width)
 
     Returns:
-        np.ndarray: Image coordinates (N, 2)
+        result_points (np.ndarray): Image coordinates (N, 2)
     """
     points = np.stack((points[:, 0], -points[:, 1], -points[:, 2]), axis=-1)
     # Ensure points are in front of the camera
@@ -193,4 +192,5 @@ def project_points_to_image(points: np.ndarray, fx: float, fy: float, image_shap
     image_coords = np.stack((v, u), axis=-1)
     image_coords = image_coords.astype(np.int32)
     # Return valid points only
-    return image_coords[valid_mask]
+    result_points = image_coords[valid_mask]
+    return result_points
