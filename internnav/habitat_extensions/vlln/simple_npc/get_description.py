@@ -178,7 +178,7 @@ def get_point_room(point, region_poly):
         region_poly (Dict[str, List[np.ndarray]]): A dictionary of region polygons.
 
     Returns:
-        regions (List[str]): A list of region names whose polygon contains the given point(s).
+        List[str]: A list of region names whose polygon contains the given point(s).
     """
     if len(point.shape) == 1:
         point = np.expand_dims(point, axis=0)
@@ -285,7 +285,7 @@ def get_path_description_without_additional_info(
         height_list (Optional[list]): Optional per-step height values of length T.
 
     Returns:
-        path_description (str): A multi-line path instruction string.
+        str: A multi-line path instruction string.
     """
     if len(path) == 0:
         return ''
@@ -393,11 +393,12 @@ def get_path_description(
         orientation (np.ndarray): Current agent orientation.
         path (List[np.ndarray]): Sequence of 3D waypoints of length T that leads toward the target position.
         object_dict (Dict[str, Dict[str, Any]]): Object metadata dictionary.
-        region_dict (Dict[str, Dict[str, Any]]): Region/room metadata used to assign waypoints to rooms and detect room transitions.
+        region_dict (Dict[str, Dict[str, Any]]): Region/room metadata used to assign waypoints to rooms and detect room
+            transitions.
         height_list (Optional[list]): Optional per-step height values of length T.
 
     Returns:
-        path_description (str): A multi-line path instruction string.
+        str: A multi-line path instruction string.
     """
     if len(path) == 0:
         return ''
@@ -520,7 +521,8 @@ def get_nearest_object(path, region_dict, object_dict):
         object_dict (dict): Object metadata dictionary.
 
     Returns:
-        nearest_objects (List[str]): A list of object identifiers of length ``T``, where each element corresponds to the nearest object associated with the same room as the corresponding path point.
+        List[str]: A list of object identifiers of length ``T``, where each element corresponds to the nearest object 
+            associated with the same room as the corresponding path point.
     """
     point_rooms = get_points_room(path, region_dict, object_dict, 'poly')
     point_rooms = minimize_unique_strings(point_rooms)
@@ -565,7 +567,7 @@ def get_passed_objects_and_regions(path, object_dict, region_dict, height_list=N
         height_list (Optional[List[float]]): Optional per-step height values of length ``T``.
 
     Returns:
-        path_info (dict): A dictionary keyed by waypoint index. Each entry contains:
+        dict: A dictionary keyed by waypoint index. Each entry contains:
             - ``position``: The 3D position at this index.
             - ``object``: Nearest object for this waypoint.
             - ``calc_trun``: Whether this index is selected for turn computation.
@@ -616,13 +618,15 @@ def sample_points(points, rooms, min_dist=1.0):
     or equal to `min_dist`.
 
     Args:
-        points (List[Tuple[float, float, float]] | np.ndarray): A list of coordinates in the form [(x, y, z), (x, y, z), ...].
-        rooms (List[str] | List[int] | np.ndarray): A sequence of room identifiers corresponding one-to-one with `points`. Each entry indicates the room in which the point lies.
+        points (List[Tuple[float, float, float]] | np.ndarray): A list of coordinates in the form 
+            [(x, y, z), (x, y, z), ...].
+        rooms (List[str] | List[int] | np.ndarray): A sequence of room identifiers corresponding one-to-one with 
+            `points`. Each entry indicates the room in which the point lies.
         min_dist (float): Minimum allowed Euclidean distance (in meters) between two selected points.
 
     Returns:
-        selected_indices (List[int]): Indices of the selected points in the original `points` sequence.
-        room_change_indices (List[int]): Indices where the room label changes compared to the previous point.
+        List[int]: Indices of the selected points in the original `points` sequence.
+        List[int]: Indices where the room label changes compared to the previous point.
     """
     points = np.array(points)
     selected_indices = [0]  # pick the first point
@@ -649,12 +653,13 @@ def find_sharp_turns(path_points, threshold=30):
     whether each turn is a left or right turn along with its angle.
 
     Args:
-        path_points (List[Tuple[float, float, float]] | np.ndarray): A list of path points in the form [(x, y, z), (x, y, z), ...].
+        path_points (List[Tuple[float, float, float]] | np.ndarray): A list of path points in the form 
+            [(x, y, z), (x, y, z), ...].
         threshold (float | int): Turning angle threshold in degrees (default: 30 degrees).
 
     Returns:
-        sharp_turn_indices (np.ndarray): indices (into the original path) for sharp turns.
-        sharp_turn_angles (np.ndarray): signed turning angles (degrees) at those indices.
+        np.ndarray: indices (into the original path) for sharp turns.
+        np.ndarray: signed turning angles (degrees) at those indices.
     """
     path_points = np.array(path_points)
 
@@ -692,7 +697,7 @@ def compute_yaw_rotation(agent_quat, current_pos, target_pos):
         target_pos (Tuple[float, float, float] | List[float] | np.ndarray): Target position (x, y, z).
 
     Returns:
-        theta_deg (float): Rotation angle in degrees (positive = left turn, negative = right turn).
+        float: Rotation angle in degrees (positive = left turn, negative = right turn).
     """
     direction = np.array(target_pos) - np.array(current_pos)
     direction[1] = 0

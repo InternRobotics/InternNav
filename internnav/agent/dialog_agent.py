@@ -51,10 +51,14 @@ def split_and_clean(text):
 
 @Agent.register('dialog')
 class DialogAgent(Agent):
-    """Vision-language navigation agent that can either move or ask an oracle via dialog. The agent builds a multimodal chat prompt from current/historical RGB observations (and optional look-down frames), runs a Qwen2.5-VL model to produce either an action sequence, a pixel waypoint, or a dialog query, then converts the model output into simulator actions and (optionally) a world-space navigation goal.
+    """Vision-language navigation agent that can either move or ask an oracle via dialog. The agent builds a multimodal
+     chat prompt from current/historical RGB observations (and optional look-down frames), runs a Qwen2.5-VL model to 
+     produce either an action sequence, a pixel waypoint, or a dialog query, then converts the model output into 
+     simulator actions and (optionally) a world-space navigation goal.
 
     Args:
-        agent_config (AgentCfg): AgentCfg containing model_settings (e.g., task name, sensor config, model path, mode, resizing, dialog flags, and generation parameters) and runtime info such as local_rank.
+        agent_config (AgentCfg): AgentCfg containing model_settings (e.g., task name, sensor config, model path, mode, 
+            resizing, dialog flags, and generation parameters) and runtime info such as local_rank.
     """
 
     def __init__(self, agent_config: AgentCfg):
@@ -401,7 +405,7 @@ class DialogAgent(Agent):
             pitch (float): The pitch angle in radians for y axis.
 
         Returns:
-            transformation_matrix (np.ndarray): A 4x4 transformation matrix.
+            np.ndarray: A 4x4 transformation matrix.
         """
 
         x, y, z = xyz
@@ -424,7 +428,7 @@ class DialogAgent(Agent):
             pitch (float): The pitch angle in radians for y axis.
 
         Returns:
-            transformation_matrix (np.ndarray): A 4x4 transformation matrix.
+            np.ndarray: A 4x4 transformation matrix.
         """
         x, y, z = xyz
         rot1 = self.xyz_yaw_to_tf_matrix(xyz, yaw)[:3, :3]
@@ -441,10 +445,11 @@ class DialogAgent(Agent):
             pixel (Tuple[int, int] | List[int] | np.ndarray): pixel coordinate in (v, u) indexing as used here.
             depth (np.ndarray): depth image of shape (H, W) in meters, where depth[v, u] returns the metric depth.
             intrinsic (np.ndarray): camera intrinsic matrix.
-            tf_camera_to_episodic (np.ndarray): homogeneous transform of shape (4, 4) mapping camera-frame points to the episodic frame.
+            tf_camera_to_episodic (np.ndarray): homogeneous transform of shape (4, 4) mapping camera-frame points to 
+                the episodic frame.
 
         Returns:
-            (x, y) (Tuple[float, float]): coordinates in the episodic frame.
+            Tuple[float, float]: coordinates in the episodic frame.
         """
         v, u = pixel
         z = depth[v, u]
