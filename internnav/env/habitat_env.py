@@ -42,7 +42,7 @@ class HabitatEnv(base.Env):
         Generate list of episodes for the current split.
 
         Returns:
-            all_episodes (List[Any]): A list of episode objects for the current split.
+            List[Any]: A list of episode objects for the current split.
         """
         all_episodes = []
 
