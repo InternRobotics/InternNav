@@ -32,7 +32,7 @@ from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 
 from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator import DistributedEvaluator, Evaluator
-from internnav.habitat_extensions.utils import (
+from internnav.habitat_extensions.vln.utils import (
     get_axis_align_matrix,
     get_intrinsic_matrix,
     pixel_to_gps,
@@ -43,7 +43,7 @@ from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCa
 from internnav.model.utils.vln_utils import split_and_clean, traj_to_actions
 
 # Import for Habitat registry side effects — do not remove
-import internnav.habitat_extensions.measures  # noqa: F401 # isort: skip
+import internnav.habitat_extensions.vln.measures  # noqa: F401 # isort: skip
 
 
 DEFAULT_IMAGE_TOKEN = "<image>"

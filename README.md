@@ -256,13 +256,13 @@ If you use the specific pretrained models and benchmarks, please kindly cite the
     booktitle={arXiv},
 }
 @misc{wei2025groundslowfastdualsystem,
-      title={Ground Slow, Move Fast: A Dual-System Foundation Model for Generalizable Vision-and-Language Navigation}, 
+      title={Ground Slow, Move Fast: A Dual-System Foundation Model for Generalizable Vision-and-Language Navigation},
       author={Meng Wei and Chenyang Wan and Jiaqi Peng and Xiqian Yu and Yuqiang Yang and Delin Feng and Wenzhe Cai and Chenming Zhu and Tai Wang and Jiangmiao Pang and Xihui Liu},
       year={2025},
       eprint={2512.08186},
       archivePrefix={arXiv},
       primaryClass={cs.RO},
-      url={https://arxiv.org/abs/2512.08186}, 
+      url={https://arxiv.org/abs/2512.08186},
 }
 ```
 

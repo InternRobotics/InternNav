@@ -64,6 +64,7 @@ class DistributedEvaluator(Evaluator):
                 from internnav.agent import Agent
 
                 eval_cfg.agent.model_settings['local_rank'] = self.local_rank
+                eval_cfg.agent.model_settings['task_name'] = eval_cfg.task.task_name
                 self.agent = Agent.init(eval_cfg.agent)
 
     def eval(self):

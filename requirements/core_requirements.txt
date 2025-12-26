@@ -35,7 +35,7 @@ jsonschema-specifications>=2023.12.1,<2026.0.0
 msgpack-numpy>=0.4.8,<0.5
 
 # numpy wheels:
-numpy>=1.26
+numpy>=1.26,<2.0
 
 nvsmi>=0.4.2,<0.5
 

@@ -8,13 +8,13 @@ from internnav.env import base
 
 @base.Env.register('habitat')
 class HabitatEnv(base.Env):
-    def __init__(self, env_config: EnvCfg, task_config: TaskCfg):
-        """
-        env_settings include:
-            - habitat_config: loaded from get_habitat_config
-            - rank: int, rank index for sharding
-            - world_size: int, total number of ranks
-        """
+    """A lightweight wrapper around `habitat.Env` that adapts Habitat to the project's `base.Env` interface.
+
+    Args:
+        env_config (EnvCfg): Environment configuration.
+        task_config (TaskCfg): Optional task configuration passed to the base environment.
+    """
+    def __init__(self, env_config: EnvCfg, task_config: TaskCfg = None):
         try:
             from habitat import Env
         except ImportError as e:
@@ -23,7 +23,6 @@ class HabitatEnv(base.Env):
             ) from e
 
         super().__init__(env_config, task_config)
-
         self.config = env_config.env_settings['habitat_config']
         self._env = Env(self.config)
 
@@ -36,16 +35,14 @@ class HabitatEnv(base.Env):
         self.output_path = env_config.env_settings.get('output_path', './output')
 
         # generate episodes
-        # self._env.episodes = self._env.episodes[0:1]  # for debug
         self.episodes = self.generate_episodes()
-        # print(self.episodes)
 
     def generate_episodes(self) -> List[Any]:
         """
-        Generate list of episodes for the current split, already:
-        - grouped by scene
-        - filtered by done_res (the path is self.output_path/progress.json)
-        - sharded by (rank, world_size)
+        Generate list of episodes for the current split.
+
+        Returns:
+            List[Any]: A list of episode objects for the current split.
         """
         all_episodes = []
 
@@ -80,9 +77,6 @@ class HabitatEnv(base.Env):
         return all_episodes
 
     def reset(self):
-        """
-        load next episode and return first observation
-        """
         # no more episodes
         if not (0 <= self._current_episode_index < len(self.episodes)):
             self.is_running = False
@@ -94,17 +88,9 @@ class HabitatEnv(base.Env):
 
         # Habitat reset
         self._last_obs = self._env.reset()
-
         return self._last_obs
 
     def step(self, action: List[Any]):
-        """
-        step the environment with given action
-
-        Args: action: List[Any], action for each env in the batch
-
-        Return: obs, reward, done, info
-        """
         obs = self._env.step(action)
         done = self._env.episode_over
         info = self._env.get_metrics()
