@@ -219,8 +219,8 @@ For example, raising issues, fixing bugs in the framework, and adapting or addin
 We are excited to see InternNav being deployed and extended by the community across different robots and real-world scenarios.  
 Below are selected community-driven deployment guides and solution write-ups, which may serve as practical references for advanced users.
 
-- **IROS VLN Navigation Champion Solution (2024)**  
-  A complete system-level solution and design analysis for VLN tasks.  
+- **IROS Challenge Nav Track: Champion Solution (2025)**  
+  A complete system-level solution and design analysis for Vision-and-Language Navigation in Physical Environments.  
   🔗 https://zhuanlan.zhihu.com/p/1969046543286907790
 
 - **Go2 Series Deployment Tutorial (ShanghaiTech University)**  
