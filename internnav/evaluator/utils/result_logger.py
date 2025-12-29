@@ -319,5 +319,5 @@ class ResultLogger:
             }
 
         # write log content to file
-        with open(f"{self.name}_result.json", "w") as f:
+        with open(f"{PROJECT_ROOT_PATH}/logs/{self.name}/result.json", "w") as f:
             json.dump(json_data, f, indent=2, ensure_ascii=False)
