@@ -9,7 +9,7 @@ utilities.
 ## Package structure
 
 ```
-habitat_extensions/
+habitat_extensions/vln/
 ├── __init__.py
 ├── habitat_env.py
 ├── habitat_default_evaluator.py
