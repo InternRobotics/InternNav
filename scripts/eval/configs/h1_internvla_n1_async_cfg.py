@@ -49,7 +49,7 @@ eval_cfg = EvalCfg(
             'env_num': 1,
             'use_distributed': False,  # If the others setting in task_settings, please set use_distributed = False.
             'proc_num': 1,
-            'max_step': 50000,  # If use flash mode，default 1000; descrete mode, set 50000
+            'max_step': 1000,  # If use flash mode，default 1000; descrete mode, set 50000
         },
         scene=SceneCfg(
             scene_type='mp3d',
@@ -57,7 +57,7 @@ eval_cfg = EvalCfg(
         ),
         robot_name='h1',
         robot_flash=True,  # If robot_flash is True, the mode is flash (set world_pose directly); else you choose physical mode.
-        flash_collision=True,  # If flash_collision is True, the robot will stop when collision detected.
+        flash_collision=False,  # If flash_collision is True, the robot will stop when collision detected.
         robot_usd_path='data/Embodiments/vln-pe/h1/h1_internvla.usd',
         camera_resolution=[640, 480],  # (W,H)
         camera_prim_path='torso_link/h1_1_25_down_30',

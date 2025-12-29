@@ -65,30 +65,15 @@ case "$mode" in
 
         conda activate internutopia
 
-        # -------- parse remaining arguments (e.g., --config xxx) --------
-        while [[ $# -gt 0 ]]; do
-            case $1 in
-                --config)
-                    CONFIG="$2"
-                    shift 2
-                    ;;
-                *)
-                    echo "Unknown parameter: $1"
-                    exit 1
-                    ;;
-            esac
-        done
-        # ----------------------------------------------------------------
-
         if [ "$RANK" -eq 0 ]; then
             echo "[run.sh] Starting Ray head..."
             RAY_max_direct_call_object_size=104857600 \
                 ray start --head --port=6379
 
-            sleep 20s
+            sleep 300s
 
             echo "[run.sh] Exec start_eval.sh..."
-            bash scripts/eval/bash/start_eval.sh
+            bash scripts/eval/bash/start_eval.sh --config $CONFIG
 
             sleep inf
         else
