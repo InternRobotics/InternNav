@@ -49,9 +49,10 @@ The toolbox supports the most advanced high-quality navigation dataset, InternDa
 - [🏠 Introduction](#-introduction)
 - [🔥 News](#-news)
 - [📚 Getting Started](#-getting-started)
-- [📦 Overview of Benchmark \& Model Zoo](#-overview-of-benchmark-and-model-zoo)
+- [📦 Overview of Benchmark \& Model Zoo](#-overview)
 - [🔧 Customization](#-customization)
 - [👥 Contribute](#-contribute)
+- [🚀 Community Deployment & Best Practices](#-community-deployment--best-practices)
 - [🔗 Citation](#-citation)
 - [📄 License](#-license)
 - [👏 Acknowledgements](#-acknowledgements)
@@ -212,6 +213,23 @@ If you would like to contribute to InternNav, please check out our [contribution
 For example, raising issues, fixing bugs in the framework, and adapting or adding new policies and data to the framework.
 
 **Note:** We welcome the feedback of the model's zero-shot performance when deploying in your own environment. Please show us your results and offer us your future demands regarding the model's capability. We will select the most valuable ones and collaborate with users together to solve them in the next few months :)
+
+## 🚀 Community Deployment & Best Practices
+
+We are excited to see InternNav being deployed and extended by the community across different robots and real-world scenarios.  
+Below are selected community-driven deployment guides and solution write-ups, which may serve as practical references for advanced users.
+
+- **IROS VLN Navigation Champion Solution (2024)**  
+  A complete system-level solution and design analysis for VLN tasks.  
+  🔗 https://zhuanlan.zhihu.com/p/1969046543286907790
+
+- **Go2 Series Deployment Tutorial (ShanghaiTech University)**  
+  Step-by-step edge deployment guide for InternNav-based perception and navigation.  
+  🔗 https://github.com/cmjang/InternNav-deploy
+
+- **G1 Series Deployment Tutorial (Wuhan University)**  
+  Detailed educational materials on vision-language navigation deployment.  
+  🔗 See *Chapter 5: Vision-Language Navigation (Part II)*
 
 ## 🔗 Citation
 
