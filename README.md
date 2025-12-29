@@ -229,7 +229,7 @@ Below are selected community-driven deployment guides and solution write-ups, wh
 
 - **G1 Series Deployment Tutorial (Wuhan University)**  
   Detailed educational materials on vision-language navigation deployment.  
-  🔗 See *Chapter 5: Vision-Language Navigation (Part II)*
+  🔗 [*Chapter 5: Vision-Language Navigation (Part II)*](https://mp.weixin.qq.com/s/p3cJzbRvecMajiTh9mXoAw)
 
 ## 🔗 Citation
 
