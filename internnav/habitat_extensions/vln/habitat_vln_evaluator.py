@@ -192,7 +192,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             "nes": nes,  # shape [N_local]
         }
 
-        if ndtws:
+        if ndtws is not None:
             result["ndtws"] = ndtws  # shape [N_local]
         return result
 
@@ -587,7 +587,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             torch.tensor(spls).to(self.device),
             torch.tensor(oss).to(self.device),
             torch.tensor(nes).to(self.device),
-            torch.tensor(ndtw).to(self.device) if 'ndtw' in metrics else None,
+            torch.tensor(ndtw).to(self.device) if ndtw else None,
         )
 
     def _run_eval_system2(self) -> tuple:
@@ -876,5 +876,5 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             torch.tensor(spls).to(self.device),
             torch.tensor(oss).to(self.device),
             torch.tensor(nes).to(self.device),
-            torch.tensor(ndtw).to(self.device) if 'ndtw' in metrics else None,
+            torch.tensor(ndtw).to(self.device) if ndtw else None,
         )
