@@ -37,6 +37,7 @@ The toolbox supports the most advanced high-quality navigation dataset, InternDa
 ## 🔥 News
 | Time   | Update |
 |---------|--------|
+| 2025/12 | InternNav v0.3.0 released |
 | 2025/12 | Training code for InternVLA-N1 is now available. This release provides two model configurations: InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> with NavDP*</span> and InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> DualVLN </span>. For model architecture and training details, please refer to the [DualVLN paper](https://arxiv.org/abs/2512.08186).|
 | 2025/11 | InternNav v0.2.0 released — added distributed evaluation support for VLN-PE.|
 | 2025/10 | Add a [inference-only demo](scripts/notebooks/inference_only_demo.ipynb) of InternVLA-N1. |
