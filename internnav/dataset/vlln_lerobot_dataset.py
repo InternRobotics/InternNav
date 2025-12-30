@@ -22,21 +22,21 @@ from .rope2d import get_rope_index_2, get_rope_index_25
 
 # Define placeholders for dataset paths
 IION_split1 = {
-    "data_path": "traj_data/mp3d_split1",
+    "data_path": "projects/VL-LN-Bench/traj_data/mp3d_split1",
     "height": 125,
     "pitch_1": 0,
     "pitch_2": 30,
 }
 
 IION_split2 = {
-    "data_path": "traj_data/mp3d_split2",
+    "data_path": "projects/VL-LN-Bench/traj_data/mp3d_split2",
     "height": 125,
     "pitch_1": 0,
     "pitch_2": 30,
 }
 
 IION_split3 = {
-    "data_path": "traj_data/mp3d_split3",
+    "data_path": "projects/VL-LN-Bench/traj_data/mp3d_split3",
     "height": 125,
     "pitch_1": 0,
     "pitch_2": 30,

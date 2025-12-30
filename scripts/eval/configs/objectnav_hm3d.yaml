@@ -78,5 +78,5 @@ habitat:
   dataset:
     type: ObjectNav-v1
     split: val
-    scenes_dir: data/scene_datasets/
+    scenes_dir: projects/VL-LN-Bench/scene_datasets/
     data_path: data/datasets/objectnav_hm3d_v2/{split}/{split}.json.gz

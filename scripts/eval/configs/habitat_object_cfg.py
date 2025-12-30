@@ -9,7 +9,7 @@ eval_cfg = EvalCfg(
         model_settings={
             "mode": "system2",  # inference mode: dual_system or system2
             "dialog_enabled": False,
-            "model_path": "checkpoints/Vlln-object",  # path to model checkpoint
+            "model_path": "projects/VL-LN-Bench/base_model/checkpoint-iion",  # path to model checkpoint
             "append_look_down": True,
             "num_history": 8,
             "resize_w": 384,  # image resize width
@@ -40,8 +40,8 @@ eval_cfg = EvalCfg(
         # npc setting
         "base_url": 'http://35.220.164.252:3888/v1',
         "model_name": "gpt-4o",
-        "openai_api_key": 'internnav/habitat_vlln_extensions/simple_npc/api_key.txt',
-        "scene_summary": 'internnav/habitat_vlln_extensions/simple_npc/scene_summary',
+        "openai_api_key": 'internnav/habitat_extensions/vlln/simple_npc/api_key.txt',
+        "scene_summary": 'projects/VL-LN-Bench/raw_data/mp3d/scene_summary',
         # distributed settings
         "port": "2333",  # communication port
         "dist_url": "env://",  # url for distributed setup

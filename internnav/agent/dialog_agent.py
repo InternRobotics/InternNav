@@ -11,21 +11,16 @@ import numpy as np
 import quaternion
 import torch
 from PIL import Image, ImageDraw
-from transformers import (
-    AutoProcessor,
-    AutoTokenizer,
-    Qwen2_5_VLForConditionalGeneration,
-)
 
 from internnav.agent import Agent
 from internnav.configs.agent import AgentCfg
 
 try:
-    pass
-except Exception as e:
-    print(f"Warning: ({e}), Ignore this if not using dual_system.")
-
-try:
+    from transformers import (
+        AutoProcessor,
+        AutoTokenizer,
+        Qwen2_5_VLForConditionalGeneration,
+    )
     from depth_camera_filtering import filter_depth
     from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 except Exception as e:

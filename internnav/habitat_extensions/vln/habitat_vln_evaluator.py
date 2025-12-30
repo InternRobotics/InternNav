@@ -192,7 +192,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             "nes": nes,  # shape [N_local]
         }
 
-        if ndtws:
+        if ndtws is not None:
             result["ndtws"] = ndtws  # shape [N_local]
         return result
 
@@ -207,6 +207,13 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
         # avoid /0 if no episodes
         denom = max(len(sucs_all), 1)
+        
+        # clean NaN in spls, treat as 0.0
+        torch.nan_to_num(spls_all, nan=0.0, posinf=0.0, neginf=0.0, out=spls_all)
+
+        # clean inf in nes, only fiinite nes are counted
+        nes_finite_mask = torch.isfinite(nes_all)
+        nes_all = nes_all[nes_finite_mask]
 
         result_all = {
             "sucs_all": float(sucs_all.mean().item()) if denom > 0 else 0.0,
@@ -587,7 +594,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             torch.tensor(spls).to(self.device),
             torch.tensor(oss).to(self.device),
             torch.tensor(nes).to(self.device),
-            torch.tensor(ndtw).to(self.device) if 'ndtw' in metrics else None,
+            torch.tensor(ndtw).to(self.device) if ndtw else None,
         )
 
     def _run_eval_system2(self) -> tuple:
@@ -876,5 +883,5 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             torch.tensor(spls).to(self.device),
             torch.tensor(oss).to(self.device),
             torch.tensor(nes).to(self.device),
-            torch.tensor(ndtw).to(self.device) if 'ndtw' in metrics else None,
+            torch.tensor(ndtw).to(self.device) if ndtw else None,
         )

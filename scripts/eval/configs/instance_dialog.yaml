@@ -74,5 +74,5 @@ habitat:
   dataset:
     type: dialog
     split: unseen_mini
-    scenes_dir: VL-LN-Bench/scene_datasets/
-    data_path: VL-LN-Bench/raw_data/mp3d/val_unseen/val_unseen_iion.json.gz
+    scenes_dir: projects/VL-LN-Bench/scene_datasets/
+    data_path: projects/VL-LN-Bench/raw_data/mp3d/val_unseen/val_unseen_iion.json.gz
