@@ -222,10 +222,10 @@ class InternVLAN1AsyncAgent:
                 **inputs,
                 max_new_tokens=128,
                 do_sample=False,
-                use_cache=True,
-                past_key_values=self.past_key_values,
+                # use_cache=True,
+                # past_key_values=self.past_key_values,
                 return_dict_in_generate=True,
-                raw_input_ids=copy.deepcopy(inputs.input_ids),
+                # raw_input_ids=copy.deepcopy(inputs.input_ids),
             )
         output_ids = outputs.sequences
 
@@ -253,5 +253,5 @@ class InternVLAN1AsyncAgent:
             return action_seq, None, None
 
     def step_s1(self, latent, rgb, depth):
-        all_trajs = self.model.generate_traj(latent, rgb, depth, use_async=True)
+        all_trajs = self.model.generate_traj(latent, rgb, depth)
         return all_trajs
