@@ -1,24 +1,18 @@
 import copy
-import itertools
 import json
 import os
 import random
 import re
-import time
-from dataclasses import dataclass
-from typing import Dict, List, Sequence, Tuple
+from bisect import bisect_left
+from typing import Dict, List, Sequence
 
 import numpy as np
 import torch
 import transformers
-from decord import VideoReader
 from PIL import Image
 from torch.utils.data import Dataset
-from torchcodec.decoders import VideoDecoder
-from transformers.image_utils import to_numpy_array
-from bisect import bisect_left
-from .rope2d import get_rope_index_2, get_rope_index_25
 
+from .rope2d import get_rope_index_2, get_rope_index_25
 
 # Define placeholders for dataset paths
 IION_split1 = {
@@ -62,7 +56,7 @@ local_rank = None
 class VLLNDataset(Dataset):
     """
     Dataset for 'Vision-Language'-'Language-Navigation' (VL-LN) / IION-style training.
-    
+
     Args:
         tokenizer (transformers.PreTrainedTokenizer): Tokenizer used to encode
             the chat template and produce `input_ids` / `labels`.
@@ -77,23 +71,20 @@ class VLLNDataset(Dataset):
             - num_history (int): number of history frames in prompt.
 
     """
+
     def __init__(self, tokenizer: transformers.PreTrainedTokenizer, data_args):
         super(VLLNDataset, self).__init__()
         dataset = data_args.iion_dataset_use.split(",")
         dataset_list = data_list(dataset)
         rank0_print(f"Loading datasets: {dataset_list}")
-        self.video_max_total_pixels = getattr(
-            data_args, "video_max_total_pixels", 1664 * 28 * 28
-        )
-        self.video_min_total_pixels = getattr(
-            data_args, "video_min_total_pixels", 256 * 28 * 28
-        )
+        self.video_max_total_pixels = getattr(data_args, "video_max_total_pixels", 1664 * 28 * 28)
+        self.video_min_total_pixels = getattr(data_args, "video_min_total_pixels", 256 * 28 * 28)
         self.model_type = data_args.model_type
         if data_args.model_type == "qwen2.5vl":
             self.get_rope_index = get_rope_index_25
         else:
             self.get_rope_index = get_rope_index_2
-        
+
         self.sample_step = data_args.sample_step
         self.pixel_goal_only = data_args.pixel_goal_only
         self.num_future_steps = data_args.num_future_steps
@@ -106,9 +97,9 @@ class VLLNDataset(Dataset):
             height = data.get("height", None)
             pitch_1 = data.get("pitch_1", None)
             pitch_2 = data.get("pitch_2", None)
-            
+
             data_path = data['data_path']
-            
+
             annotations = get_annotations_from_lerobot_data(data_path, pitch_1, pitch_2, height)
 
             pixel_goal_list = []
@@ -116,7 +107,6 @@ class VLLNDataset(Dataset):
             stop_list = []
             list_data_dict = []
             dialog_list = []
-            
 
             for ep_id, item in enumerate(annotations['episodes']):
                 ep_id = item['id']
@@ -127,33 +117,78 @@ class VLLNDataset(Dataset):
                 actions = item['actions'][1:] + [0]
                 pixel_goals = item['pixel_goals']
                 poses = item[f'poses_{height}cm_{pitch_1}deg']
-                
+
                 actions_len = len(actions)
                 if actions_len < 4:
                     continue
-        
+
                 num_rounds = actions_len // self.sample_step
-                for n in range(num_rounds+1):
+                for n in range(num_rounds + 1):
                     if n * self.sample_step == actions_len or n * self.sample_step == actions_len - 1:
                         continue
                     start_frame_id = n * self.sample_step
                     action_flag = actions[start_frame_id]
                     pixel_goal = pixel_goals[start_frame_id]
                     history_dialogs = get_history_dialogs(start_frame_id, dialogs, dia_idx)
-                    if pixel_goal[0]==-1:
+                    if pixel_goal[0] == -1:
                         if action_flag == 1:
                             continue
                         else:
                             turn_actions = get_turn_actions(actions, start_frame_id, self.num_future_steps)
-                            turn_list.append((ep_id, data_path, video, height, pitch_1, pitch_2, instruction, start_frame_id, turn_actions, None, history_dialogs, None))
+                            turn_list.append(
+                                (
+                                    ep_id,
+                                    data_path,
+                                    video,
+                                    height,
+                                    pitch_1,
+                                    pitch_2,
+                                    instruction,
+                                    start_frame_id,
+                                    turn_actions,
+                                    None,
+                                    history_dialogs,
+                                    None,
+                                )
+                            )
                     else:
                         goal_len = pixel_goal[0]
                         action = pixel_goal[1]
-                        pose = poses[start_frame_id:start_frame_id+goal_len]
-                        pixel_goal_list.append((ep_id, data_path, video, height, pitch_1, pitch_2, instruction, start_frame_id, action, pose, history_dialogs, None))
+                        pose = poses[start_frame_id : start_frame_id + goal_len]
+                        pixel_goal_list.append(
+                            (
+                                ep_id,
+                                data_path,
+                                video,
+                                height,
+                                pitch_1,
+                                pitch_2,
+                                instruction,
+                                start_frame_id,
+                                action,
+                                pose,
+                                history_dialogs,
+                                None,
+                            )
+                        )
                 stop_frame = actions_len - 1
                 stop_history = get_history_dialogs(stop_frame, dialogs, dia_idx)
-                stop_list.append((ep_id, data_path, video, height, pitch_1, pitch_2, instruction, actions_len-1, 0, None, stop_history, None))
+                stop_list.append(
+                    (
+                        ep_id,
+                        data_path,
+                        video,
+                        height,
+                        pitch_1,
+                        pitch_2,
+                        instruction,
+                        actions_len - 1,
+                        0,
+                        None,
+                        stop_history,
+                        None,
+                    )
+                )
                 for n in range(len(dia_idx)):
                     start_frame_id = dia_idx[n]
                     action = actions[start_frame_id : start_frame_id + self.num_future_steps]
@@ -163,15 +198,60 @@ class VLLNDataset(Dataset):
                         pixel_goal = pixel_goals[start_frame_id]
                         if pixel_goal[0] != -1:
                             goal_len = pixel_goal[0]
-                            pose = poses[start_frame_id:start_frame_id+goal_len]
-                            dialog_list.append((ep_id, data_path, video, height, pitch_1, pitch_2, instruction, start_frame_id, pixel_goal[1], pose, history_dialogs, current_dialog))
+                            pose = poses[start_frame_id : start_frame_id + goal_len]
+                            dialog_list.append(
+                                (
+                                    ep_id,
+                                    data_path,
+                                    video,
+                                    height,
+                                    pitch_1,
+                                    pitch_2,
+                                    instruction,
+                                    start_frame_id,
+                                    pixel_goal[1],
+                                    pose,
+                                    history_dialogs,
+                                    current_dialog,
+                                )
+                            )
                         else:
                             continue
                     elif action[0] == 0:
-                        dialog_list.append((ep_id, data_path, video, height, pitch_1, pitch_2, instruction, start_frame_id, 0, None, history_dialogs, current_dialog))
+                        dialog_list.append(
+                            (
+                                ep_id,
+                                data_path,
+                                video,
+                                height,
+                                pitch_1,
+                                pitch_2,
+                                instruction,
+                                start_frame_id,
+                                0,
+                                None,
+                                history_dialogs,
+                                current_dialog,
+                            )
+                        )
                     else:
                         turn_actions = get_turn_actions(actions, start_frame_id, self.num_future_steps)
-                        dialog_list.append((ep_id, data_path, video, height, pitch_1, pitch_2, instruction, start_frame_id, turn_actions, None, history_dialogs, current_dialog))
+                        dialog_list.append(
+                            (
+                                ep_id,
+                                data_path,
+                                video,
+                                height,
+                                pitch_1,
+                                pitch_2,
+                                instruction,
+                                start_frame_id,
+                                turn_actions,
+                                None,
+                                history_dialogs,
+                                current_dialog,
+                            )
+                        )
 
             list_data_dict = pixel_goal_list
             rank0_print(len(turn_list), len(pixel_goal_list), len(stop_list), len(dialog_list))
@@ -180,23 +260,15 @@ class VLLNDataset(Dataset):
                 list_data_dict += stop_list * 10
                 list_data_dict += dialog_list * 10
             if sampling_rate < 1.0:
-                list_data_dict = random.sample(
-                    list_data_dict, int(len(list_data_dict) * sampling_rate)
-                )
+                list_data_dict = random.sample(list_data_dict, int(len(list_data_dict) * sampling_rate))
                 print(f"sampling {len(list_data_dict)} examples from dataset {data}")
             else:
                 rank0_print(f"dataset name: {data}")
-                
+
             self.list_data_dict.extend(list_data_dict)
 
         self.num_history = data_args.num_history
-        self.idx2actions = {
-            0: 'STOP',
-            1: "↑",
-            2: "←",
-            3: "→",
-            5: "↓"
-        }
+        self.idx2actions = {0: 'STOP', 1: "↑", 2: "←", 3: "→", 5: "↓"}
         self.conjunctions = [
             'you can see ',
             'in front of you is ',
@@ -204,14 +276,14 @@ class VLLNDataset(Dataset):
             'you can spot ',
             'you are toward the ',
             'ahead of you is ',
-            'in your sight is '
+            'in your sight is ',
         ]
         self.data_args = data_args
         self.tokenizer = tokenizer
-    
+
     def __len__(self):
-        return len(self.list_data_dict)   
-    
+        return len(self.list_data_dict)
+
     def process_image_unified(self, image):
         processor = copy.deepcopy(self.data_args.image_processor)
 
@@ -221,86 +293,124 @@ class VLLNDataset(Dataset):
             image_tensor = image_tensor[0]
         grid_thw = visual_processed["image_grid_thw"][0]
         return image_tensor, grid_thw
-    
+
     def __getitem__(self, i):
-        ep_id, data_path, video, height, pitch_1, pitch_2, instruction, start_frame_id, action, pose, history_dialogs, current_dialog = self.list_data_dict[i]
+        (
+            ep_id,
+            data_path,
+            video,
+            height,
+            pitch_1,
+            pitch_2,
+            instruction,
+            start_frame_id,
+            action,
+            pose,
+            history_dialogs,
+            current_dialog,
+        ) = self.list_data_dict[i]
         dialogs_id = np.array([dialog['true_idx'] for dialog in history_dialogs])[::2]
         if start_frame_id != 0:
-            history_id = np.unique(np.concatenate([np.linspace(0, start_frame_id-1, self.num_history, dtype=np.int32),dialogs_id])).tolist()
+            history_id = np.unique(
+                np.concatenate([np.linspace(0, start_frame_id - 1, self.num_history, dtype=np.int32), dialogs_id])
+            ).tolist()
         else:
             history_id = []
-        
+
         images = []
         grid_thws = []
 
         for id in range(0, start_frame_id + 1):
-            image_file = os.path.join(video, f"observation.images.rgb.{height}cm_{pitch_1}deg", f"episode_{ep_id:06d}_{id}.jpg")
+            image_file = os.path.join(
+                video, f"observation.images.rgb.{height}cm_{pitch_1}deg", f"episode_{ep_id:06d}_{id}.jpg"
+            )
             if id in history_id or id == start_frame_id:
-                image = Image.open(image_file).convert('RGB')  
-                lookdown_image = Image.open(image_file.replace(f'_{pitch_1}deg',f'_{pitch_2}deg')).convert('RGB')
+                image = Image.open(image_file).convert('RGB')
+                lookdown_image = Image.open(image_file.replace(f'_{pitch_1}deg', f'_{pitch_2}deg')).convert('RGB')
                 if self.data_args.transform_train is not None:
-                    image = self.data_args.transform_train(image)  
+                    image = self.data_args.transform_train(image)
                 image, grid_thw = self.process_image_unified(image)
                 images.append(image)
                 grid_thws.append(grid_thw)
-                if id == start_frame_id and pose is not None: 
+                if id == start_frame_id and pose is not None:
                     image, grid_thw = self.process_image_unified(lookdown_image)
                     images.append(image)
                     grid_thws.append(grid_thw)
-        
+
         if history_dialogs:
             history_imgs = build_dialog_history(history_id, dialogs_id, history_dialogs)
         else:
-            history_imgs = "<image>\n"*len(history_id)
-        
+            history_imgs = "<image>\n" * len(history_id)
+
         if start_frame_id != 0:
-            chat_sources = [[{'from': 'human', 'value': f"You are an autonomous navigation assistant. Your task is to <instruction> There is an oracle can help you to complete the task in current environment, you can either choose to move or talk. If choosing to talk, please say something that can help you better to find the target object. If choosing to move, when you want to output a waypoint you need to TILT DOWN (↓) by 30 degrees then output the next waypoint\'s coordinates in the image. In case the next waypoint is out of view, utilize the turn actions: TURN LEFT (←) or TURN RIGHT (→) by 30 degrees. Please output STOP when you have successfully completed the task. These are your historical observations: <history>. {random.choice(self.conjunctions)}<image>."}]]
-            chat_sources[0][0]['value'] = chat_sources[0][0]['value'].replace('<instruction>', instruction).replace('<history>', history_imgs)
+            chat_sources = [
+                [
+                    {
+                        'from': 'human',
+                        'value': f"You are an autonomous navigation assistant. Your task is to <instruction> There is an oracle can help you to complete the task in current environment, you can either choose to move or talk. If choosing to talk, please say something that can help you better to find the target object. If choosing to move, when you want to output a waypoint you need to TILT DOWN (↓) by 30 degrees then output the next waypoint\'s coordinates in the image. In case the next waypoint is out of view, utilize the turn actions: TURN LEFT (←) or TURN RIGHT (→) by 30 degrees. Please output STOP when you have successfully completed the task. These are your historical observations: <history>. {random.choice(self.conjunctions)}<image>.",
+                    }
+                ]
+            ]
+            chat_sources[0][0]['value'] = (
+                chat_sources[0][0]['value'].replace('<instruction>', instruction).replace('<history>', history_imgs)
+            )
         else:
-            chat_sources = [[{'from': 'human', 'value': f"You are an autonomous navigation assistant. Your task is to <instruction> There is an oracle can help you to complete the task in current environment, you can either choose to move or talk. If choosing to talk, please say something that can help you better to find the target object. If choosing to move, when you want to output a waypoint you need to TILT DOWN (↓) by 30 degrees then output the next waypoint\'s coordinates in the image. In case the next waypoint is out of view, utilize the turn actions: TURN LEFT (←) or TURN RIGHT (→) by 30 degrees. Please output STOP when you have successfully completed the task. {random.choice(self.conjunctions)}<image>."}]]
+            chat_sources = [
+                [
+                    {
+                        'from': 'human',
+                        'value': f"You are an autonomous navigation assistant. Your task is to <instruction> There is an oracle can help you to complete the task in current environment, you can either choose to move or talk. If choosing to talk, please say something that can help you better to find the target object. If choosing to move, when you want to output a waypoint you need to TILT DOWN (↓) by 30 degrees then output the next waypoint\'s coordinates in the image. In case the next waypoint is out of view, utilize the turn actions: TURN LEFT (←) or TURN RIGHT (→) by 30 degrees. Please output STOP when you have successfully completed the task. {random.choice(self.conjunctions)}<image>.",
+                    }
+                ]
+            ]
             chat_sources[0][0]['value'] = chat_sources[0][0]['value'].replace('<instruction>', instruction)
-        
+
         if current_dialog is not None:
             for turn in range(len(current_dialog) // 2):
-                chat_sources[0].extend([{'from': 'gpt', 'value': '<talk>' + current_dialog[2*turn]['message']}])
-                chat_sources[0].extend([{'from': 'human', 'value': current_dialog[2*turn+1]['message']}])
+                chat_sources[0].extend([{'from': 'gpt', 'value': '<talk>' + current_dialog[2 * turn]['message']}])
+                chat_sources[0].extend([{'from': 'human', 'value': current_dialog[2 * turn + 1]['message']}])
 
         if pose is not None:
-            chat_sources[0].extend([{'from': 'gpt', 'value': '<move>' + self.idx2actions[5]}, {'from': 'human', 'value': f'{random.choice(self.conjunctions)}<image>.'}, {'from': 'gpt', 'value': '<move>' + f'{action[0]} {action[1]}'}])
+            chat_sources[0].extend(
+                [
+                    {'from': 'gpt', 'value': '<move>' + self.idx2actions[5]},
+                    {'from': 'human', 'value': f'{random.choice(self.conjunctions)}<image>.'},
+                    {'from': 'gpt', 'value': '<move>' + f'{action[0]} {action[1]}'},
+                ]
+            )
         elif action == 0:
             chat_sources[0].extend([{'from': 'gpt', 'value': '<move>' + self.idx2actions[action]}])
         else:
             turn_action_text = ''.join([self.idx2actions[idx] for idx in action])
             chat_sources[0].extend([{'from': 'gpt', 'value': '<move>' + turn_action_text}])
-        chat_sources = enforce_simple_limit(chat_sources, limit = random.randint(0, self.max_dialog_turns))
-        
+        chat_sources = enforce_simple_limit(chat_sources, limit=random.randint(0, self.max_dialog_turns))
+
         grid_thw_merged = copy.deepcopy(grid_thws)
-        
+
         if not isinstance(grid_thws, Sequence):
             grid_thw_merged = [grid_thw_merged]
             grid_thws = [grid_thws]
 
         grid_thw_merged = [
-            merged_thw.prod() // self.data_args.image_processor.merge_size**2
-            for merged_thw in grid_thw_merged
+            merged_thw.prod() // self.data_args.image_processor.merge_size**2 for merged_thw in grid_thw_merged
         ]
         data_dict = preprocess_qwen_2_visual(
             chat_sources,
             self.tokenizer,
             grid_thw_image=grid_thw_merged if grid_thw_merged else None,
         )
-    
+
         position_ids, _ = self.get_rope_index(
             self.data_args.image_processor.merge_size,
             data_dict["input_ids"],
             image_grid_thw=torch.stack(grid_thws, dim=0) if grid_thws else None,
         )
-        
+
         data_dict["position_ids"] = position_ids
         data_dict["attention_mask"] = [data_dict["input_ids"][0].size(0)]
         data_dict["pixel_values"] = torch.cat(images, dim=0)
         data_dict["image_grid_thw"] = torch.cat([thw.unsqueeze(0) for thw in grid_thws], dim=0)
-        
+
         return data_dict
 
 
@@ -377,21 +487,19 @@ def preprocess_qwen_2_visual(
         try:
             if roles[source[0]["from"]] != roles["human"]:
                 source = source[1:]
-        except:
+        except Exception:
             print(sources)
 
         input_id, target = [], []
 
-        input_id += tokenizer.apply_chat_template(
-            [{"role": "system", "content": system_message}]
-        )
+        input_id += tokenizer.apply_chat_template([{"role": "system", "content": system_message}])
         target += [IGNORE_INDEX] * len(input_id)
 
         for conv in source:
             try:
                 role = conv["role"]
                 content = conv["content"]
-            except:
+            except Exception:
                 role = conv["from"]
                 content = conv["value"]
 
@@ -404,8 +512,7 @@ def preprocess_qwen_2_visual(
                         new_parts.append(parts[i])
                         replacement = (
                             "<|vision_start|>"
-                            + f"<|image_pad|>"
-                            * grid_thw_image[visual_replicate_index_image]
+                            + "<|image_pad|>" * grid_thw_image[visual_replicate_index_image]
                             + "<|vision_end|>"
                         )
                         new_parts.append(replacement)
@@ -420,8 +527,7 @@ def preprocess_qwen_2_visual(
                         new_parts.append(parts[i])
                         replacement = (
                             "<|vision_start|>"
-                            + f"<|video_pad|>"
-                            * grid_thw_video[visual_replicate_index_video]
+                            + "<|video_pad|>" * grid_thw_video[visual_replicate_index_video]
                             + "<|vision_end|>"
                         )
                         new_parts.append(replacement)
@@ -477,14 +583,15 @@ def get_annotations_from_lerobot_data(data_path, pitch_1, pitch_2, height):
             - axis_align_matrix (List[List[float]]): identity by default
             - episodes (List[dict]): unified episode entries
     """
-    import pyarrow.parquet as pq
-    import pandas as pd
     from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    import pyarrow.parquet as pq
+
     setting = f'{height}cm_{pitch_2}deg'
     setting_horizon = setting.replace(str(pitch_2), str(pitch_1))
     annotations = {
-        "axis_align_matrix": [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]],    
-        "episodes": []
+        "axis_align_matrix": [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]],
+        "episodes": [],
     }
     scene_ids = [d for d in os.listdir(data_path) if os.path.isdir(os.path.join(data_path, d))]
 
@@ -498,8 +605,10 @@ def get_annotations_from_lerobot_data(data_path, pitch_1, pitch_2, height):
             ep_instructions = ep["tasks"][0].split(";")
             ep_len = ep["length"]
             ep_dialogs = ep["dialogs"]
-            parquet_path = os.path.join(scene_path, "data", f"chunk-{ep_id // 1000:03d}", f"episode_{ep_id:06d}.parquet")
-            
+            parquet_path = os.path.join(
+                scene_path, "data", f"chunk-{ep_id // 1000:03d}", f"episode_{ep_id:06d}.parquet"
+            )
+
             table = pq.read_table(parquet_path)
             df = table.to_pandas()
 
@@ -507,13 +616,12 @@ def get_annotations_from_lerobot_data(data_path, pitch_1, pitch_2, height):
             pose_key = f"pose.{setting}"
             goal_key = f"goal.{setting}"
             relative_goal_frame_id_key = f"relative_goal_frame_id.{setting}"
-            
+
             ep_poses_horizon = df[f"pose.{setting_horizon}"].apply(lambda x: x.tolist()).tolist()
             if pose_key in df.columns and goal_key in df.columns and relative_goal_frame_id_key in df.columns:
                 ep_poses = df[pose_key].apply(lambda x: x.tolist()).tolist()
                 ep_pixel_goals = [
-                    [df[relative_goal_frame_id_key][idx].tolist(), df[goal_key][idx].tolist()]
-                    for idx in range(len(df))
+                    [df[relative_goal_frame_id_key][idx].tolist(), df[goal_key][idx].tolist()] for idx in range(len(df))
                 ]
             else:
                 print(f"Warning: Missing data for setting {setting} in episode {ep_id}, filling with defaults.")
@@ -529,10 +637,10 @@ def get_annotations_from_lerobot_data(data_path, pitch_1, pitch_2, height):
                 f"poses_{setting}": ep_poses,
                 f"poses_{setting_horizon}": ep_poses_horizon,
                 "pixel_goals": ep_pixel_goals,
-                "dialogs": ep_dialogs
+                "dialogs": ep_dialogs,
             }
             scene_annotations.append(episode)
-        
+
         return scene_annotations
 
     with ThreadPoolExecutor(max_workers=4) as executor:
@@ -561,7 +669,7 @@ def sort_dialogs_by_true_idx(dialogs):
     groups = []
     i, n = 0, len(dialogs)
     while i < n:
-        groups.append(dialogs[i:i+2])
+        groups.append(dialogs[i : i + 2])
         i += 2
 
     def group_key(g):
@@ -583,9 +691,9 @@ def sort_dialogs_by_true_idx(dialogs):
 
 
 def get_history_dialogs(start_frame_id, dialogs, dia_idx):
-    i = bisect_left(dia_idx, start_frame_id) 
+    i = bisect_left(dia_idx, start_frame_id)
     if i != 0:
-        return dialogs[:2*i]      
+        return dialogs[: 2 * i]
     else:
         return []
 
@@ -603,20 +711,21 @@ def build_dialog_history(history_id, dialog_id, dialogs):
     Returns:
         str: Serialized history string aligned to `history_id`.
     """
-    placeholder = [''] * (len(history_id)+1)
+    placeholder = [''] * (len(history_id) + 1)
     for n in dialog_id:
         pos = history_id.index(n)
         output = ""
         for dialog in dialogs:
             if dialog['true_idx'] == n:
                 output += f"<|{dialog['role']}|>{dialog['message']}"
-        placeholder[pos+1] = "<|dialog_start|>" + output + "<|dialog_end|>"
+        placeholder[pos + 1] = "<|dialog_start|>" + output + "<|dialog_end|>"
     placeholder = ('<image>\n').join(placeholder)
     return placeholder
 
 
-def enforce_simple_limit(conv, limit,
-    sorry_msg: str = "Sorry, you have reached the question limit. No further answers are available."):
+def enforce_simple_limit(
+    conv, limit, sorry_msg: str = "Sorry, you have reached the question limit. No further answers are available."
+):
     """Limit the number of answer-like parts in a conversation.
 
     This function truncates answer-like content beyond a given `limit`.
@@ -631,7 +740,7 @@ def enforce_simple_limit(conv, limit,
     Returns:
         list: The updated conversation in the same format as input, i.e. `[conv0]`.
     """
-    conv = [dict(m) for m in conv[0]]  
+    conv = [dict(m) for m in conv[0]]
     answer_indices = []
     replaced_indices = []
 
@@ -647,14 +756,14 @@ def enforce_simple_limit(conv, limit,
                 talk_human_indices.append(k + 1)
                 answer_indices.append(('more', k + 1))
 
-    total_answers = len(answer_indices)
     to_replace = {idx for idx, _ in enumerate(answer_indices) if idx >= limit}
 
     if blocks:
         block_idx = -1
+
         def _repl(m):
             nonlocal block_idx
-            block_idx += 1  
+            block_idx += 1
             if block_idx in to_replace:
                 replaced_indices.append(('oracle', (0, block_idx)))
                 return '<|oracle|>' + sorry_msg + '<|dialog_end|>'

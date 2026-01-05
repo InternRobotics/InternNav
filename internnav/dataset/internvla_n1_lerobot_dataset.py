@@ -17,8 +17,8 @@ from torch.utils.data import Dataset
 from torchcodec.decoders import VideoDecoder
 from transformers.image_utils import to_numpy_array
 
-from .vlln_lerobot_dataset import VLLNDataset
 from .rope2d import get_rope_index_2, get_rope_index_25
+from .vlln_lerobot_dataset import VLLNDataset
 
 # Define placeholders for dataset paths
 CAMBRIAN_737K = {
@@ -1330,6 +1330,7 @@ class FlattenedDataCollatorForSupervisedDataset(DataCollatorForSupervisedDataset
 
         return batch
 
+
 class CombinedDataset(Dataset):
     """
     Combine multiple datasets into a single dataset interface.
@@ -1338,6 +1339,7 @@ class CombinedDataset(Dataset):
     It concatenates samples from all provided datasets and optionally shuffles
     the global index mapping (without changing the underlying datasets).
     """
+
     def __init__(self, datasets, shuffle=False):
         super(CombinedDataset, self).__init__()
         self.datasets = datasets

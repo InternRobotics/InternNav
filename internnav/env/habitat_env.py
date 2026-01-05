@@ -14,6 +14,7 @@ class HabitatEnv(base.Env):
         env_config (EnvCfg): Environment configuration.
         task_config (TaskCfg): Optional task configuration passed to the base environment.
     """
+
     def __init__(self, env_config: EnvCfg, task_config: TaskCfg = None):
         try:
             from habitat import Env

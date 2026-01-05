@@ -207,7 +207,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
         # avoid /0 if no episodes
         denom = max(len(sucs_all), 1)
-        
+
         # clean NaN in spls, treat as 0.0
         torch.nan_to_num(spls_all, nan=0.0, posinf=0.0, neginf=0.0, out=spls_all)
 

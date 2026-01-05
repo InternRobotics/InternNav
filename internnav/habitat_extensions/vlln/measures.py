@@ -72,15 +72,15 @@ class OracleNavigationError(Measure):
 
 @registry.register_measure
 class OracleSuccess(Measure):
-    """Compute oracle success: whether the agent ever gets within a specified goal radius of the target during the 
+    """Compute oracle success: whether the agent ever gets within a specified goal radius of the target during the
     episode (OSR = I( min_t d_t <= r )).
 
     Args:
-        config (Any): Measure configuration. Typically contains a goal radius (success threshold). Note: the current 
+        config (Any): Measure configuration. Typically contains a goal radius (success threshold). Note: the current
             implementation uses a fixed threshold (3.0) instead of reading from ``config``.
 
     Returns:
-        float: 1.0 if the agent is (at the current step, or previously) within the success threshold of the goal, 
+        float: 1.0 if the agent is (at the current step, or previously) within the success threshold of the goal,
             otherwise 0.0.
     """
 

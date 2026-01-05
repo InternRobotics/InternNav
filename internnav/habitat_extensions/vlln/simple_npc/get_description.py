@@ -521,7 +521,7 @@ def get_nearest_object(path, region_dict, object_dict):
         object_dict (dict): Object metadata dictionary.
 
     Returns:
-        List[str]: A list of object identifiers of length ``T``, where each element corresponds to the nearest object 
+        List[str]: A list of object identifiers of length ``T``, where each element corresponds to the nearest object
             associated with the same room as the corresponding path point.
     """
     point_rooms = get_points_room(path, region_dict, object_dict, 'poly')
@@ -618,9 +618,9 @@ def sample_points(points, rooms, min_dist=1.0):
     or equal to `min_dist`.
 
     Args:
-        points (List[Tuple[float, float, float]] | np.ndarray): A list of coordinates in the form 
+        points (List[Tuple[float, float, float]] | np.ndarray): A list of coordinates in the form
             [(x, y, z), (x, y, z), ...].
-        rooms (List[str] | List[int] | np.ndarray): A sequence of room identifiers corresponding one-to-one with 
+        rooms (List[str] | List[int] | np.ndarray): A sequence of room identifiers corresponding one-to-one with
             `points`. Each entry indicates the room in which the point lies.
         min_dist (float): Minimum allowed Euclidean distance (in meters) between two selected points.
 
@@ -653,7 +653,7 @@ def find_sharp_turns(path_points, threshold=30):
     whether each turn is a left or right turn along with its angle.
 
     Args:
-        path_points (List[Tuple[float, float, float]] | np.ndarray): A list of path points in the form 
+        path_points (List[Tuple[float, float, float]] | np.ndarray): A list of path points in the form
             [(x, y, z), (x, y, z), ...].
         threshold (float | int): Turning angle threshold in degrees (default: 30 degrees).
 
