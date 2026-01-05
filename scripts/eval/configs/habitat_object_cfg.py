@@ -9,7 +9,7 @@ eval_cfg = EvalCfg(
         model_settings={
             "mode": "system2",  # inference mode: dual_system or system2
             "dialog_enabled": False,
-            "model_path": "projects/VL-LN-Bench/base_model/checkpoint-iion",  # path to model checkpoint
+            "model_path": "projects/VL-LN-Bench/base_model/checkpoint-iign",  # path to model checkpoint
             "append_look_down": True,
             "num_history": 8,
             "resize_w": 384,  # image resize width
