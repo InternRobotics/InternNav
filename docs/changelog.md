@@ -1,12 +1,12 @@
 # Changelog of v0.1
 ## Changelog of v0.3.0 (2026/01/05)
 ### Highlights
-- Add InternVLA-N1 Training code (#184)
-- Support training and evaluation for the VL-LN benchmark (#193, #198)
+- Support the training of InternVLA-N1 (#184)
+- Support training and evaluation for the [VL-LN benchmark](https://arxiv.org/html/2512.22342v2) (#193, #198)
 - Add a new flash without collision controller (#189)
 
 ### New Features
-- Support InternVLA-N1 Training code (#184)
+- Add InternVLA-N1 Training code (#184)
 - Support RxR dataset evaluation (#184)
 - Add training code for the baseline of VLLN Bench (#198)
 - Support evaluation in VL-LN Bench (#193)
