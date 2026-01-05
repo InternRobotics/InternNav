@@ -218,19 +218,19 @@ For example, raising issues, fixing bugs in the framework, and adapting or addin
 
 ## 🚀 Community Deployment & Best Practices
 
-We are excited to see InternNav being deployed and extended by the community across different robots and real-world scenarios.  
+We are excited to see InternNav being deployed and extended by the community across different robots and real-world scenarios.
 Below are selected community-driven deployment guides and solution write-ups, which may serve as practical references for advanced users.
 
-- **IROS Challenge Nav Track: Champion Solution (2025)**  
-  A complete system-level solution and design analysis for Vision-and-Language Navigation in Physical Environments.  
+- **IROS Challenge Nav Track: Champion Solution (2025)**
+  A complete system-level solution and design analysis for Vision-and-Language Navigation in Physical Environments.
   🔗 https://zhuanlan.zhihu.com/p/1969046543286907790
 
-- **Go2 Series Deployment Tutorial (ShanghaiTech University)**  
-  Step-by-step edge deployment guide for InternNav-based perception and navigation.  
+- **Go2 Series Deployment Tutorial (ShanghaiTech University)**
+  Step-by-step edge deployment guide for InternNav-based perception and navigation.
   🔗 https://github.com/cmjang/InternNav-deploy
 
-- **G1 Series Deployment Tutorial (Wuhan University)**  
-  Detailed educational materials on vision-language navigation deployment.  
+- **G1 Series Deployment Tutorial (Wuhan University)**
+  Detailed educational materials on vision-language navigation deployment.
   🔗 [*Chapter 5: Vision-Language Navigation (Part II)*](https://mp.weixin.qq.com/s/p3cJzbRvecMajiTh9mXoAw)
 
 ## 🔗 Citation

@@ -19,7 +19,7 @@ def euclidean_distance(pos_a: Union[List[float], ndarray], pos_b: Union[List[flo
 
 @registry.register_measure
 class PathLength(Measure):
-    """Measure the cumulative path length traveled by the agent by summing the Euclidean distance between consecutive 
+    """Measure the cumulative path length traveled by the agent by summing the Euclidean distance between consecutive
     agent positions.
 
     Args:
@@ -73,15 +73,15 @@ class OracleNavigationError(Measure):
 
 @registry.register_measure
 class OracleSuccess(Measure):
-    """Compute oracle success: whether the agent ever gets within a specified goal radius of the target during the 
+    """Compute oracle success: whether the agent ever gets within a specified goal radius of the target during the
     episode (OSR = I( min_t d_t <= r )).
 
     Args:
-        config (Any): Measure configuration. Typically contains a goal radius (success threshold). Note: the current 
+        config (Any): Measure configuration. Typically contains a goal radius (success threshold). Note: the current
             implementation uses a fixed threshold (3.0) instead of reading from ``config``.
 
     Returns:
-        float: 1.0 if the agent is (at the current step, or previously) within the success threshold of the goal, 
+        float: 1.0 if the agent is (at the current step, or previously) within the success threshold of the goal,
             otherwise 0.0.
     """
 
@@ -152,16 +152,16 @@ from dtw import dtw
 
 @registry.register_measure
 class NDTW(Measure):
-    r"""'NDTW <https://arxiv.org/abs/1907.05446>'. Computes nDTW between the agent trajectory and a reference 
+    r"""'NDTW <https://arxiv.org/abs/1907.05446>'. Computes nDTW between the agent trajectory and a reference
     (ground-truth) path as defined in the paper.
 
     Args:
         sim (Simulator): The simulator used to query the agent position.
-        config (Any): Measure configuration. Note: the current implementation uses hard-coded constants for the 
+        config (Any): Measure configuration. Note: the current implementation uses hard-coded constants for the
             normalization.
 
     Returns:
-        float: The normalized DTW score in [0, 1], where higher means the executed trajectory is closer to the 
+        float: The normalized DTW score in [0, 1], where higher means the executed trajectory is closer to the
             reference path.
     """
 

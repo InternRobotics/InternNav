@@ -16,13 +16,13 @@ from internnav.agent import Agent
 from internnav.configs.agent import AgentCfg
 
 try:
+    from depth_camera_filtering import filter_depth
+    from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
     from transformers import (
         AutoProcessor,
         AutoTokenizer,
         Qwen2_5_VLForConditionalGeneration,
     )
-    from depth_camera_filtering import filter_depth
-    from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 except Exception as e:
     print(f"Warning: ({e}), Habitat Evaluation is not loaded in this runtime. Ignore this if not using Habitat.")
 
@@ -47,12 +47,12 @@ def split_and_clean(text):
 @Agent.register('dialog')
 class DialogAgent(Agent):
     """Vision-language navigation agent that can either move or ask an oracle via dialog. The agent builds a multimodal
-     chat prompt from current/historical RGB observations (and optional look-down frames), runs a Qwen2.5-VL model to 
-     produce either an action sequence, a pixel waypoint, or a dialog query, then converts the model output into 
+     chat prompt from current/historical RGB observations (and optional look-down frames), runs a Qwen2.5-VL model to
+     produce either an action sequence, a pixel waypoint, or a dialog query, then converts the model output into
      simulator actions and (optionally) a world-space navigation goal.
 
     Args:
-        agent_config (AgentCfg): AgentCfg containing model_settings (e.g., task name, sensor config, model path, mode, 
+        agent_config (AgentCfg): AgentCfg containing model_settings (e.g., task name, sensor config, model path, mode,
             resizing, dialog flags, and generation parameters) and runtime info such as local_rank.
     """
 
@@ -440,7 +440,7 @@ class DialogAgent(Agent):
             pixel (Tuple[int, int] | List[int] | np.ndarray): pixel coordinate in (v, u) indexing as used here.
             depth (np.ndarray): depth image of shape (H, W) in meters, where depth[v, u] returns the metric depth.
             intrinsic (np.ndarray): camera intrinsic matrix.
-            tf_camera_to_episodic (np.ndarray): homogeneous transform of shape (4, 4) mapping camera-frame points to 
+            tf_camera_to_episodic (np.ndarray): homogeneous transform of shape (4, 4) mapping camera-frame points to
                 the episodic frame.
 
         Returns:

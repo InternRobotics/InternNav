@@ -1,6 +1,6 @@
 # Habitat VL-LN in InternNav
 
-Vision-Language-and-Language Navigation (VL-LN) is a new [benchmark](https://0309hws.github.io/VL-LN.github.io/) built upon VLN in Habitat, which refers to the setting that models take the vision and language as input and output language and navigation actions. In contrast to VLN, where agents only take navigation actions, agents in VL-LN could ask questions and engage in dialogue with users to complete tasks better with language interaction. 
+Vision-Language-and-Language Navigation (VL-LN) is a new [benchmark](https://0309hws.github.io/VL-LN.github.io/) built upon VLN in Habitat, which refers to the setting that models take the vision and language as input and output language and navigation actions. In contrast to VLN, where agents only take navigation actions, agents in VL-LN could ask questions and engage in dialogue with users to complete tasks better with language interaction.
 This package adapts [Meta AI Habitat](https://aihabitat.org) for VL-LN within InternNav. It wraps Habitat environments that expose semantic masks, registers dialog-aware datasets and metrics, and provides evaluators that coordinate agent actions, NPC interactions, and logging.
 
 Install our benchmark [dataset](https://huggingface.co/datasets/InternRobotics/VL-LN-Bench) and the [latest checkpoints](https://huggingface.co/InternRobotics/VL-LN-Bench-basemodel) from HuggingFace.
@@ -22,8 +22,8 @@ InternNav
 ...
 ├── projects
 │   ├── VL-LN-Bench/
-│   │   ├── base_model/ 
-│   │   ├── raw_data/ 
+│   │   ├── base_model/
+│   │   ├── raw_data/
 │   │   ├── scene_datasets/
 │   │   │   └── mp3d/
 │   │   │       └── 17DRP5sb8fy/
