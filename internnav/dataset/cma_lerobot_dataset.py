@@ -105,14 +105,12 @@ class CMALerobotDataset(BaseDataset):
                         data['camera_info'][self.camera_name]['rgb'] = data['camera_info'][self.camera_name]['rgb'][
                             :-drop_last_frame_nums
                         ]
-                        data['camera_info'][self.camera_name]['depth'] = data['camera_info'][self.camera_name][
-                            'depth'
-                        ][:-drop_last_frame_nums]
-                        data['robot_info']['yaw'] = data['robot_info']['yaw'][:-drop_last_frame_nums]
-                        data['robot_info']['position'] = data['robot_info']['position'][:-drop_last_frame_nums]
-                        data['robot_info']['orientation'] = data['robot_info']['orientation'][
+                        data['camera_info'][self.camera_name]['depth'] = data['camera_info'][self.camera_name]['depth'][
                             :-drop_last_frame_nums
                         ]
+                        data['robot_info']['yaw'] = data['robot_info']['yaw'][:-drop_last_frame_nums]
+                        data['robot_info']['position'] = data['robot_info']['position'][:-drop_last_frame_nums]
+                        data['robot_info']['orientation'] = data['robot_info']['orientation'][:-drop_last_frame_nums]
                         data['progress'] = data['progress'][:-drop_last_frame_nums]
                         data['step'] = data['step'][:-drop_last_frame_nums]
                         if 'rgb_features' in data.keys():
@@ -131,15 +129,9 @@ class CMALerobotDataset(BaseDataset):
                     episodes_in_json = data_to_load['episodes_in_json']
 
                     if self.bert_tokenizer is not None:
-                        instructions = [
-                            episodes_in_json[ep_idx]['instruction_text']
-                            for ep_idx in range(len(episodes_in_json))
-                        ]
+                        instructions = [episodes_in_json[ep_idx]['task'] for ep_idx in range(len(episodes_in_json))]
                     else:
-                        instructions = [
-                            episodes_in_json[ep_idx]['instruction_tokens']
-                            for ep_idx in range(len(episodes_in_json))
-                        ]
+                        instructions = [episodes_in_json[ep_idx]['task'] for ep_idx in range(len(episodes_in_json))]
                     for instruction in instructions:
                         new_data = self._create_new_data(data, yaws, instruction)
                         if self.BRG_to_RGB:
