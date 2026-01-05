@@ -1371,7 +1371,7 @@ class CombinedDataset(Dataset):
 def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     train_datasets = []
-    if data_args.iion_dataset_use:
+    if data_args.iign_dataset_use:
         train_datasets.append(VLLNDataset(tokenizer=tokenizer, data_args=data_args))
     if data_args.vln_dataset_use:
         train_datasets.append(NavPixelGoalDataset(tokenizer=tokenizer, data_args=data_args))
