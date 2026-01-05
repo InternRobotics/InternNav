@@ -1,4 +1,11 @@
-# Changelog of v0.1
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## Unreleased
+
+Upcoming changes will be tracked in this section.
+
 ## Changelog of v0.3.0 (2026/01/05)
 ### Highlights
 - Support the training of InternVLA-N1 (#184)
