@@ -37,7 +37,9 @@ The toolbox supports the most advanced high-quality navigation dataset, InternDa
 ## 🔥 News
 | Time   | Update |
 |---------|--------|
-| 2025/12 | Training code for InternVLA-N1 is now available. This release provides two model configurations: InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> with NavDP*</span> and InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> DualVLN </span>. For model architecture and training details, please refer to the [DualVLN paper](https://arxiv.org/abs/2512.08186).|
+| 2026/01 | InternNav v0.3.0 released. |
+| 2025/12 | We introduce Interactive Instance Goal Navigation (IIGN) and release VL-LN Bench to enable InternVLA-N1 to solve this task, with large-scale dialog-trajectory collection plus training and evaluation support. See [our website](https://0309hws.github.io/VL-LN.github.io/) for details.|
+| 2025/12 | Training code for InternVLA-N1 and the corresponding [usage doc](https://internrobotics.github.io/user_guide/internnav/quick_start/training.html) is now available. This release provides two model configurations: InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> with NavDP*</span> and InternVLA-N1 (Dual System)<span style="color: #28a745; font-size: 0.9em"> DualVLN </span>. For model architecture and training details, please refer to the [DualVLN paper](https://arxiv.org/abs/2512.08186).|
 | 2025/11 | InternNav v0.2.0 released — added distributed evaluation support for VLN-PE.|
 | 2025/10 | Add a [inference-only demo](scripts/notebooks/inference_only_demo.ipynb) of InternVLA-N1. |
 | 2025/10 | InternVLA-N1 [technical report](https://internrobotics.github.io/internvla-n1.github.io/static/pdfs/InternVLA_N1.pdf) is released. Please check our [homepage](https://internrobotics.github.io/internvla-n1.github.io/). |
