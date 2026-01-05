@@ -27,7 +27,7 @@ max_pixels=313600
 min_pixels=3136
 
 # Dataset configuration (replace with public dataset names)
-iion_datasets=iion_split1,iion_split2 #,iion_split3
+iign_datasets=iign_split1,iign_split2 #,iign_split3
 
 # Output configuration
 run_name=InternVLA-N1-vlln
@@ -38,7 +38,7 @@ srun torchrun --nnodes=$SLURM_NNODES --nproc_per_node=8 \
     internnav/trainer/internvla_vlln_trainer.py \
     --deepspeed ${deepspeed} \
     --model_name_or_path "${llm}" \
-    --iion_dataset_use ${iion_datasets} \
+    --iign_dataset_use ${iign_datasets} \
     --data_flatten False \
     --tune_mm_vision True \
     --tune_mm_mlp True \
