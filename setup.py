@@ -55,7 +55,7 @@ with open('requirements/internvla_n1.txt', 'r') as f:
 
 setuptools.setup(
     name='internnav',
-    version='0.2.0',
+    version='0.3.0',
     packages=setuptools.find_packages(),
     author='Intern Robotics',
     author_email='embodiedai@pjlab.org.cn',
@@ -78,11 +78,6 @@ setuptools.setup(
         # envs
         "isaac": isaac_requires,
         "habitat": habitat_requires,
-        "demo": [
-            "gradio==5.45",
-            "hf-xet==1.1.5",
-            "huggingface-hub==0.33.4",
-        ],
         # models
         "internvla_n1": n1_requires,
         "baseline": model_requires,
