@@ -8,27 +8,27 @@ Upcoming changes will be tracked in this section.
 
 ## Changelog of v0.3.0 (2026/01/05)
 ### Highlights
-- Support the training of InternVLA-N1 (#184)
+- Support training of InternVLA-N1 and evaluation on RxR (#184)
 - Support training and evaluation for the [VL-LN benchmark](https://arxiv.org/html/2512.22342v2) (#193, #198)
 - Add a new flash without collision controller (#189)
 
 ### New Features
-- Add InternVLA-N1 Training code (#184)
-- Support RxR dataset evaluation (#184)
-- Add training code for the baseline of VLLN Bench (#198)
-- Support evaluation in VL-LN Bench (#193)
-- Support Flash without collisoin controller (#189)
+- Add training code for InternVLA-N1 (#184)
+- Support evaluation on the RxR dataset (#184)
+- Add training code for the VL-LN benchmark baseline (#198)
+- Support evaluation on VL-LN benchmark (#193)
+- Add a Flash without collisoin controller (#189)
 
 ### Improvements
-- Decouple System 2 and Dual System evaluation functions in Habitat evaluator for better readability (#184)
-- Update internvla-n1 agent in VLN-PE to align with new model and policy interface (#184)
-- Enhance Habitat evaluation pipeline to handle NaN values in results (#217)
-- Update readme to include community tutorials (#217)
+- Decouple System 2 and Dual-System evaluation functions in the Habitat evaluator for better readability (#184)
+- Update internVLA-N1 agent in VLN-PE to align with the updated internVLA-N1 policy interface (#184)
+- Enhance the Habitat evaluation pipeline to handle NaN values in results (#217)
+- Update the README to include community tutorials (#217)
 
 ### Bug Fixes
-- Fix the version of diffusers in requirements (#184)
-- Fix the result json saving path in VLN-PE (#217)
-- Fix RxR evaluation result collecting bug (#217)
+- Fix the version of diffusers in the requirements (#184)
+- Fix the result JSON saving path in VLN-PE (#217)
+- Fix a bug in RxR evaluation result collection (#217)
 - Removed legacy code in scripts/demo (#217)
 
 ### Contributors
