@@ -17,11 +17,11 @@ Upcoming changes will be tracked in this section.
 - Support evaluation on the RxR dataset (#184)
 - Add training code for the VL-LN benchmark baseline (#198)
 - Support evaluation on VL-LN benchmark (#193)
-- Add a Flash without collisoin controller (#189)
+- Add a Flash-without-Collisoin controller (#189)
 
 ### Improvements
 - Decouple System 2 and Dual-System evaluation functions in the Habitat evaluator for better readability (#184)
-- Update internVLA-N1 agent in VLN-PE to align with the updated internVLA-N1 policy interface (#184)
+- Update InternVLA-N1 agent in VLN-PE to align with the updated InternVLA-N1 policy interface (#184)
 - Enhance the Habitat evaluation pipeline to handle NaN values in results (#217)
 - Update the README to include community tutorials (#217)
 
