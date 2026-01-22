@@ -1,9 +1,9 @@
-[submodule "diffusion-policy"]
-	path = src/diffusion-policy
-	url = https://github.com/real-stanford/diffusion_policy.git
-	commit = 5ba07ac6661db573af695b419a7947ecb704690f
 [submodule "internnav/model/basemodel/LongCLIP"]
 	path = internnav/model/basemodel/LongCLIP
 	url = https://github.com/beichenzbc/Long-CLIP
 	commit = 3966af9ae9331666309a22128468b734db4672a7
 	ignore = untracked
+[submodule "third_party/diffusion-policy"]
+	path = third_party/diffusion-policy
+	url = https://github.com/real-stanford/diffusion_policy.git
+	commit = 5ba07ac6661db573af695b419a7947ecb704690f
