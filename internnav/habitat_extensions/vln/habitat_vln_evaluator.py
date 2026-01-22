@@ -320,6 +320,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
             # ---------- 2. Episode step loop -----------
             while (not done) and (step_id <= self.max_steps_per_episode):
+                draw_pixel_goal = False
                 # refactor agent get action
                 rgb = observations["rgb"]
                 depth = observations["depth"]
@@ -435,6 +436,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         coord = [int(c) for c in re.findall(r'\d+', llm_outputs)]
 
                         pixel_goal = [int(coord[1]), int(coord[0])]
+                        draw_pixel_goal = True
 
                         # look down --> horizontal
                         self.env.step(action_code.LOOKUP)
@@ -551,7 +553,10 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         2,
                     )
                     if pixel_goal is not None:
-                        cv2.circle(vis, (pixel_goal[0], pixel_goal[1]), radius=8, color=(255, 0, 0), thickness=-1)
+                        if draw_pixel_goal:
+                            cv2.circle(
+                                vis, (pixel_goal[0], pixel_goal[1]), radius=8, color=(255, 0, 0), thickness=-1
+                            )
                     vis_writer.append_data(vis)
 
                 if action == action_code.LOOKDOWN:
@@ -700,6 +705,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
             # ---------- 2. Episode step loop -----------
             while (not done) and (step_id <= self.max_steps_per_episode):
+                draw_pixel_goal = False
                 # refactor agent get action
                 rgb = observations["rgb"]
                 depth = observations["depth"]
@@ -793,6 +799,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         coord = [int(c) for c in re.findall(r'\d+', llm_outputs)]
 
                         pixel_goal = [int(coord[1]), int(coord[0])]
+                        draw_pixel_goal = True
 
                         # look down --> horizontal
                         self.env.step(action_code.LOOKUP)
@@ -867,7 +874,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         (0, 255, 0),
                         2,
                     )
-                    if goal is not None:
+                    if draw_pixel_goal:
                         cv2.circle(vis, (pixel_goal[0], pixel_goal[1]), radius=8, color=(255, 0, 0), thickness=-1)
                     vis_writer.append_data(vis)
 
