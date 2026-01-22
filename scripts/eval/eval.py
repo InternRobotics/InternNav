@@ -1,6 +1,7 @@
 import sys
 
 sys.path.append('.')
+sys.path.append('./third_party/diffusion-policy')
 
 import argparse
 import importlib.util
