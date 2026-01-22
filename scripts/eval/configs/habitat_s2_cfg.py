@@ -11,6 +11,8 @@ eval_cfg = EvalCfg(
             "resize_w": 384,  # image resize width
             "resize_h": 384,  # image resize height
             "max_new_tokens": 1024,  # maximum number of tokens for generation
+            "vis_debug": False,  # If vis_debug=True, save debug videos per episode
+            "vis_debug_path": "./logs/habitat/vis_debug",
         },
     ),
     env=EnvCfg(
