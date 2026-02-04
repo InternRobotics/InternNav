@@ -6,7 +6,7 @@ import torch
 
 from internnav.dataset.base import BaseDataset, ObservationsDict, _block_shuffle
 from internnav.model.utils.feature_extract import extract_instruction_tokens
-from internnav.utils.lerobot_as_lmdb import LerobotAsLmdb
+from internnav.utils.loader import LerobotAsLmdb
 
 
 class CMALerobotDataset(BaseDataset):
@@ -38,8 +38,9 @@ class CMALerobotDataset(BaseDataset):
         self.camera_name = self.config.il.camera_name
 
         self.lerobot_as_lmdb = LerobotAsLmdb(self.lerobot_features_dir)
-        self.lmdb_keys = self.lerobot_as_lmdb.get_all_keys()
+        self.lmdb_keys = self.lerobot_as_lmdb.get_all_keys(allow_scan_list=['r2r']) # r2r / r2r_aliengo / r2r_flash
         self.length = len(self.lmdb_keys)
+        print(f"total keys in traj_data: {len(self.lmdb_keys)}")
 
         # For CMA-CLIP
         self.use_clip_encoders = False
