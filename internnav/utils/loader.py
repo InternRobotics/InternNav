@@ -190,7 +190,6 @@ class LerobotAsLmdb:
                     except json.JSONDecodeError as e:
                         print(f"Error decoding stats JSON: {e}")
         
-        # 3. 讀取tasks.jsonl，根據task_index對應回tasks.jsonl的task_index
         tasks_path = os.path.join(base_path, "meta", "tasks.jsonl")
         episodes_in_json = []  
         finish_status_in_json = None
