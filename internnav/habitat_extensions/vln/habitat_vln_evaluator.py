@@ -13,6 +13,7 @@ from collections import OrderedDict
 
 import cv2
 import habitat
+import imageio
 import numpy as np
 import quaternion
 import torch
@@ -105,6 +106,10 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
         # ------------------------------------- model ------------------------------------------
         self.model_args = argparse.Namespace(**cfg.agent.model_settings)
+        self.vis_debug = bool(getattr(self.model_args, "vis_debug", False))
+        self.vis_debug_path = getattr(
+            self.model_args, "vis_debug_path", os.path.join(self.output_path, "vis_debug")
+        )
 
         processor = AutoProcessor.from_pretrained(self.model_args.model_path)
         processor.tokenizer.padding_side = 'left'
@@ -288,9 +293,17 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
             vis_frames = []
             step_id = 0
+            vis_writer = None
 
             if self.save_video:
                 os.makedirs(os.path.join(self.output_path, f'vis_{self.epoch}', f'{scene_id}'), exist_ok=True)
+            if self.vis_debug:
+                debug_dir = os.path.join(self.vis_debug_path, f'epoch_{self.epoch}')
+                os.makedirs(debug_dir, exist_ok=True)
+                vis_writer = imageio.get_writer(
+                    os.path.join(debug_dir, f'{scene_id}_{episode_id:04d}.mp4'),
+                    fps=5,
+                )
 
             rgb_list = []
             action_seq = []
@@ -307,6 +320,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
             # ---------- 2. Episode step loop -----------
             while (not done) and (step_id <= self.max_steps_per_episode):
+                draw_pixel_goal = False
                 # refactor agent get action
                 rgb = observations["rgb"]
                 depth = observations["depth"]
@@ -422,6 +436,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         coord = [int(c) for c in re.findall(r'\d+', llm_outputs)]
 
                         pixel_goal = [int(coord[1]), int(coord[0])]
+                        draw_pixel_goal = True
 
                         # look down --> horizontal
                         self.env.step(action_code.LOOKUP)
@@ -526,6 +541,24 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
                 print("step_id", step_id, "action", action)
 
+                if vis_writer is not None:
+                    vis = np.asarray(save_raw_image).copy()
+                    vis = cv2.putText(
+                        vis,
+                        f"step {step_id} action {int(action)}",
+                        (20, 40),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        (0, 255, 0),
+                        2,
+                    )
+                    if pixel_goal is not None:
+                        if draw_pixel_goal:
+                            cv2.circle(
+                                vis, (pixel_goal[0], pixel_goal[1]), radius=8, color=(255, 0, 0), thickness=-1
+                            )
+                    vis_writer.append_data(vis)
+
                 if action == action_code.LOOKDOWN:
                     self.env.step(action)
                     observations, _, done, _ = self.env.step(action)
@@ -586,6 +619,8 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     quality=9,
                 )
             vis_frames.clear()
+            if vis_writer is not None:
+                vis_writer.close()
 
         self.env.close()
 
@@ -643,9 +678,17 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
             vis_frames = []
             step_id = 0
+            vis_writer = None
 
             if self.save_video:
                 os.makedirs(os.path.join(self.output_path, f'vis_{self.epoch}', f'{scene_id}'), exist_ok=True)
+            if self.vis_debug:
+                debug_dir = os.path.join(self.vis_debug_path, f'epoch_{self.epoch}')
+                os.makedirs(debug_dir, exist_ok=True)
+                vis_writer = imageio.get_writer(
+                    os.path.join(debug_dir, f'{scene_id}_{episode_id:04d}.mp4'),
+                    fps=5,
+                )
             initial_height = self.env._env.sim.get_agent_state().position[1]
 
             rgb_list = []
@@ -662,6 +705,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
             # ---------- 2. Episode step loop -----------
             while (not done) and (step_id <= self.max_steps_per_episode):
+                draw_pixel_goal = False
                 # refactor agent get action
                 rgb = observations["rgb"]
                 depth = observations["depth"]
@@ -755,6 +799,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         coord = [int(c) for c in re.findall(r'\d+', llm_outputs)]
 
                         pixel_goal = [int(coord[1]), int(coord[0])]
+                        draw_pixel_goal = True
 
                         # look down --> horizontal
                         self.env.step(action_code.LOOKUP)
@@ -818,6 +863,21 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
                 print("step_id", step_id, "action", action)
 
+                if vis_writer is not None:
+                    vis = np.asarray(save_raw_image).copy()
+                    vis = cv2.putText(
+                        vis,
+                        f"step {step_id} action {int(action)}",
+                        (20, 40),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        (0, 255, 0),
+                        2,
+                    )
+                    if draw_pixel_goal:
+                        cv2.circle(vis, (pixel_goal[0], pixel_goal[1]), radius=8, color=(255, 0, 0), thickness=-1)
+                    vis_writer.append_data(vis)
+
                 if action == action_code.LOOKDOWN:
                     self.env.step(action)
                     observations, _, done, _ = self.env.step(action)
@@ -875,6 +935,8 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     quality=9,
                 )
             vis_frames.clear()
+            if vis_writer is not None:
+                vis_writer.close()
 
         self.env.close()
 
