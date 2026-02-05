@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-title: "InternNav: A Scalable Navigation Framework for Embodied Agents"
+title: "InternNav: InternRobotics' open platform for building generalized navigation foundation models"
 authors:
   - name: "InternNav Contributors"
 date-released: "2025-07-01"
