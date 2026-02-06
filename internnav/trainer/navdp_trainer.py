@@ -200,6 +200,6 @@ class NavDPTrainer(BaseTrainer):
 
         # ensure the output directory exists
         os.makedirs(output_dir, exist_ok=True)
-        torch.save(model_to_save.state_dict(), output_dir + "navdp.ckpt")
+        torch.save(model_to_save.state_dict(), os.path.join(output_dir + "navdp.ckpt"))
 
         print(f"Saving model to {output_dir} (is DDP: {hasattr(self.model, 'module')})")
