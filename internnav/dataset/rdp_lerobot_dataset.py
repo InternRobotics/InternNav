@@ -26,7 +26,7 @@ from internnav.evaluator.utils.common import norm_depth
 from internnav.model.basemodel.LongCLIP.model import longclip
 from internnav.model.utils.feature_extract import extract_instruction_tokens
 from internnav.utils.geometry_utils import get_delta, normalize_data, to_local_coords
-from internnav.utils.lerobot_as_lmdb import LerobotAsLmdb
+from internnav.utils.loader import LerobotAsLmdb
 
 
 def _convert_image_to_rgb(image):
@@ -103,8 +103,9 @@ class RDP_LerobotDataset(BaseDataset):
         self.to_pil = ToPILImage()
         self.image_processor = _transform(n_px=224)  # copy from clip-long
         self.lerobot_as_lmdb = LerobotAsLmdb(self.lerobot_features_dir)
-        self.lmdb_keys = self.lerobot_as_lmdb.get_all_keys()
+        self.lmdb_keys = self.lerobot_as_lmdb.get_all_keys(allow_scan_list=['r2r'])  # r2r / r2r_aliengo / r2r_flash
         self.length = len(self.lmdb_keys)
+        print(f"total keys in traj_data: {len(self.lmdb_keys)}")
 
         self.start = 0
         self.end = self.length
@@ -192,7 +193,7 @@ class RDP_LerobotDataset(BaseDataset):
                 episodes_in_json = data_to_load['episodes_in_json']
 
                 instructions = [
-                    episodes_in_json[ep_idx]['instruction_text'][: self.config.model.text_encoder.max_length]
+                    episodes_in_json[ep_idx]['task'][: self.config.model.text_encoder.max_length]
                     for ep_idx in range(len(episodes_in_json))
                 ]
 

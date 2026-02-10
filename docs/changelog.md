@@ -6,6 +6,24 @@ All notable changes to this project will be documented in this file.
 
 Upcoming changes will be tracked in this section.
 
+## Changelog of v0.3.1 (2026/02/09)
+### Highlights
+- Update dataset conversion for InternData-N1 VLN-PE v0.5 format (#288)
+- Support `vis_debug` option for Habitat evaluation (#265)
+
+### New Features
+- Support `vis_debug` option for Habitat evaluation (#265)
+
+### Improvements
+- Update submodule path from `src` to `third_party` (#266)
+
+### Bug Fixes
+- Fix VLLN path handling (#228)
+- Fix dataset conversion for InternData-N1 VLN-PE v0.5 format (#288)
+
+Full Changelog: https://github.com/InternRobotics/InternNav/compare/release/v0.3.0...release/v0.3.1
+
+
 ## Changelog of v0.3.0 (2026/01/05)
 ### Highlights
 - Support training of InternVLA-N1 and evaluation on RxR (#184)

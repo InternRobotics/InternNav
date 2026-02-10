@@ -6,7 +6,7 @@ import torch
 
 from internnav.dataset.base import BaseDataset, ObservationsDict, _block_shuffle
 from internnav.model.utils.feature_extract import extract_instruction_tokens
-from internnav.utils.lerobot_as_lmdb import LerobotAsLmdb
+from internnav.utils.loader import LerobotAsLmdb
 
 
 class CMALerobotDataset(BaseDataset):
@@ -38,8 +38,9 @@ class CMALerobotDataset(BaseDataset):
         self.camera_name = self.config.il.camera_name
 
         self.lerobot_as_lmdb = LerobotAsLmdb(self.lerobot_features_dir)
-        self.lmdb_keys = self.lerobot_as_lmdb.get_all_keys()
+        self.lmdb_keys = self.lerobot_as_lmdb.get_all_keys(allow_scan_list=['r2r'])  # r2r / r2r_aliengo / r2r_flash
         self.length = len(self.lmdb_keys)
+        print(f"total keys in traj_data: {len(self.lmdb_keys)}")
 
         # For CMA-CLIP
         self.use_clip_encoders = False
@@ -105,14 +106,12 @@ class CMALerobotDataset(BaseDataset):
                         data['camera_info'][self.camera_name]['rgb'] = data['camera_info'][self.camera_name]['rgb'][
                             :-drop_last_frame_nums
                         ]
-                        data['camera_info'][self.camera_name]['depth'] = data['camera_info'][self.camera_name][
-                            'depth'
-                        ][:-drop_last_frame_nums]
-                        data['robot_info']['yaw'] = data['robot_info']['yaw'][:-drop_last_frame_nums]
-                        data['robot_info']['position'] = data['robot_info']['position'][:-drop_last_frame_nums]
-                        data['robot_info']['orientation'] = data['robot_info']['orientation'][
+                        data['camera_info'][self.camera_name]['depth'] = data['camera_info'][self.camera_name]['depth'][
                             :-drop_last_frame_nums
                         ]
+                        data['robot_info']['yaw'] = data['robot_info']['yaw'][:-drop_last_frame_nums]
+                        data['robot_info']['position'] = data['robot_info']['position'][:-drop_last_frame_nums]
+                        data['robot_info']['orientation'] = data['robot_info']['orientation'][:-drop_last_frame_nums]
                         data['progress'] = data['progress'][:-drop_last_frame_nums]
                         data['step'] = data['step'][:-drop_last_frame_nums]
                         if 'rgb_features' in data.keys():
@@ -132,13 +131,11 @@ class CMALerobotDataset(BaseDataset):
 
                     if self.bert_tokenizer is not None:
                         instructions = [
-                            episodes_in_json[ep_idx]['instruction_text']
-                            for ep_idx in range(len(episodes_in_json))
+                            episodes_in_json[ep_idx]['instruction_text'] for ep_idx in range(len(episodes_in_json))
                         ]
                     else:
                         instructions = [
-                            episodes_in_json[ep_idx]['instruction_tokens']
-                            for ep_idx in range(len(episodes_in_json))
+                            episodes_in_json[ep_idx]['instruction_tokens'] for ep_idx in range(len(episodes_in_json))
                         ]
                     for instruction in instructions:
                         new_data = self._create_new_data(data, yaws, instruction)

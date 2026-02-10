@@ -55,7 +55,7 @@ with open('requirements/internvla_n1.txt', 'r') as f:
 
 setuptools.setup(
     name='internnav',
-    version='0.3.0',
+    version='0.3.1',
     packages=setuptools.find_packages(),
     author='Intern Robotics',
     author_email='embodiedai@pjlab.org.cn',
