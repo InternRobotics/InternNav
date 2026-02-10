@@ -103,7 +103,7 @@ class RDP_LerobotDataset(BaseDataset):
         self.to_pil = ToPILImage()
         self.image_processor = _transform(n_px=224)  # copy from clip-long
         self.lerobot_as_lmdb = LerobotAsLmdb(self.lerobot_features_dir)
-        self.lmdb_keys = self.lerobot_as_lmdb.get_all_keys(allow_scan_list=['r2r']) # r2r / r2r_aliengo / r2r_flash
+        self.lmdb_keys = self.lerobot_as_lmdb.get_all_keys(allow_scan_list=['r2r'])  # r2r / r2r_aliengo / r2r_flash
         self.length = len(self.lmdb_keys)
         print(f"total keys in traj_data: {len(self.lmdb_keys)}")
 

@@ -107,9 +107,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
         # ------------------------------------- model ------------------------------------------
         self.model_args = argparse.Namespace(**cfg.agent.model_settings)
         self.vis_debug = bool(getattr(self.model_args, "vis_debug", False))
-        self.vis_debug_path = getattr(
-            self.model_args, "vis_debug_path", os.path.join(self.output_path, "vis_debug")
-        )
+        self.vis_debug_path = getattr(self.model_args, "vis_debug_path", os.path.join(self.output_path, "vis_debug"))
 
         processor = AutoProcessor.from_pretrained(self.model_args.model_path)
         processor.tokenizer.padding_side = 'left'
@@ -261,7 +259,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         ndtw.append(res['ndtw'])
         return sucs, spls, oss, nes, ndtw
 
-    def _run_eval_dual_system(self) -> tuple:
+    def _run_eval_dual_system(self) -> tuple:  # noqa: C901
         self.model.eval()
 
         # resume from previous results
@@ -554,9 +552,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     )
                     if pixel_goal is not None:
                         if draw_pixel_goal:
-                            cv2.circle(
-                                vis, (pixel_goal[0], pixel_goal[1]), radius=8, color=(255, 0, 0), thickness=-1
-                            )
+                            cv2.circle(vis, (pixel_goal[0], pixel_goal[1]), radius=8, color=(255, 0, 0), thickness=-1)
                     vis_writer.append_data(vis)
 
                 if action == action_code.LOOKDOWN:

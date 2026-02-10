@@ -10,4 +10,3 @@ The training pipeline now uses the new key name:
 - `instruction_text` → `task`
 
 The updated conversion logic is **not compatible** with InternData-N1 `v0.1`.
-
