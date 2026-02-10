@@ -231,8 +231,26 @@ Below are selected community-driven deployment guides and solution write-ups, wh
 
 ## 🔗 Citation
 
-If you find our work helpful, please cite:
+If you find our InternVLA-N1 (Dual System) model helpful, please cite our ICLR paper and previous technical report:
+```bibtex
+@misc{wei2025groundslowfastdualsystem,
+      title={Ground Slow, Move Fast: A Dual-System Foundation Model for Generalizable Vision-and-Language Navigation},
+      author={Meng Wei and Chenyang Wan and Jiaqi Peng and Xiqian Yu and Yuqiang Yang and Delin Feng and Wenzhe Cai and Chenming Zhu and Tai Wang and Jiangmiao Pang and Xihui Liu},
+      year={2025},
+      eprint={2512.08186},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2512.08186},
+}
+@misc{internvla-n1,
+    title = {{InternVLA-N1: An} Open Dual-System Navigation Foundation Model with Learned Latent Plans},
+    author = {InternNav Team},
+    year = {2025},
+    booktitle={arXiv},
+}
+```
 
+If you use this InternNav codebase to develop your method, please cite our codebase:
 ```bibtex
 @misc{internnav2025,
     title = {{InternNav: InternRobotics'} open platform for building generalized navigation foundation models},
@@ -242,17 +260,11 @@ If you find our work helpful, please cite:
 }
 ```
 
-If you use the specific pretrained models and benchmarks, please kindly cite the original papers involved in our work. Related BibTex entries of our papers are provided below.
 
-<details><summary>Related Work BibTex</summary>
+<details><summary>If you use the specific pretrained models and benchmarks, please kindly cite the original papers below.</summary>
 
 ```BibTex
-@misc{internvla-n1,
-    title = {{InternVLA-N1: An} Open Dual-System Navigation Foundation Model with Learned Latent Plans},
-    author = {InternNav Team},
-    year = {2025},
-    booktitle={arXiv},
-}
+
 @inproceedings{vlnpe,
   title={Rethinking the Embodied Gap in Vision-and-Language Navigation: A Holistic Study of Physical and Visual Disparities},
   author={Wang, Liuyi and Xia, Xinyuan and Zhao, Hui and Wang, Hanqing and Wang, Tai and Chen, Yilun and Liu, Chengju and Chen, Qijun and Pang, Jiangmiao},
@@ -270,15 +282,6 @@ If you use the specific pretrained models and benchmarks, please kindly cite the
     author = {Wenzhe Cai, Jiaqi Peng, Yuqiang Yang, Yujian Zhang, Meng Wei, Hanqing Wang, Yilun Chen, Tai Wang and Jiangmiao Pang},
     year = {2025},
     booktitle={arXiv},
-}
-@misc{wei2025groundslowfastdualsystem,
-      title={Ground Slow, Move Fast: A Dual-System Foundation Model for Generalizable Vision-and-Language Navigation},
-      author={Meng Wei and Chenyang Wan and Jiaqi Peng and Xiqian Yu and Yuqiang Yang and Delin Feng and Wenzhe Cai and Chenming Zhu and Tai Wang and Jiangmiao Pang and Xihui Liu},
-      year={2025},
-      eprint={2512.08186},
-      archivePrefix={arXiv},
-      primaryClass={cs.RO},
-      url={https://arxiv.org/abs/2512.08186},
 }
 ```
 
