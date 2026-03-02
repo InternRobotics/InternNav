@@ -266,8 +266,10 @@ class NavDPNet(PreTrainedModel):
             noise_pred_mg,
             cr_label_pred,
             cr_augment_pred,
-            [ng_noise, mg_noise],
-            [imagegoal_aux_pred, pixelgoal_aux_pred],
+            ng_noise, 
+            mg_noise,
+            imagegoal_aux_pred, 
+            pixelgoal_aux_pred,
         )
 
     def _get_device(self):
