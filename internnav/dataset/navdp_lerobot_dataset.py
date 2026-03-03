@@ -598,8 +598,6 @@ if __name__ == "__main__":
         scene_data_scale=1.0,
         preload=False,
     )
-    # import pdb
-    # pdb.set_trace()
 
     for i in range(10):
         (
