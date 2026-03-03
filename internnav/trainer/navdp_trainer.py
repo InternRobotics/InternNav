@@ -77,7 +77,7 @@ class NavDPTrainer(BaseTrainer):
         batch_label_critic = inputs["batch_label_critic"]
         batch_augment_critic = inputs["batch_augment_critic"]
 
-        pred_ng, pred_mg, critic_pred, augment_pred, noise, aux_pred = model(
+        pred_ng, pred_mg, critic_pred, augment_pred, ng_noise, mg_noise, imagegoal_aux_pred, pixelgoal_aux_pred = model(
             inputs_on_device["batch_pg"],
             inputs_on_device["batch_ig"],
             inputs_on_device["batch_tg"],
@@ -87,11 +87,11 @@ class NavDPTrainer(BaseTrainer):
             inputs_on_device["batch_augments"],
         )
 
-        ng_action_loss = (pred_ng - noise[0]).square().mean()
-        mg_action_loss = (pred_mg - noise[1]).square().mean()
+        ng_action_loss = (pred_ng - ng_noise).square().mean()
+        mg_action_loss = (pred_mg - mg_noise).square().mean()
         aux_loss = (
-            0.5 * (inputs_on_device["batch_pg"] - aux_pred[0]).square().mean()
-            + 0.5 * (inputs_on_device["batch_pg"] - aux_pred[1]).square().mean()
+            0.5 * (inputs_on_device["batch_pg"] - imagegoal_aux_pred).square().mean()
+            + 0.5 * (inputs_on_device["batch_pg"] - pixelgoal_aux_pred).square().mean()
         )
         action_loss = 0.5 * mg_action_loss + 0.5 * ng_action_loss
         critic_loss = (critic_pred - batch_label_critic).square().mean() + (
@@ -104,7 +104,7 @@ class NavDPTrainer(BaseTrainer):
             'pred_mg': pred_mg,
             'critic_pred': critic_pred,
             'augment_pred': augment_pred,
-            'noise': noise,
+            'noise': [ng_noise, mg_noise],
             'loss': loss,
             'ng_action_loss': ng_action_loss,
             'mg_action_loss': mg_action_loss,
