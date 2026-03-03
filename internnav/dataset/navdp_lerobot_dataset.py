@@ -428,10 +428,6 @@ class NavDP_Base_Datset(Dataset):
             trajectory_length,
         ) = self.process_data_parquet(index)
 
-        # trajectory_path_points, trajectory_path_pcd = self.process_path_points(index)
-        # trajectory_obstacle_points, trajectory_obstacle_pcd = self.process_obstacle_points(
-        #     index, trajectory_path_points
-        # )
         trajectory_obstacle_points, trajectory_obstacle_pcd = self.process_obstacle_points(index)
 
         if self.prior_sample:
@@ -442,7 +438,6 @@ class NavDP_Base_Datset(Dataset):
             target_choice = np.random.randint(pixel_start_choice + 1, trajectory_length - 1)
             memory_start_choice = np.random.randint(pixel_start_choice, target_choice)
 
-        # target_extrinsic = trajectory_extrinsics[target_choice]
         if self.random_digit:
             memory_digit = np.random.randint(2, 8)
             pred_digit = memory_digit
@@ -465,6 +460,7 @@ class NavDP_Base_Datset(Dataset):
         ) = self.process_actions(
             trajectory_extrinsics, trajectory_base_extrinsic, memory_start_choice, target_choice, pred_digit=pred_digit
         )
+
         # convert the xyz points into xy-theta points
         init_vector = target_local_points[1] - target_local_points[0]
         target_xyt_actions = self.xyz_to_xyt(target_local_points, init_vector)
