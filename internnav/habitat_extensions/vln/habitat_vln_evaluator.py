@@ -60,6 +60,27 @@ MAX_STEPS = 8
 MAX_LOCAL_STEPS = 4
 
 
+def format_s2_output_for_overlay(output):
+    """Render symbolic S2 actions with OpenCV-safe ASCII labels."""
+    output = str(output).strip()
+    arrow_names = {
+        '\u2191': 'FORWARD',
+        '\u2190': 'LEFT',
+        '\u2192': 'RIGHT',
+        '\u2193': 'LOOKDOWN',
+    }
+    if output and all(character in arrow_names for character in output):
+        groups = []
+        for character, items in itertools.groupby(output):
+            count = sum(1 for _ in items)
+            label = arrow_names[character]
+            groups.append(f'{label} x{count}' if count > 1 else label)
+        return ' | '.join(groups)
+
+    normalized = ''.join(arrow_names.get(character, character) for character in output)
+    return normalized.encode('ascii', errors='replace').decode('ascii')
+
+
 class action_code(IntEnum):
     STOP = 0
     FORWARD = 1
@@ -848,7 +869,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     if latest_s2_output:
                         vis = cv2.putText(
                             vis,
-                            f"S2: {latest_s2_output[:70]}",
+                            f"S2: {format_s2_output_for_overlay(latest_s2_output)[:70]}",
                             (20, 108),
                             cv2.FONT_HERSHEY_SIMPLEX,
                             0.55,

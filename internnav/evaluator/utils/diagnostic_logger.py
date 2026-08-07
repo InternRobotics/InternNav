@@ -21,7 +21,9 @@ DEFAULT_CRITERIA = {
     "stuck_displacement_m": 0.05,
     "oscillation_turn_count": 6,
     "oscillation_max_step_span": 8,
-    "no_progress_window": 8,
+    "no_progress_window": 12,
+    "no_progress_min_forward_actions": 4,
+    "no_progress_min_path_m": 0.5,
     "no_progress_distance_delta_m": 0.05,
 }
 
@@ -322,13 +324,25 @@ class DiagnosticLogger:
             and recent_progress[-1]["distance_after_m"] is not None
             and decision_step - self._last_no_progress_step >= no_progress_window
         ):
+            forward_actions = sum(item["action_name"] == "FORWARD" for item in recent_progress)
+            path_length = float(sum(item["displacement_m"] for item in recent_progress))
             improvement = float(
                 recent_progress[0]["distance_before_m"] - recent_progress[-1]["distance_after_m"]
             )
-            if improvement < float(self.criteria["no_progress_distance_delta_m"]):
+            if (
+                forward_actions >= int(self.criteria["no_progress_min_forward_actions"])
+                and path_length >= float(self.criteria["no_progress_min_path_m"])
+                and improvement < float(self.criteria["no_progress_distance_delta_m"])
+            ):
                 self.no_progress_events += 1
                 self._last_no_progress_step = decision_step
                 flags.append("no_progress")
+                record["no_progress_evidence"] = {
+                    "window": no_progress_window,
+                    "forward_actions": forward_actions,
+                    "path_length_m": path_length,
+                    "ne_improvement_m": improvement,
+                }
 
         return self.log("env_step", **record, flags=flags, **fields)
 
