@@ -9,6 +9,7 @@ import copy
 import itertools
 import random
 import re
+import time
 from collections import OrderedDict
 
 import cv2
@@ -33,6 +34,12 @@ from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 
 from internnav.configs.evaluator import EvalCfg
 from internnav.evaluator import DistributedEvaluator, Evaluator
+from internnav.evaluator.utils.diagnostic_logger import (
+    DiagnosticLogger,
+    depth_statistics,
+    seed_everything,
+    stable_episode_seed,
+)
 from internnav.habitat_extensions.vln.utils import (
     get_axis_align_matrix,
     get_intrinsic_matrix,
@@ -70,6 +77,14 @@ class HabitatVLNEvaluator(DistributedEvaluator):
         self.epoch = args.epoch
         self.max_steps_per_episode = args.max_steps_per_episode
         self.output_path = args.output_path
+        self.base_seed = int(getattr(args, 'seed', 42))
+        self.diagnostic_enabled = bool(getattr(args, 'diagnostic_log', False))
+        self.diagnostic_dir = getattr(args, 'diagnostic_dir', os.path.join(self.output_path, 'diagnostics'))
+        self.diagnostic_criteria = getattr(args, 'diagnostic_criteria', None)
+
+        # This happens before model construction. The launch script additionally
+        # sets PYTHONHASHSEED and CUBLAS_WORKSPACE_CONFIG before Python starts.
+        seed_everything(self.base_seed)
 
         # create habitat config
         self.config_path = cfg.env.env_settings['config_path']
@@ -78,6 +93,8 @@ class HabitatVLNEvaluator(DistributedEvaluator):
         self.sim_sensors_config = self.config.habitat.simulator.agents.main_agent.sim_sensors
 
         with habitat.config.read_write(self.config):
+            if hasattr(self.config.habitat, 'seed'):
+                self.config.habitat.seed = self.base_seed
             self.config.habitat.task.measurements.update(
                 {
                     "top_down_map": TopDownMapMeasurementConfig(
@@ -104,9 +121,13 @@ class HabitatVLNEvaluator(DistributedEvaluator):
         # init agent and env
         super().__init__(cfg, init_agent=False)
 
+        # DistributedEvaluator seeds NumPy by rank, so restore the requested
+        # experiment seed before constructing or invoking either model.
+        seed_everything(self.base_seed)
+
         # ------------------------------------- model ------------------------------------------
         self.model_args = argparse.Namespace(**cfg.agent.model_settings)
-        self.vis_debug = bool(getattr(self.model_args, "vis_debug", False))
+        self.vis_debug = bool(getattr(self.model_args, "vis_debug", False) or self.save_video)
         self.vis_debug_path = getattr(self.model_args, "vis_debug_path", os.path.join(self.output_path, "vis_debug"))
 
         processor = AutoProcessor.from_pretrained(self.model_args.model_path)
@@ -135,6 +156,26 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
         self.model = model
         self.processor = processor
+
+        self.diagnostic_logger = None
+        if self.diagnostic_enabled:
+            self.diagnostic_logger = DiagnosticLogger(
+                os.path.join(self.diagnostic_dir, f'rank_{self.rank}'),
+                run_metadata={
+                    'run_id': getattr(args, 'run_id', os.environ.get('DUALVLN_RUN_ID', 'diagnostic')),
+                    'base_seed': self.base_seed,
+                    'rank': self.rank,
+                    'local_rank': self.local_rank,
+                    'mode': self.model_args.mode,
+                    'model_path': self.model_args.model_path,
+                    'habitat_config': self.config_path,
+                    'code_commit': os.environ.get('DUALVLN_CODE_COMMIT'),
+                    'dataset_id': getattr(args, 'dataset_id', None),
+                    'deterministic_algorithms': True,
+                    'cublas_workspace_config': os.environ.get('CUBLAS_WORKSPACE_CONFIG'),
+                },
+                criteria=self.diagnostic_criteria,
+            )
 
         # refactor: this part used in three places
         prompt = "You are an autonomous navigation assistant. Your task is to <instruction>. Where should you go next to stay on track? Please output the next waypoint\'s coordinates in the image. Please output STOP when you have successfully completed the task."
@@ -259,6 +300,67 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         ndtw.append(res['ndtw'])
         return sucs, spls, oss, nes, ndtw
 
+    @staticmethod
+    def _collision_values(metrics):
+        collisions = metrics.get('collisions', {}) if metrics else {}
+        if isinstance(collisions, dict):
+            return bool(collisions.get('is_collision', False)), collisions.get('count')
+        return bool(collisions), None
+
+    def _depth_observation_to_metres(self, depth):
+        depth = np.asarray(depth).squeeze().astype(np.float32)
+        return depth * (self._max_depth - self._min_depth) + self._min_depth
+
+    def _diagnostic_env_step(self, action, observations_before, decision_step, phase, **fields):
+        """Execute one Habitat action and log both model and camera-only steps."""
+        metrics_before = self.env.get_metrics()
+        result = self.env.step(action)
+        observations_after, _, _, _ = result
+
+        if self.diagnostic_logger is None or observations_after is None:
+            return result
+
+        metrics_after = self.env.get_metrics()
+        collision, collision_count = self._collision_values(metrics_after)
+        gps_before = np.asarray(observations_before.get('gps', [np.nan, np.nan])).reshape(-1)
+        gps_after = np.asarray(observations_after.get('gps', [np.nan, np.nan])).reshape(-1)
+        compass_before = np.asarray(observations_before.get('compass', [np.nan])).reshape(-1).tolist()
+        compass_after = np.asarray(observations_after.get('compass', [np.nan])).reshape(-1).tolist()
+        depth_m = self._depth_observation_to_metres(observations_after['depth'])
+
+        try:
+            action_name = action_code(int(action)).name
+        except ValueError:
+            action_name = f'UNKNOWN_{int(action)}'
+
+        self.diagnostic_logger.record_env_step(
+            env_step=self._diagnostic_env_step_id,
+            decision_step=decision_step,
+            action=int(action),
+            action_name=action_name,
+            gps_before=gps_before,
+            gps_after=gps_after,
+            distance_before=metrics_before.get('distance_to_goal'),
+            distance_after=metrics_after.get('distance_to_goal'),
+            collision=collision,
+            collision_count=collision_count,
+            compass_before=compass_before,
+            compass_after=compass_after,
+            phase=phase,
+            depth=depth_statistics(depth_m),
+            **fields,
+        )
+        if collision:
+            self.diagnostic_logger.save_depth(
+                f'collision_env_{self._diagnostic_env_step_id:04d}',
+                depth_m,
+                env_step=self._diagnostic_env_step_id,
+                decision_step=decision_step,
+                action=action_name,
+            )
+        self._diagnostic_env_step_id += 1
+        return result
+
     def _run_eval_dual_system(self) -> tuple:  # noqa: C901
         self.model.eval()
 
@@ -281,7 +383,31 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             scene_id = episode.scene_id.split('/')[-2]
             episode_id = int(episode.episode_id)
             episode_instruction = episode.instruction.instruction_text
+            episode_seed = stable_episode_seed(self.base_seed, scene_id, episode_id)
+            seed_everything(episode_seed)
             print("episode start", episode_instruction)
+
+            self._diagnostic_env_step_id = 0
+            s2_call_id = 0
+            s1_plan_id = 0
+            current_s2_call_id = None
+            current_s1_plan_id = None
+            latest_s2_output = None
+            stop_reason = 'unknown'
+            if self.diagnostic_logger is not None:
+                goal_positions = [getattr(goal, 'position', None) for goal in getattr(episode, 'goals', [])]
+                self.diagnostic_logger.start_episode(
+                    {
+                        'scene_id': scene_id,
+                        'episode_id': episode_id,
+                        'instruction': episode_instruction,
+                        'base_seed': self.base_seed,
+                        'episode_seed': episode_seed,
+                        'start_position': getattr(episode, 'start_position', None),
+                        'start_rotation': getattr(episode, 'start_rotation', None),
+                        'goal_positions': goal_positions,
+                    }
+                )
 
             # save first frame per rank to validate sim quality
             os.makedirs(os.path.join(self.output_path, f'check_sim_{self.epoch}'), exist_ok=True)
@@ -291,6 +417,8 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
             vis_frames = []
             step_id = 0
+            first_person_frame_id = 0
+            top_down_frame_id = 0
             vis_writer = None
 
             if self.save_video:
@@ -346,8 +474,20 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     image = image.resize((self.model_args.resize_w, self.model_args.resize_h))
                     rgb_list.append(image)
 
-                    down_observations, _, _, _ = self.env.step(action_code.LOOKDOWN)
-                    down_observations, _, _, _ = self.env.step(action_code.LOOKDOWN)
+                    down_observations, _, _, _ = self._diagnostic_env_step(
+                        action_code.LOOKDOWN,
+                        observations,
+                        step_id,
+                        'camera_adjustment',
+                        reason='prepare_s1_depth',
+                    )
+                    down_observations, _, _, _ = self._diagnostic_env_step(
+                        action_code.LOOKDOWN,
+                        down_observations,
+                        step_id,
+                        'camera_adjustment',
+                        reason='prepare_s1_depth',
+                    )
 
                     look_down_image = Image.fromarray(down_observations["rgb"]).convert('RGB')
                     depth = down_observations["depth"]
@@ -364,8 +504,20 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     look_down_depth = torch.as_tensor(np.ascontiguousarray(look_down_depth)).float()
                     look_down_depth[look_down_depth > 5.0] = 5.0
 
-                    self.env.step(action_code.LOOKUP)
-                    self.env.step(action_code.LOOKUP)
+                    up_observations, _, _, _ = self._diagnostic_env_step(
+                        action_code.LOOKUP,
+                        down_observations,
+                        step_id,
+                        'camera_adjustment',
+                        reason='restore_horizontal_view',
+                    )
+                    self._diagnostic_env_step(
+                        action_code.LOOKUP,
+                        up_observations,
+                        step_id,
+                        'camera_adjustment',
+                        reason='restore_horizontal_view',
+                    )
 
                 if len(action_seq) == 0 and pixel_goal is None:
                     if action == action_code.LOOKDOWN:
@@ -414,6 +566,9 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
                     inputs = self.processor(text=[text], images=input_images, return_tensors="pt").to(self.model.device)
 
+                    current_s2_call_id = s2_call_id
+                    s2_call_id += 1
+                    s2_started = time.perf_counter()
                     with torch.no_grad():
                         output_ids = self.model.generate(
                             **inputs,
@@ -423,10 +578,12 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                             past_key_values=None,
                             return_dict_in_generate=True,
                         ).sequences
+                    s2_generate_ms = (time.perf_counter() - s2_started) * 1000
 
                     llm_outputs = self.processor.tokenizer.decode(
                         output_ids[0][inputs.input_ids.shape[1] :], skip_special_tokens=True
                     )
+                    latest_s2_output = llm_outputs
                     print('step_id:', step_id, 'output text:', llm_outputs)
 
                     if bool(re.search(r'\d', llm_outputs)):  # output pixel goal
@@ -437,15 +594,46 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         draw_pixel_goal = True
 
                         # look down --> horizontal
-                        self.env.step(action_code.LOOKUP)
-                        self.env.step(action_code.LOOKUP)
+                        up_observations, _, _, _ = self._diagnostic_env_step(
+                            action_code.LOOKUP,
+                            observations,
+                            step_id,
+                            'camera_adjustment',
+                            reason='restore_from_s2_lookdown',
+                        )
+                        self._diagnostic_env_step(
+                            action_code.LOOKUP,
+                            up_observations,
+                            step_id,
+                            'camera_adjustment',
+                            reason='restore_from_s2_lookdown',
+                        )
 
                         local_actions = []
                         pixel_values = inputs.pixel_values
                         image_grid_thw = torch.cat([thw.unsqueeze(0) for thw in inputs.image_grid_thw], dim=0)
 
                         with torch.no_grad():
+                            latent_started = time.perf_counter()
                             traj_latents = self.model.generate_latents(output_ids, pixel_values, image_grid_thw)
+                            latent_generate_ms = (time.perf_counter() - latent_started) * 1000
+
+                        if self.diagnostic_logger is not None:
+                            self.diagnostic_logger.log(
+                                's2_inference',
+                                s2_call_id=current_s2_call_id,
+                                decision_step=step_id,
+                                raw_output=llm_outputs,
+                                output_type='pixel_goal',
+                                pixel_goal=pixel_goal,
+                                history_frame_ids=history_id if action != action_code.LOOKDOWN else [],
+                                input_image_count=len(input_images),
+                                generated_token_count=int(output_ids.shape[-1] - inputs.input_ids.shape[1]),
+                                generate_ms=s2_generate_ms,
+                                latent_generate_ms=latent_generate_ms,
+                                latent_shape=list(traj_latents.shape),
+                                latent_l2_norm=float(traj_latents.detach().float().norm().item()),
+                            )
 
                         # prepocess align with navdp
                         image_dp = torch.tensor(np.array(look_down_image.resize((224, 224)))).to(torch.bfloat16) / 255
@@ -455,10 +643,41 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         pix_goal_depth = copy.copy(depth_dp)
                         depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0).to(self.device)
 
+                        current_s1_plan_id = s1_plan_id
+                        s1_plan_id += 1
+                        s1_started = time.perf_counter()
                         with torch.no_grad():
                             dp_actions = self.model.generate_traj(traj_latents, images_dp, depths_dp)
+                        s1_generate_ms = (time.perf_counter() - s1_started) * 1000
+
+                        if self.diagnostic_logger is not None:
+                            self.diagnostic_logger.save_s1_plan(
+                                current_s1_plan_id,
+                                dp_actions,
+                                s2_call_id=current_s2_call_id,
+                                decision_step=step_id,
+                                pixel_goal=pixel_goal,
+                                replan_reason='new_s2_pixel_goal',
+                                generate_ms=s1_generate_ms,
+                            )
+                            self.diagnostic_logger.save_depth(
+                                f'plan_{current_s1_plan_id:04d}',
+                                look_down_depth.numpy(),
+                                plan_id=current_s1_plan_id,
+                                s2_call_id=current_s2_call_id,
+                                decision_step=step_id,
+                            )
 
                         action_list = traj_to_actions(dp_actions)
+                        if self.diagnostic_logger is not None:
+                            self.diagnostic_logger.log(
+                                's1_discretization',
+                                plan_id=current_s1_plan_id,
+                                s2_call_id=current_s2_call_id,
+                                decision_step=step_id,
+                                discrete_actions=[int(item) for item in action_list],
+                                executable_chunk=[int(item) for item in action_list[:MAX_LOCAL_STEPS]],
+                            )
                         if len(action_list) < MAX_STEPS:
                             action_list += [0] * (MAX_STEPS - len(action_list))
 
@@ -471,7 +690,26 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                             pixel_goal = None
                             output_ids = None
                             action = action_code.LEFT
-                            observations, _, done, _ = self.env.step(action)
+                            if self.diagnostic_logger is not None:
+                                self.diagnostic_logger.log(
+                                    'controller_fallback',
+                                    decision_step=step_id,
+                                    s2_call_id=current_s2_call_id,
+                                    plan_id=current_s1_plan_id,
+                                    reason='initial_s1_plan_started_with_stop',
+                                    replacement_action='LEFT',
+                                )
+                            observations, _, done, _ = self._diagnostic_env_step(
+                                action,
+                                observations,
+                                step_id,
+                                'model_action',
+                                action_source='s1_stop_fallback',
+                                s2_call_id=current_s2_call_id,
+                                plan_id=current_s1_plan_id,
+                                first_person_frame_id=None,
+                                top_down_frame_id=None,
+                            )
                             step_id += 1
                             messages = []
                             continue
@@ -479,12 +717,27 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
                     else:
                         action_seq = self.parse_actions(llm_outputs)
+                        if self.diagnostic_logger is not None:
+                            self.diagnostic_logger.log(
+                                's2_inference',
+                                s2_call_id=current_s2_call_id,
+                                decision_step=step_id,
+                                raw_output=llm_outputs,
+                                output_type='stop' if action_seq == [action_code.STOP] else 'direct_actions',
+                                parsed_actions=[int(item) for item in action_seq],
+                                history_frame_ids=history_id if action != action_code.LOOKDOWN else [],
+                                input_image_count=len(input_images),
+                                generated_token_count=int(output_ids.shape[-1] - inputs.input_ids.shape[1]),
+                                generate_ms=s2_generate_ms,
+                            )
                         print('actions', action_seq, flush=True)
 
                 if len(action_seq) != 0:
                     action = action_seq[0]
                     action_seq.pop(0)
+                    action_source = 's2_direct'
                 elif pixel_goal is not None:
+                    action_source = 's1'
                     if len(local_actions) == 0:
                         # navdp
                         local_actions = []
@@ -494,10 +747,41 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         depth_dp = look_down_depth.unsqueeze(-1).to(torch.bfloat16)
 
                         depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0).to(self.device)
+                        current_s1_plan_id = s1_plan_id
+                        s1_plan_id += 1
+                        s1_started = time.perf_counter()
                         with torch.no_grad():
                             dp_actions = self.model.generate_traj(traj_latents, images_dp, depths_dp)
+                        s1_generate_ms = (time.perf_counter() - s1_started) * 1000
+
+                        if self.diagnostic_logger is not None:
+                            self.diagnostic_logger.save_s1_plan(
+                                current_s1_plan_id,
+                                dp_actions,
+                                s2_call_id=current_s2_call_id,
+                                decision_step=step_id,
+                                pixel_goal=pixel_goal,
+                                replan_reason='local_chunk_exhausted',
+                                generate_ms=s1_generate_ms,
+                            )
+                            self.diagnostic_logger.save_depth(
+                                f'plan_{current_s1_plan_id:04d}',
+                                look_down_depth.numpy(),
+                                plan_id=current_s1_plan_id,
+                                s2_call_id=current_s2_call_id,
+                                decision_step=step_id,
+                            )
 
                         action_list = traj_to_actions(dp_actions)
+                        if self.diagnostic_logger is not None:
+                            self.diagnostic_logger.log(
+                                's1_discretization',
+                                plan_id=current_s1_plan_id,
+                                s2_call_id=current_s2_call_id,
+                                decision_step=step_id,
+                                discrete_actions=[int(item) for item in action_list],
+                                executable_chunk=[int(item) for item in action_list[:MAX_LOCAL_STEPS]],
+                            )
                         if len(action_list) < MAX_STEPS:
                             action_list += [0] * (MAX_STEPS - len(action_list))
 
@@ -528,6 +812,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         continue
                 else:
                     action = 0
+                    action_source = 'default_stop'
 
                 info = self.env.get_metrics()
 
@@ -536,6 +821,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     if pixel_goal is not None and flag:
                         cv2.circle(frame, (pixel_goal[0], pixel_goal[1]), radius=8, color=(255, 0, 0), thickness=-1)
                     vis_frames.append(frame)
+                    top_down_frame_id += 1
 
                 print("step_id", step_id, "action", action)
 
@@ -550,23 +836,84 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         (0, 255, 0),
                         2,
                     )
+                    vis = cv2.putText(
+                        vis,
+                        f"source {action_source} s2 {current_s2_call_id} s1 {current_s1_plan_id}",
+                        (20, 75),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.65,
+                        (0, 255, 0),
+                        2,
+                    )
+                    if latest_s2_output:
+                        vis = cv2.putText(
+                            vis,
+                            f"S2: {latest_s2_output[:70]}",
+                            (20, 108),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.55,
+                            (0, 255, 255),
+                            1,
+                        )
                     if pixel_goal is not None:
                         if draw_pixel_goal:
                             cv2.circle(vis, (pixel_goal[0], pixel_goal[1]), radius=8, color=(255, 0, 0), thickness=-1)
                     vis_writer.append_data(vis)
+                    first_person_frame_id += 1
 
                 if action == action_code.LOOKDOWN:
-                    self.env.step(action)
-                    observations, _, done, _ = self.env.step(action)
+                    down_observations, _, _, _ = self._diagnostic_env_step(
+                        action,
+                        observations,
+                        step_id,
+                        'model_action',
+                        action_source=action_source,
+                        s2_call_id=current_s2_call_id,
+                        plan_id=current_s1_plan_id,
+                        first_person_frame_id=first_person_frame_id - 1 if vis_writer is not None else None,
+                        top_down_frame_id=top_down_frame_id - 1 if self.save_video else None,
+                    )
+                    observations, _, done, _ = self._diagnostic_env_step(
+                        action,
+                        down_observations,
+                        step_id,
+                        'model_action',
+                        action_source=action_source,
+                        s2_call_id=current_s2_call_id,
+                        plan_id=current_s1_plan_id,
+                        first_person_frame_id=first_person_frame_id - 1 if vis_writer is not None else None,
+                        top_down_frame_id=top_down_frame_id - 1 if self.save_video else None,
+                    )
                     flag = True
                 else:
-                    observations, _, done, _ = self.env.step(action)
+                    observations, _, done, _ = self._diagnostic_env_step(
+                        action,
+                        observations,
+                        step_id,
+                        'model_action',
+                        action_source=action_source,
+                        s2_call_id=current_s2_call_id,
+                        plan_id=current_s1_plan_id,
+                        pixel_goal=pixel_goal,
+                        s2_raw_output=latest_s2_output,
+                        remaining_s2_actions=[int(item) for item in action_seq],
+                        remaining_s1_actions=[int(item) for item in local_actions],
+                        first_person_frame_id=first_person_frame_id - 1 if vis_writer is not None else None,
+                        top_down_frame_id=top_down_frame_id - 1 if self.save_video else None,
+                    )
                     step_id += 1
                     messages = []
                     flag = False
 
             # ---------- 3. End of episode -----------
             # collect the metric result of this episode and write progress to the output_path/progress.json
+
+            if done:
+                stop_reason = 'habitat_episode_done'
+            elif step_id > self.max_steps_per_episode:
+                stop_reason = 'model_decision_limit'
+            else:
+                stop_reason = 'evaluation_loop_exit'
 
             process_bar.update(1)
 
@@ -586,6 +933,34 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                 f"ne: {metrics['distance_to_goal']}"
             )
 
+            diagnostic_summary = None
+            if self.diagnostic_logger is not None:
+                metric_summary = {
+                    'success': metrics['success'],
+                    'spl': metrics['spl'],
+                    'oracle_success': metrics['oracle_success'],
+                    'distance_to_goal': metrics['distance_to_goal'],
+                    'ndtw': metrics.get('ndtw'),
+                    'collisions': metrics.get('collisions'),
+                }
+                diagnostic_summary = self.diagnostic_logger.finish_episode(
+                    metric_summary,
+                    stop_reason,
+                    model_decision_steps=step_id,
+                    habitat_action_steps=self._diagnostic_env_step_id,
+                    first_person_video=os.path.join(
+                        self.vis_debug_path,
+                        f'epoch_{self.epoch}',
+                        f'{scene_id}_{episode_id:04d}.mp4',
+                    ),
+                    top_down_video=os.path.join(
+                        self.output_path,
+                        f'vis_{self.epoch}',
+                        f'{scene_id}',
+                        f'{episode_id:04d}.mp4',
+                    ),
+                )
+
             # Write per-episode progress.json entry (still per-rank)
             result = {
                 "scene_id": scene_id,
@@ -599,6 +974,20 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             }
             if 'ndtw' in metrics:
                 result['ndtw'] = metrics['ndtw']
+            if diagnostic_summary is not None:
+                result.update(
+                    {
+                        'base_seed': self.base_seed,
+                        'episode_seed': episode_seed,
+                        'stop_reason': stop_reason,
+                        'collision_steps': diagnostic_summary['collision_steps'],
+                        'collision_streak_events': diagnostic_summary['collision_streak_events'],
+                        'stuck_events': diagnostic_summary['stuck_events'],
+                        'oscillation_events': diagnostic_summary['oscillation_events'],
+                        'no_progress_events': diagnostic_summary['no_progress_events'],
+                        'automatic_s1_failure_candidate': diagnostic_summary['automatic_s1_failure_candidate'],
+                    }
+                )
 
             # save current progress
             os.makedirs(self.output_path, exist_ok=True)
@@ -606,7 +995,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                 f.write(json.dumps(result) + "\n")
 
             # save video
-            if self.save_video and metrics['success'] == 1.0:
+            if self.save_video and vis_frames:
                 images_to_video(
                     vis_frames,
                     os.path.join(self.output_path, f'vis_{self.epoch}', f'{scene_id}'),
@@ -922,7 +1311,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             os.makedirs(self.output_path, exist_ok=True)
             with open(os.path.join(self.output_path, 'progress.json'), 'a') as f:
                 f.write(json.dumps(result) + "\n")
-            if self.save_video and metrics['success'] == 1.0:
+            if self.save_video and vis_frames:
                 images_to_video(
                     vis_frames,
                     os.path.join(self.output_path, f'vis_{self.epoch}', f'{scene_id}'),
