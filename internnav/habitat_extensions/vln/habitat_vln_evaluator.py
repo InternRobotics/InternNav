@@ -47,6 +47,8 @@ from internnav.habitat_extensions.vln.utils import (
     preprocess_depth_image_v2,
     xyz_yaw_pitch_to_tf_matrix,
 )
+from internnav.habitat_extensions.vln.recovery_controller import RecoveryController
+from internnav.habitat_extensions.vln.trajectory_selector import TrajectorySelector
 from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
 from internnav.model.utils.vln_utils import split_and_clean, traj_to_actions
 
@@ -102,6 +104,22 @@ class HabitatVLNEvaluator(DistributedEvaluator):
         self.diagnostic_enabled = bool(getattr(args, 'diagnostic_log', False))
         self.diagnostic_dir = getattr(args, 'diagnostic_dir', os.path.join(self.output_path, 'diagnostics'))
         self.diagnostic_criteria = getattr(args, 'diagnostic_criteria', None)
+        self.minimal_s1_safety = bool(getattr(args, 'minimal_s1_safety', False))
+        self.trajectory_selector = TrajectorySelector(
+            cluster_min_fraction=float(getattr(args, 's1_cluster_min_fraction', 0.25)),
+            cluster_lateral_gap=float(getattr(args, 's1_cluster_lateral_gap', 0.25)),
+            depth_lookahead=float(getattr(args, 's1_depth_lookahead', 1.25)),
+            unsafe_clearance=float(getattr(args, 's1_unsafe_clearance', 0.12)),
+            near_clearance=float(getattr(args, 's1_near_clearance', 0.35)),
+            horizontal_fov_deg=float(getattr(args, 's1_horizontal_fov_deg', 79.0)),
+        )
+        self.recovery_controller = RecoveryController(
+            min_forward_displacement=float(getattr(args, 's1_min_forward_displacement', 0.03)),
+            system2_retry_limit=int(getattr(args, 's1_system2_retry_limit', 3)),
+            max_consecutive_turns=(
+                int(getattr(args, 's1_max_consecutive_turns', 24)) if self.minimal_s1_safety else 0
+            ),
+        )
 
         # This happens before model construction. The launch script additionally
         # sets PYTHONHASHSEED and CUBLAS_WORKSPACE_CONFIG before Python starts.
@@ -328,6 +346,23 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             return bool(collisions.get('is_collision', False)), collisions.get('count')
         return bool(collisions), None
 
+    def _prepare_s1_actions(self, dp_actions, depth=None):
+        """Choose one candidate and determine how many actions may run open-loop."""
+        if not self.minimal_s1_safety:
+            return traj_to_actions(dp_actions), None, MAX_LOCAL_STEPS
+
+        selection = self.trajectory_selector.select(
+            dp_actions,
+            depth=depth,
+            recent_failure=self.recovery_controller.goal_retry_count > 0,
+        )
+        selected = dp_actions[selection.selected_index : selection.selected_index + 1]
+        if hasattr(selected, 'clone'):
+            selected = selected.clone()
+        else:
+            selected = np.array(selected, copy=True)
+        return traj_to_actions(selected), selection, selection.chunk_size
+
     def _depth_observation_to_metres(self, depth):
         depth = np.asarray(depth).squeeze().astype(np.float32)
         return depth * (self._max_depth - self._min_depth) + self._min_depth
@@ -409,11 +444,13 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             print("episode start", episode_instruction)
 
             self._diagnostic_env_step_id = 0
+            self.recovery_controller.reset()
             s2_call_id = 0
             s1_plan_id = 0
             current_s2_call_id = None
             current_s1_plan_id = None
             latest_s2_output = None
+            recovery_context = None
             stop_reason = 'unknown'
             if self.diagnostic_logger is not None:
                 goal_positions = [getattr(goal, 'position', None) for goal in getattr(episode, 'goals', [])]
@@ -475,6 +512,9 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                 depth = filter_depth(depth.reshape(depth.shape[:2]), blur_type=None)
                 depth = depth * (self._max_depth - self._min_depth) + self._min_depth
                 depth = depth * 1000
+                front_depth_m = None
+                if action != action_code.LOOKDOWN:
+                    front_depth_m = depth / 1000.0
 
                 image = Image.fromarray(rgb).convert('RGB')
                 save_raw_image = image.copy()
@@ -532,15 +572,18 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         'camera_adjustment',
                         reason='restore_horizontal_view',
                     )
-                    self._diagnostic_env_step(
+                    horizontal_observations, _, _, _ = self._diagnostic_env_step(
                         action_code.LOOKUP,
                         up_observations,
                         step_id,
                         'camera_adjustment',
                         reason='restore_horizontal_view',
                     )
+                    front_depth_m = self._depth_observation_to_metres(horizontal_observations['depth'])
+                    observations = horizontal_observations
 
                 if len(action_seq) == 0 and pixel_goal is None:
+                    s2_recovery_context = None
                     if action == action_code.LOOKDOWN:
                         # last action is look down
                         sources = [{"from": "human", "value": ""}, {"from": "gpt", "value": ""}]
@@ -567,6 +610,11 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         history_id = sorted(history_id)
                         input_images = [rgb_list[i] for i in history_id] + cur_images
                         input_img_id = 0
+
+                        if recovery_context:
+                            s2_recovery_context = recovery_context
+                            sources[0]["value"] += f" {recovery_context}"
+                            recovery_context = None
 
                     prompt = random.choice(self.conjunctions) + DEFAULT_IMAGE_TOKEN
                     sources[0]["value"] += f" {prompt}."
@@ -622,13 +670,15 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                             'camera_adjustment',
                             reason='restore_from_s2_lookdown',
                         )
-                        self._diagnostic_env_step(
+                        horizontal_observations, _, _, _ = self._diagnostic_env_step(
                             action_code.LOOKUP,
                             up_observations,
                             step_id,
                             'camera_adjustment',
                             reason='restore_from_s2_lookdown',
                         )
+                        front_depth_m = self._depth_observation_to_metres(horizontal_observations['depth'])
+                        observations = horizontal_observations
 
                         local_actions = []
                         pixel_values = inputs.pixel_values
@@ -654,6 +704,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 latent_generate_ms=latent_generate_ms,
                                 latent_shape=list(traj_latents.shape),
                                 latent_l2_norm=float(traj_latents.detach().float().norm().item()),
+                                recovery_context=s2_recovery_context,
                             )
 
                         # prepocess align with navdp
@@ -689,7 +740,10 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 decision_step=step_id,
                             )
 
-                        action_list = traj_to_actions(dp_actions)
+                        self.recovery_controller.start_new_goal()
+                        action_list, trajectory_selection, chunk_size = self._prepare_s1_actions(
+                            dp_actions, depth=front_depth_m
+                        )
                         if self.diagnostic_logger is not None:
                             self.diagnostic_logger.log(
                                 's1_discretization',
@@ -697,40 +751,51 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 s2_call_id=current_s2_call_id,
                                 decision_step=step_id,
                                 discrete_actions=[int(item) for item in action_list],
-                                executable_chunk=[int(item) for item in action_list[:MAX_LOCAL_STEPS]],
+                                executable_chunk=[int(item) for item in action_list[:chunk_size]],
+                                selected_index=(
+                                    trajectory_selection.selected_index if trajectory_selection is not None else None
+                                ),
+                                trajectory_dispersion=(
+                                    trajectory_selection.dispersion if trajectory_selection is not None else None
+                                ),
+                                adaptive_chunk_size=chunk_size,
+                                trajectory_bimodal=(
+                                    trajectory_selection.bimodal if trajectory_selection is not None else None
+                                ),
+                                trajectory_cluster_sizes=(
+                                    trajectory_selection.cluster_sizes if trajectory_selection is not None else None
+                                ),
+                                selected_clearance=(
+                                    trajectory_selection.clearance if trajectory_selection is not None else None
+                                ),
+                                selected_smoothness=(
+                                    trajectory_selection.smoothness if trajectory_selection is not None else None
+                                ),
+                                depth_risk=(
+                                    trajectory_selection.depth_risk if trajectory_selection is not None else None
+                                ),
                             )
                         if len(action_list) < MAX_STEPS:
                             action_list += [0] * (MAX_STEPS - len(action_list))
 
                         local_actions = action_list
-                        if len(local_actions) >= MAX_LOCAL_STEPS:
-                            local_actions = local_actions[:MAX_LOCAL_STEPS]
+                        if len(local_actions) >= chunk_size:
+                            local_actions = local_actions[:chunk_size]
 
-                        action = local_actions[0]
+                        action = local_actions.pop(0)
                         if action == action_code.STOP:
                             pixel_goal = None
                             output_ids = None
-                            action = action_code.LEFT
+                            local_actions = []
                             if self.diagnostic_logger is not None:
                                 self.diagnostic_logger.log(
-                                    'controller_fallback',
+                                    'controller_replan',
                                     decision_step=step_id,
                                     s2_call_id=current_s2_call_id,
                                     plan_id=current_s1_plan_id,
                                     reason='initial_s1_plan_started_with_stop',
-                                    replacement_action='LEFT',
+                                    next_system='s2',
                                 )
-                            observations, _, done, _ = self._diagnostic_env_step(
-                                action,
-                                observations,
-                                step_id,
-                                'model_action',
-                                action_source='s1_stop_fallback',
-                                s2_call_id=current_s2_call_id,
-                                plan_id=current_s1_plan_id,
-                                first_person_frame_id=None,
-                                top_down_frame_id=None,
-                            )
                             step_id += 1
                             messages = []
                             continue
@@ -750,6 +815,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 input_image_count=len(input_images),
                                 generated_token_count=int(output_ids.shape[-1] - inputs.input_ids.shape[1]),
                                 generate_ms=s2_generate_ms,
+                                recovery_context=s2_recovery_context,
                             )
                         print('actions', action_seq, flush=True)
 
@@ -793,7 +859,9 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 decision_step=step_id,
                             )
 
-                        action_list = traj_to_actions(dp_actions)
+                        action_list, trajectory_selection, chunk_size = self._prepare_s1_actions(
+                            dp_actions, depth=front_depth_m
+                        )
                         if self.diagnostic_logger is not None:
                             self.diagnostic_logger.log(
                                 's1_discretization',
@@ -801,14 +869,36 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 s2_call_id=current_s2_call_id,
                                 decision_step=step_id,
                                 discrete_actions=[int(item) for item in action_list],
-                                executable_chunk=[int(item) for item in action_list[:MAX_LOCAL_STEPS]],
+                                executable_chunk=[int(item) for item in action_list[:chunk_size]],
+                                selected_index=(
+                                    trajectory_selection.selected_index if trajectory_selection is not None else None
+                                ),
+                                trajectory_dispersion=(
+                                    trajectory_selection.dispersion if trajectory_selection is not None else None
+                                ),
+                                adaptive_chunk_size=chunk_size,
+                                trajectory_bimodal=(
+                                    trajectory_selection.bimodal if trajectory_selection is not None else None
+                                ),
+                                trajectory_cluster_sizes=(
+                                    trajectory_selection.cluster_sizes if trajectory_selection is not None else None
+                                ),
+                                selected_clearance=(
+                                    trajectory_selection.clearance if trajectory_selection is not None else None
+                                ),
+                                selected_smoothness=(
+                                    trajectory_selection.smoothness if trajectory_selection is not None else None
+                                ),
+                                depth_risk=(
+                                    trajectory_selection.depth_risk if trajectory_selection is not None else None
+                                ),
                             )
                         if len(action_list) < MAX_STEPS:
                             action_list += [0] * (MAX_STEPS - len(action_list))
 
                         local_actions = action_list
-                        if len(local_actions) >= MAX_LOCAL_STEPS:
-                            local_actions = local_actions[:MAX_LOCAL_STEPS]
+                        if len(local_actions) >= chunk_size:
+                            local_actions = local_actions[:chunk_size]
                         print("local_actions", local_actions)
                         action = local_actions.pop(0)
                     else:
@@ -907,6 +997,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     )
                     flag = True
                 else:
+                    gps_before_action = np.asarray(observations.get('gps', [np.nan, np.nan])).copy()
                     observations, _, done, _ = self._diagnostic_env_step(
                         action,
                         observations,
@@ -922,6 +1013,55 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         first_person_frame_id=first_person_frame_id - 1 if vis_writer is not None else None,
                         top_down_frame_id=top_down_frame_id - 1 if self.save_video else None,
                     )
+                    collision, _ = self._collision_values(self.env.get_metrics())
+                    recovery = self.recovery_controller.update(
+                        action,
+                        gps_before_action,
+                        observations.get('gps', [np.nan, np.nan]),
+                        collision=collision,
+                        is_s1=self.minimal_s1_safety and action_source == 's1',
+                    )
+                    if recovery.cancel_remaining:
+                        cancelled_s1_actions = [int(item) for item in local_actions]
+                        cancelled_s2_actions = [int(item) for item in action_seq]
+                        local_actions = []
+                        action_seq = []
+                        if self.diagnostic_logger is not None:
+                            self.diagnostic_logger.log(
+                                's1_recovery' if action_source == 's1' else 'controller_recovery',
+                                decision_step=step_id,
+                                plan_id=current_s1_plan_id,
+                                action_source=action_source,
+                                reason=recovery.reason,
+                                gps_displacement=recovery.gps_displacement,
+                                cancelled_s1_actions=cancelled_s1_actions,
+                                cancelled_s2_actions=cancelled_s2_actions,
+                                retry_count=recovery.retry_count,
+                                goal_retry_count=recovery.goal_retry_count,
+                                turn_count=recovery.turn_count,
+                                consecutive_failures=self.recovery_controller.consecutive_failures,
+                                failed_directions=dict(self.recovery_controller.failed_directions),
+                                replan_system2=recovery.replan_system2,
+                            )
+                        if recovery.replan_system2:
+                            pixel_goal = None
+                            output_ids = None
+                            forward_action = 0
+                            messages = []
+                            if recovery.reason == 'repeated_turns':
+                                recovery_context = (
+                                    'Recovery notice: you just rotated a full circle without translating. '
+                                    'Reassess which parts of the original instruction remain unfinished, '
+                                    'then choose a genuinely different next action or STOP only if the task is complete. '
+                                    'Returning along the previous route is allowed when it is necessary.'
+                                )
+                            else:
+                                recovery_context = (
+                                    f'Recovery notice: the previous waypoint failed repeatedly because of '
+                                    f'{recovery.reason}. Reassess which parts of the original instruction remain '
+                                    'unfinished and select a reachable next waypoint. Returning along the previous '
+                                    'route is allowed when it is necessary.'
+                                )
                     step_id += 1
                     messages = []
                     flag = False
