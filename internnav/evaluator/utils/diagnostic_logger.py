@@ -13,6 +13,7 @@ from typing import Any, Dict, Iterable, Optional
 
 import numpy as np
 import torch
+from PIL import Image, ImageDraw
 
 
 DEFAULT_CRITERIA = {
@@ -103,6 +104,47 @@ def depth_statistics(depth_m: Any) -> Dict[str, Optional[float]]:
     return stats
 
 
+def project_pixel_point(
+    point: Iterable[float],
+    source_size: Iterable[int],
+    target_size: Iterable[int],
+) -> tuple[int, int]:
+    """Scale a pixel point between image spaces without changing its meaning."""
+    x, y = (float(value) for value in point)
+    source_width, source_height = (max(int(value), 1) for value in source_size)
+    target_width, target_height = (max(int(value), 1) for value in target_size)
+    projected_x = x * max(target_width - 1, 0) / max(source_width - 1, 1)
+    projected_y = y * max(target_height - 1, 0) / max(source_height - 1, 1)
+    return int(round(projected_x)), int(round(projected_y))
+
+
+def depth_at_pixel(
+    depth_m: Any,
+    point: Iterable[float],
+    image_size: Iterable[int],
+    radius: int = 2,
+) -> Optional[float]:
+    """Return robust local depth at a point expressed in another image size."""
+    depth = np.asarray(depth_m, dtype=np.float32).squeeze()
+    if depth.ndim != 2 or depth.size == 0:
+        return None
+    image_width, image_height = (max(int(value), 1) for value in image_size)
+    depth_x, depth_y = project_pixel_point(
+        point,
+        (image_width, image_height),
+        (depth.shape[1], depth.shape[0]),
+    )
+    if not (0 <= depth_x < depth.shape[1] and 0 <= depth_y < depth.shape[0]):
+        return None
+    radius = max(int(radius), 0)
+    patch = depth[
+        max(depth_y - radius, 0) : min(depth_y + radius + 1, depth.shape[0]),
+        max(depth_x - radius, 0) : min(depth_x + radius + 1, depth.shape[1]),
+    ]
+    valid = patch[np.isfinite(patch) & (patch > 0)]
+    return float(np.median(valid)) if valid.size else None
+
+
 class DiagnosticLogger:
     """Write an episode timeline and derive conservative navigation failure signals."""
 
@@ -156,11 +198,106 @@ class DiagnosticLogger:
         self.episode_dir.mkdir(parents=True, exist_ok=True)
         (self.episode_dir / "depth").mkdir(exist_ok=True)
         (self.episode_dir / "plans").mkdir(exist_ok=True)
+        (self.episode_dir / "s2_decisions").mkdir(exist_ok=True)
         self.timeline_path = self.episode_dir / "timeline.jsonl"
         self.timeline_path.write_text("", encoding="utf-8")
         self._write_json(self.episode_dir / "episode.json", episode_metadata)
         self.log("episode_start", **episode_metadata)
         return self.episode_dir
+
+    def save_s2_decision(
+        self,
+        s2_call_id: int,
+        image: Any,
+        *,
+        decision_step: int,
+        output_type: str,
+        raw_output: str,
+        pixel_goal: Optional[Iterable[int]] = None,
+        action_names: Optional[Iterable[str]] = None,
+        current_subtask: Optional[str] = None,
+        depth_m: Any = None,
+        model_image_size: Optional[Iterable[int]] = None,
+    ) -> Dict[str, Any]:
+        """Save the exact current S2 image with a diagnostic-only decision overlay."""
+        if self.episode_dir is None:
+            raise RuntimeError("start_episode must be called before saving an S2 decision")
+        if isinstance(image, Image.Image):
+            decision_image = image.convert("RGB")
+        else:
+            decision_image = Image.fromarray(np.asarray(image, dtype=np.uint8)).convert("RGB")
+        if model_image_size is not None:
+            model_size = tuple(int(value) for value in model_image_size)
+            if decision_image.size != model_size:
+                decision_image = decision_image.resize(model_size)
+
+        point = [int(value) for value in pixel_goal] if pixel_goal is not None else None
+        point_depth_m = (
+            depth_at_pixel(depth_m, point, decision_image.size)
+            if point is not None and depth_m is not None
+            else None
+        )
+        action_names = [str(value) for value in (action_names or [])]
+        safe_output = str(raw_output).encode("ascii", errors="replace").decode("ascii")
+        safe_subtask = str(current_subtask or "unknown").encode("ascii", errors="replace").decode("ascii")
+
+        draw = ImageDraw.Draw(decision_image, "RGBA")
+        draw.rectangle((0, 0, decision_image.width, 58), fill=(0, 0, 0, 190))
+        draw.text(
+            (8, 7),
+            f"S2 #{int(s2_call_id)}  step {int(decision_step)}  {str(output_type).upper()}",
+            fill=(255, 255, 255, 255),
+        )
+        draw.text((8, 24), f"output: {safe_output[:62]}", fill=(255, 255, 0, 255))
+        draw.text((8, 41), f"subtask: {safe_subtask[:60]}", fill=(210, 220, 230, 255))
+
+        if point is not None:
+            x, y = point
+            colour = (0, 255, 255, 255)
+            draw.ellipse((x - 9, y - 9, x + 9, y + 9), outline=(0, 0, 0, 255), width=5)
+            draw.ellipse((x - 8, y - 8, x + 8, y + 8), outline=colour, width=3)
+            draw.line((x - 14, y, x + 14, y), fill=colour, width=2)
+            draw.line((x, y - 14, x, y + 14), fill=colour, width=2)
+            depth_label = "invalid" if point_depth_m is None else f"{point_depth_m:.2f} m"
+            draw.rectangle((x + 12, y - 12, x + 116, y + 10), fill=(0, 0, 0, 190))
+            draw.text((x + 16, y - 9), f"GOAL {x},{y}  {depth_label}", fill=colour)
+        elif "STOP" in action_names or str(output_type).startswith("stop"):
+            draw.rectangle(
+                (
+                    decision_image.width // 2 - 72,
+                    decision_image.height // 2 - 27,
+                    decision_image.width // 2 + 72,
+                    decision_image.height // 2 + 27,
+                ),
+                fill=(160, 0, 0, 210),
+                outline=(255, 80, 80, 255),
+                width=3,
+            )
+            draw.text(
+                (decision_image.width // 2 - 22, decision_image.height // 2 - 6),
+                "STOP",
+                fill=(255, 255, 255, 255),
+            )
+        elif action_names:
+            label = " | ".join(action_names)
+            draw.rectangle(
+                (24, decision_image.height - 43, decision_image.width - 24, decision_image.height - 12),
+                fill=(0, 0, 0, 190),
+                outline=(255, 210, 0, 255),
+                width=2,
+            )
+            draw.text((34, decision_image.height - 33), label[:52], fill=(255, 220, 0, 255))
+
+        file_path = self.episode_dir / "s2_decisions" / f"decision_{int(s2_call_id):04d}.jpg"
+        decision_image.save(file_path, format="JPEG", quality=90, optimize=True)
+        return {
+            "decision_image": str(file_path.relative_to(self.root_dir)),
+            "decision_image_size": list(decision_image.size),
+            "decision_point": point,
+            "decision_point_depth_m": point_depth_m,
+            "decision_action_names": action_names,
+            "decision_current_subtask": current_subtask,
+        }
 
     def log(self, event_type: str, **fields: Any) -> Dict[str, Any]:
         if self.timeline_path is None:

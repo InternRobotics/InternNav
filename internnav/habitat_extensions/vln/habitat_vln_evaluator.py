@@ -37,6 +37,7 @@ from internnav.evaluator import DistributedEvaluator, Evaluator
 from internnav.evaluator.utils.diagnostic_logger import (
     DiagnosticLogger,
     depth_statistics,
+    project_pixel_point,
     seed_everything,
     stable_episode_seed,
 )
@@ -853,6 +854,24 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                             latent_generate_ms = (time.perf_counter() - latent_started) * 1000
 
                         if self.diagnostic_logger is not None:
+                            decision_snapshot = self.diagnostic_logger.save_s2_decision(
+                                current_s2_call_id,
+                                input_images[-1],
+                                decision_step=step_id,
+                                output_type='pixel_goal',
+                                raw_output=llm_outputs,
+                                pixel_goal=pixel_goal,
+                                current_subtask=instruction_state.current_clause,
+                                depth_m=(
+                                    low_head_depth_m
+                                    if action == action_code.LOOKDOWN
+                                    else front_depth_m
+                                ),
+                                model_image_size=(
+                                    self.model_args.resize_w,
+                                    self.model_args.resize_h,
+                                ),
+                            )
                             self.diagnostic_logger.log(
                                 's2_inference',
                                 s2_call_id=current_s2_call_id,
@@ -879,6 +898,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 duplicate_goal=goal_decision.duplicate,
                                 duplicate_goal_failed_count=goal_decision.failed_duplicate_count,
                                 duplicate_goal_rejected=goal_decision.reject,
+                                **decision_snapshot,
                             )
 
                         current_s1_plan_id = None
@@ -1102,18 +1122,43 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 else self.recovery_controller.exploratory_turn()
                             ]
                         if self.diagnostic_logger is not None:
+                            decision_output_type = (
+                                'stop_forced'
+                                if forced_stop
+                                else 'stop_rejected'
+                                if stop_rejected
+                                else ('stop' if action_seq == [action_code.STOP] else 'direct_actions')
+                            )
+                            decision_action_names = [
+                                action_code(int(item)).name
+                                if int(item) in action_code._value2member_map_
+                                else f'UNKNOWN_{int(item)}'
+                                for item in action_seq
+                            ]
+                            decision_snapshot = self.diagnostic_logger.save_s2_decision(
+                                current_s2_call_id,
+                                input_images[-1],
+                                decision_step=step_id,
+                                output_type=decision_output_type,
+                                raw_output=llm_outputs,
+                                action_names=decision_action_names,
+                                current_subtask=instruction_state.current_clause,
+                                depth_m=(
+                                    low_head_depth_m
+                                    if action == action_code.LOOKDOWN
+                                    else front_depth_m
+                                ),
+                                model_image_size=(
+                                    self.model_args.resize_w,
+                                    self.model_args.resize_h,
+                                ),
+                            )
                             self.diagnostic_logger.log(
                                 's2_inference',
                                 s2_call_id=current_s2_call_id,
                                 decision_step=step_id,
                                 raw_output=llm_outputs,
-                                output_type=(
-                                    'stop_forced'
-                                    if forced_stop
-                                    else 'stop_rejected'
-                                    if stop_rejected
-                                    else ('stop' if action_seq == [action_code.STOP] else 'direct_actions')
-                                ),
+                                output_type=decision_output_type,
                                 parsed_actions=[int(item) for item in action_seq],
                                 history_frame_ids=history_id if action != action_code.LOOKDOWN else [],
                                 input_image_count=len(input_images),
@@ -1125,6 +1170,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 depth_summary=(
                                     latest_depth_summary.__dict__ if latest_depth_summary is not None else None
                                 ),
+                                **decision_snapshot,
                             )
                         print('actions', action_seq, flush=True)
 
@@ -1259,7 +1305,18 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                 if info['top_down_map'] is not None and self.save_video:
                     frame = observations_to_image({'rgb': np.asarray(save_raw_image)}, info)
                     if pixel_goal is not None and flag:
-                        cv2.circle(frame, (pixel_goal[0], pixel_goal[1]), radius=8, color=(255, 0, 0), thickness=-1)
+                        display_goal = project_pixel_point(
+                            pixel_goal,
+                            (self.model_args.resize_w, self.model_args.resize_h),
+                            save_raw_image.size,
+                        )
+                        cv2.circle(
+                            frame,
+                            display_goal,
+                            radius=8,
+                            color=(255, 255, 0),
+                            thickness=-1,
+                        )
                     vis_frames.append(frame)
                     top_down_frame_id += 1
 
@@ -1297,7 +1354,18 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         )
                     if pixel_goal is not None:
                         if draw_pixel_goal:
-                            cv2.circle(vis, (pixel_goal[0], pixel_goal[1]), radius=8, color=(255, 0, 0), thickness=-1)
+                            display_goal = project_pixel_point(
+                                pixel_goal,
+                                (self.model_args.resize_w, self.model_args.resize_h),
+                                save_raw_image.size,
+                            )
+                            cv2.circle(
+                                vis,
+                                display_goal,
+                                radius=8,
+                                color=(255, 255, 0),
+                                thickness=-1,
+                            )
                     vis_writer.append_data(vis)
                     first_person_frame_id += 1
 
