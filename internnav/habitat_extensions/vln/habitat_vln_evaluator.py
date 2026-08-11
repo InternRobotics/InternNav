@@ -48,6 +48,17 @@ from internnav.habitat_extensions.vln.utils import (
     xyz_yaw_pitch_to_tf_matrix,
 )
 from internnav.habitat_extensions.vln.recovery_controller import RecoveryController
+from internnav.habitat_extensions.vln.navigation_state import (
+    CameraPitchState,
+    DepthObservationSummarizer,
+    InstructionStateTracker,
+    PixelGoalMemory,
+    bound_actions_at_lookdown,
+    load_semantic_labels,
+    select_history_indices,
+    select_uniform_history_indices,
+    semantic_label_for_episode,
+)
 from internnav.habitat_extensions.vln.trajectory_selector import TrajectorySelector
 from internnav.model.basemodel.internvla_n1.internvla_n1 import InternVLAN1ForCausalLM
 from internnav.model.utils.vln_utils import split_and_clean, traj_to_actions
@@ -105,6 +116,25 @@ class HabitatVLNEvaluator(DistributedEvaluator):
         self.diagnostic_dir = getattr(args, 'diagnostic_dir', os.path.join(self.output_path, 'diagnostics'))
         self.diagnostic_criteria = getattr(args, 'diagnostic_criteria', None)
         self.minimal_s1_safety = bool(getattr(args, 'minimal_s1_safety', False))
+        self.structured_s2_context = bool(getattr(args, 'structured_s2_context', False))
+        self.s2_stair_depth_context = bool(getattr(args, 's2_stair_depth_context', False))
+        self.s2_reject_unverified_stair_stop = bool(
+            getattr(args, 's2_reject_unverified_stair_stop', False)
+        )
+        self.s2_force_verified_stair_stop = bool(
+            getattr(args, 's2_force_verified_stair_stop', False)
+        )
+        self.semantic_labels = load_semantic_labels(getattr(args, 'semantic_labels_path', None))
+        self.depth_summarizer = DepthObservationSummarizer(
+            near_distance=float(getattr(args, 's2_depth_near_distance', 0.55)),
+            open_margin=float(getattr(args, 's2_depth_open_margin', 0.25)),
+        )
+        self.pixel_goal_memory = PixelGoalMemory(
+            pixel_tolerance=float(getattr(args, 's2_duplicate_goal_pixel_tolerance', 32.0)),
+            pose_tolerance=float(getattr(args, 's2_duplicate_goal_pose_tolerance', 0.30)),
+            heading_tolerance_deg=float(getattr(args, 's2_duplicate_goal_heading_tolerance_deg', 20.0)),
+            retry_limit=int(getattr(args, 's2_duplicate_goal_retry_limit', 2)),
+        )
         self.trajectory_selector = TrajectorySelector(
             cluster_min_fraction=float(getattr(args, 's1_cluster_min_fraction', 0.25)),
             cluster_lateral_gap=float(getattr(args, 's1_cluster_lateral_gap', 0.25)),
@@ -118,6 +148,9 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             system2_retry_limit=int(getattr(args, 's1_system2_retry_limit', 3)),
             max_consecutive_turns=(
                 int(getattr(args, 's1_max_consecutive_turns', 24)) if self.minimal_s1_safety else 0
+            ),
+            direct_turn_escape_clearance=float(
+                getattr(args, 's2_direct_turn_escape_clearance', 0.55)
             ),
         )
 
@@ -355,7 +388,13 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             dp_actions,
             depth=depth,
             recent_failure=self.recovery_controller.goal_retry_count > 0,
+            failed_route_directions=(
+                self.recovery_controller.failed_route_directions
+                if self.structured_s2_context
+                else None
+            ),
         )
+        self.recovery_controller.set_route_direction(selection.route_direction)
         selected = dp_actions[selection.selected_index : selection.selected_index + 1]
         if hasattr(selected, 'clone'):
             selected = selected.clone()
@@ -366,6 +405,79 @@ class HabitatVLNEvaluator(DistributedEvaluator):
     def _depth_observation_to_metres(self, depth):
         depth = np.asarray(depth).squeeze().astype(np.float32)
         return depth * (self._max_depth - self._min_depth) + self._min_depth
+
+    def _low_head_inputs(self, observations):
+        """Build S1 RGB/depth inputs from an already lowered camera view."""
+        image = Image.fromarray(observations['rgb']).convert('RGB')
+        depth = np.asarray(observations['depth']).squeeze()
+        depth = filter_depth(depth, blur_type=None)
+        depth_m = depth * (self._max_depth - self._min_depth) + self._min_depth
+        depth_mm = depth_m * 1000.0
+        depth_tensor, _ = preprocess_depth_image_v2(
+            Image.fromarray(depth_mm.astype(np.uint16), mode='I;16'),
+            do_depth_scale=True,
+            depth_scale=1000,
+            target_height=224,
+            target_width=224,
+        )
+        depth_tensor = torch.as_tensor(np.ascontiguousarray(depth_tensor)).float()
+        depth_tensor[depth_tensor > 5.0] = 5.0
+        return image, depth_tensor, depth_m
+
+    def _capture_low_head_inputs(self, observations, decision_step, reason):
+        """Capture low-head S1 inputs and restore the horizontal view immediately."""
+        down_observations, _, _, _ = self._diagnostic_env_step(
+            action_code.LOOKDOWN,
+            observations,
+            decision_step,
+            'camera_adjustment',
+            reason=reason,
+        )
+        down_observations, _, _, _ = self._diagnostic_env_step(
+            action_code.LOOKDOWN,
+            down_observations,
+            decision_step,
+            'camera_adjustment',
+            reason=reason,
+        )
+        look_down_image, look_down_depth, low_head_depth_m = self._low_head_inputs(
+            down_observations
+        )
+        up_observations, _, _, _ = self._diagnostic_env_step(
+            action_code.LOOKUP,
+            down_observations,
+            decision_step,
+            'camera_adjustment',
+            reason='restore_horizontal_view',
+        )
+        horizontal_observations, _, _, _ = self._diagnostic_env_step(
+            action_code.LOOKUP,
+            up_observations,
+            decision_step,
+            'camera_adjustment',
+            reason='restore_horizontal_view',
+        )
+        front_depth_m = self._depth_observation_to_metres(horizontal_observations['depth'])
+        return (
+            horizontal_observations,
+            look_down_image,
+            look_down_depth,
+            low_head_depth_m,
+            front_depth_m,
+        )
+
+    def _agent_height(self):
+        return float(self.env._env.sim.get_agent_state().position[1])
+
+    @staticmethod
+    def _parse_pixel_goal(output):
+        """Prefer an explicit coordinate pair and ignore unrelated prose numbers."""
+        output = str(output)
+        pair = re.search(r"[\[(]\s*(-?\d+)\s*[, ]\s*(-?\d+)\s*[\])]", output)
+        if pair:
+            return [int(pair.group(2)), int(pair.group(1))]
+        values = [int(value) for value in re.findall(r"-?\d+", output)]
+        return [values[1], values[0]] if len(values) >= 2 else None
 
     def _diagnostic_env_step(self, action, observations_before, decision_step, phase, **fields):
         """Execute one Habitat action and log both model and camera-only steps."""
@@ -445,12 +557,25 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
             self._diagnostic_env_step_id = 0
             self.recovery_controller.reset()
+            self.pixel_goal_memory.reset()
+            initial_compass = np.asarray(observations.get('compass', [0.0])).reshape(-1)
+            instruction_state = InstructionStateTracker(
+                episode_instruction,
+                initial_height=self._agent_height(),
+                initial_compass=float(initial_compass[0]) if initial_compass.size else 0.0,
+                initial_gps=observations.get('gps'),
+            )
+            manual_semantic_label = semantic_label_for_episode(
+                self.semantic_labels, scene_id, episode_id
+            )
             s2_call_id = 0
             s1_plan_id = 0
             current_s2_call_id = None
             current_s1_plan_id = None
             latest_s2_output = None
             recovery_context = None
+            latest_depth_summary = None
+            camera_pitch = CameraPitchState()
             stop_reason = 'unknown'
             if self.diagnostic_logger is not None:
                 goal_positions = [getattr(goal, 'position', None) for goal in getattr(episode, 'goals', [])]
@@ -464,6 +589,8 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         'start_position': getattr(episode, 'start_position', None),
                         'start_rotation': getattr(episode, 'start_rotation', None),
                         'goal_positions': goal_positions,
+                        'instruction_state': instruction_state.as_dict(),
+                        'manual_semantic_label': manual_semantic_label,
                     }
                 )
 
@@ -518,72 +645,50 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
                 image = Image.fromarray(rgb).convert('RGB')
                 save_raw_image = image.copy()
+                look_down_image = None
+                look_down_depth = None
+                low_head_depth_m = None
 
                 if action == action_code.LOOKDOWN:
-                    look_down_image = image
-                    save_raw_image = look_down_image.copy()
-                    look_down_depth, resize_shape = preprocess_depth_image_v2(
-                        Image.fromarray(depth.astype(np.uint16), mode='I;16'),
-                        do_depth_scale=True,
-                        depth_scale=1000,
-                        target_height=224,
-                        target_width=224,
+                    look_down_image, look_down_depth, low_head_depth_m = self._low_head_inputs(
+                        observations
                     )
-                    look_down_depth = torch.as_tensor(np.ascontiguousarray(look_down_depth)).float()
-                    look_down_depth[look_down_depth > 5.0] = 5.0
+                    save_raw_image = look_down_image.copy()
                 else:
                     image = image.resize((self.model_args.resize_w, self.model_args.resize_h))
                     rgb_list.append(image)
 
-                    down_observations, _, _, _ = self._diagnostic_env_step(
-                        action_code.LOOKDOWN,
+                needs_s2 = len(action_seq) == 0 and pixel_goal is None
+                if (
+                    needs_s2
+                    and action != action_code.LOOKDOWN
+                    and (self.structured_s2_context or self.s2_stair_depth_context)
+                ):
+                    (
+                        observations,
+                        look_down_image,
+                        look_down_depth,
+                        low_head_depth_m,
+                        front_depth_m,
+                    ) = self._capture_low_head_inputs(
                         observations,
                         step_id,
-                        'camera_adjustment',
-                        reason='prepare_s1_depth',
-                    )
-                    down_observations, _, _, _ = self._diagnostic_env_step(
-                        action_code.LOOKDOWN,
-                        down_observations,
-                        step_id,
-                        'camera_adjustment',
-                        reason='prepare_s1_depth',
+                        reason='prepare_s2_depth_context',
                     )
 
-                    look_down_image = Image.fromarray(down_observations["rgb"]).convert('RGB')
-                    depth = down_observations["depth"]
-                    depth = filter_depth(depth.reshape(depth.shape[:2]), blur_type=None)
-                    depth = depth * (self._max_depth - self._min_depth) + self._min_depth
-                    depth = depth * 1000
-                    look_down_depth, resize_shape = preprocess_depth_image_v2(
-                        Image.fromarray(depth.astype(np.uint16), mode='I;16'),
-                        do_depth_scale=True,
-                        depth_scale=1000,
-                        target_height=224,
-                        target_width=224,
+                latest_depth_summary = None
+                if (
+                    low_head_depth_m is not None
+                    and (self.structured_s2_context or self.s2_stair_depth_context)
+                ):
+                    latest_depth_summary = self.depth_summarizer.summarize(
+                        low_head_depth_m,
+                        stair_mode=instruction_state.stair_mode,
                     )
-                    look_down_depth = torch.as_tensor(np.ascontiguousarray(look_down_depth)).float()
-                    look_down_depth[look_down_depth > 5.0] = 5.0
 
-                    up_observations, _, _, _ = self._diagnostic_env_step(
-                        action_code.LOOKUP,
-                        down_observations,
-                        step_id,
-                        'camera_adjustment',
-                        reason='restore_horizontal_view',
-                    )
-                    horizontal_observations, _, _, _ = self._diagnostic_env_step(
-                        action_code.LOOKUP,
-                        up_observations,
-                        step_id,
-                        'camera_adjustment',
-                        reason='restore_horizontal_view',
-                    )
-                    front_depth_m = self._depth_observation_to_metres(horizontal_observations['depth'])
-                    observations = horizontal_observations
-
-                if len(action_seq) == 0 and pixel_goal is None:
+                if needs_s2:
                     s2_recovery_context = None
+                    history_id = []
                     if action == action_code.LOOKDOWN:
                         # last action is look down
                         sources = [{"from": "human", "value": ""}, {"from": "gpt", "value": ""}]
@@ -598,24 +703,62 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                             '<instruction>.', episode.instruction.instruction_text[:-1]
                         )
                         cur_images = rgb_list[-1:]
-                        if step_id == 0:
-                            history_id = []
+                        if self.structured_s2_context:
+                            history_id = select_history_indices(
+                                len(rgb_list),
+                                self.num_history,
+                                prioritize_recent=(
+                                    instruction_state.stair_mode
+                                    or self.recovery_controller.goal_retry_count > 0
+                                ),
+                            )
                         else:
-                            history_id = np.unique(
-                                np.linspace(0, step_id - 1, self.num_history, dtype=np.int32)
-                            ).tolist()
+                            history_id = select_uniform_history_indices(
+                                len(rgb_list), self.num_history
+                            )
+                        if history_id:
                             placeholder = (DEFAULT_IMAGE_TOKEN + '\n') * len(history_id)
                             sources[0]["value"] += f' These are your historical observations: {placeholder}.'
 
-                        history_id = sorted(history_id)
                         input_images = [rgb_list[i] for i in history_id] + cur_images
                         input_img_id = 0
 
-                        if recovery_context:
-                            s2_recovery_context = recovery_context
-                            sources[0]["value"] += f" {recovery_context}"
-                            recovery_context = None
+                    context_parts = []
+                    if self.structured_s2_context:
+                        context_parts.append(instruction_state.prompt_context())
+                    failed_route_context = (
+                        self.recovery_controller.failed_route_context()
+                        if self.structured_s2_context
+                        else None
+                    )
+                    if failed_route_context:
+                        context_parts.append(failed_route_context)
+                    if recovery_context and self.structured_s2_context:
+                        s2_recovery_context = recovery_context
+                        context_parts.append(recovery_context)
+                    if recovery_context:
+                        recovery_context = None
+                    if context_parts:
+                        sources[0]["value"] += " " + " ".join(context_parts)
 
+                    if (
+                        self.s2_stair_depth_context
+                        and instruction_state.stair_mode
+                        and latest_depth_summary is not None
+                    ):
+                        if action != action_code.LOOKDOWN:
+                            sources[0]["value"] += (
+                                f" This is a low-head RGB inspection image: {DEFAULT_IMAGE_TOKEN}."
+                            )
+                            input_images.insert(
+                                len(input_images) - 1,
+                                look_down_image.resize((224, 224)),
+                            )
+                        sources[0]["value"] += f" {latest_depth_summary.text}"
+                        sources[0]["value"] += (
+                            " Use the low-head image only to understand nearby geometry; place the waypoint "
+                            "in the main current RGB image shown next."
+                        )
                     prompt = random.choice(self.conjunctions) + DEFAULT_IMAGE_TOKEN
                     sources[0]["value"] += f" {prompt}."
                     prompt_instruction = copy.deepcopy(sources[0]["value"])
@@ -654,39 +797,59 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     )
                     latest_s2_output = llm_outputs
                     print('step_id:', step_id, 'output text:', llm_outputs)
-
-                    if bool(re.search(r'\d', llm_outputs)):  # output pixel goal
-                        forward_action = 0
-                        coord = [int(c) for c in re.findall(r'\d+', llm_outputs)]
-
-                        pixel_goal = [int(coord[1]), int(coord[0])]
-                        draw_pixel_goal = True
-
-                        # look down --> horizontal
-                        up_observations, _, _, _ = self._diagnostic_env_step(
-                            action_code.LOOKUP,
-                            observations,
-                            step_id,
-                            'camera_adjustment',
-                            reason='restore_from_s2_lookdown',
-                        )
-                        horizontal_observations, _, _, _ = self._diagnostic_env_step(
-                            action_code.LOOKUP,
-                            up_observations,
-                            step_id,
-                            'camera_adjustment',
-                            reason='restore_from_s2_lookdown',
-                        )
+                    if action == action_code.LOOKDOWN and camera_pitch.restore_steps:
+                        horizontal_observations = observations
+                        for _ in range(camera_pitch.restore_steps):
+                            horizontal_observations, _, _, _ = self._diagnostic_env_step(
+                                action_code.LOOKUP,
+                                horizontal_observations,
+                                step_id,
+                                'camera_adjustment',
+                                reason='restore_after_s2_low_head_observation',
+                            )
+                        camera_pitch.mark_horizontal()
                         front_depth_m = self._depth_observation_to_metres(horizontal_observations['depth'])
                         observations = horizontal_observations
+                    model_completed_subtask = False
+                    if self.structured_s2_context:
+                        model_completed_subtask = instruction_state.mark_model_completion(llm_outputs)
+                    terminal_turn_stall = self.recovery_controller.consume_turn_stall()
+                    forced_stop = bool(
+                        self.s2_force_verified_stair_stop
+                        and instruction_state.should_force_stop(
+                            stall_confirmed=terminal_turn_stall
+                        )
+                    )
+
+                    parsed_pixel_goal = None if forced_stop else self._parse_pixel_goal(llm_outputs)
+                    if parsed_pixel_goal is not None:  # output pixel goal
+                        forward_action = 0
+                        pixel_goal = parsed_pixel_goal
+                        draw_pixel_goal = True
+                        previous_goal_failed = (
+                            self.structured_s2_context
+                            and self.recovery_controller.goal_retry_count > 0
+                        )
+                        goal_decision = self.pixel_goal_memory.evaluate(
+                            pixel_goal,
+                            observations.get('gps', [np.nan, np.nan]),
+                            observations.get('compass', [np.nan]),
+                            previous_goal_failed=previous_goal_failed,
+                        )
 
                         local_actions = []
-                        pixel_values = inputs.pixel_values
-                        image_grid_thw = torch.cat([thw.unsqueeze(0) for thw in inputs.image_grid_thw], dim=0)
-
-                        with torch.no_grad():
-                            latent_started = time.perf_counter()
-                            traj_latents = self.model.generate_latents(output_ids, pixel_values, image_grid_thw)
+                        traj_latents = None
+                        latent_generate_ms = 0.0
+                        if not goal_decision.reject:
+                            pixel_values = inputs.pixel_values
+                            image_grid_thw = torch.cat(
+                                [thw.unsqueeze(0) for thw in inputs.image_grid_thw], dim=0
+                            )
+                            with torch.no_grad():
+                                latent_started = time.perf_counter()
+                                traj_latents = self.model.generate_latents(
+                                    output_ids, pixel_values, image_grid_thw
+                                )
                             latent_generate_ms = (time.perf_counter() - latent_started) * 1000
 
                         if self.diagnostic_logger is not None:
@@ -702,27 +865,57 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 generated_token_count=int(output_ids.shape[-1] - inputs.input_ids.shape[1]),
                                 generate_ms=s2_generate_ms,
                                 latent_generate_ms=latent_generate_ms,
-                                latent_shape=list(traj_latents.shape),
-                                latent_l2_norm=float(traj_latents.detach().float().norm().item()),
+                                latent_shape=(list(traj_latents.shape) if traj_latents is not None else None),
+                                latent_l2_norm=(
+                                    float(traj_latents.detach().float().norm().item())
+                                    if traj_latents is not None
+                                    else None
+                                ),
                                 recovery_context=s2_recovery_context,
+                                instruction_state=instruction_state.as_dict(),
+                                depth_summary=(
+                                    latest_depth_summary.__dict__ if latest_depth_summary is not None else None
+                                ),
+                                duplicate_goal=goal_decision.duplicate,
+                                duplicate_goal_failed_count=goal_decision.failed_duplicate_count,
+                                duplicate_goal_rejected=goal_decision.reject,
                             )
 
-                        # prepocess align with navdp
-                        image_dp = torch.tensor(np.array(look_down_image.resize((224, 224)))).to(torch.bfloat16) / 255
-                        pix_goal_image = copy.copy(image_dp)
-                        images_dp = torch.stack([pix_goal_image, image_dp]).unsqueeze(0).to(self.device)
-                        depth_dp = look_down_depth.unsqueeze(-1).to(torch.bfloat16)
-                        pix_goal_depth = copy.copy(depth_dp)
-                        depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0).to(self.device)
+                        current_s1_plan_id = None
+                        s1_generate_ms = 0.0
+                        if goal_decision.reject:
+                            dp_actions = torch.zeros((1, 4, 3), dtype=torch.float32, device=self.device)
+                        else:
+                            if look_down_image is None:
+                                (
+                                    observations,
+                                    look_down_image,
+                                    look_down_depth,
+                                    low_head_depth_m,
+                                    front_depth_m,
+                                ) = self._capture_low_head_inputs(
+                                    observations,
+                                    step_id,
+                                    reason='prepare_new_s1_goal',
+                                )
 
-                        current_s1_plan_id = s1_plan_id
-                        s1_plan_id += 1
-                        s1_started = time.perf_counter()
-                        with torch.no_grad():
-                            dp_actions = self.model.generate_traj(traj_latents, images_dp, depths_dp)
-                        s1_generate_ms = (time.perf_counter() - s1_started) * 1000
+                            # Preprocess inputs aligned with NavDP only when S1 will run.
+                            image_dp = torch.tensor(
+                                np.array(look_down_image.resize((224, 224)))
+                            ).to(torch.bfloat16) / 255
+                            pix_goal_image = copy.copy(image_dp)
+                            images_dp = torch.stack([pix_goal_image, image_dp]).unsqueeze(0).to(self.device)
+                            depth_dp = look_down_depth.unsqueeze(-1).to(torch.bfloat16)
+                            pix_goal_depth = copy.copy(depth_dp)
+                            depths_dp = torch.stack([pix_goal_depth, depth_dp]).unsqueeze(0).to(self.device)
+                            current_s1_plan_id = s1_plan_id
+                            s1_plan_id += 1
+                            s1_started = time.perf_counter()
+                            with torch.no_grad():
+                                dp_actions = self.model.generate_traj(traj_latents, images_dp, depths_dp)
+                            s1_generate_ms = (time.perf_counter() - s1_started) * 1000
 
-                        if self.diagnostic_logger is not None:
+                        if self.diagnostic_logger is not None and not goal_decision.reject:
                             self.diagnostic_logger.save_s1_plan(
                                 current_s1_plan_id,
                                 dp_actions,
@@ -740,11 +933,16 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 decision_step=step_id,
                             )
 
-                        self.recovery_controller.start_new_goal()
-                        action_list, trajectory_selection, chunk_size = self._prepare_s1_actions(
-                            dp_actions, depth=front_depth_m
-                        )
-                        if self.diagnostic_logger is not None:
+                        if goal_decision.reject:
+                            action_list, trajectory_selection, chunk_size = [], None, 1
+                        else:
+                            self.recovery_controller.start_new_goal(
+                                preserve_failures=goal_decision.duplicate and previous_goal_failed
+                            )
+                            action_list, trajectory_selection, chunk_size = self._prepare_s1_actions(
+                                dp_actions, depth=front_depth_m
+                            )
+                        if self.diagnostic_logger is not None and not goal_decision.reject:
                             self.diagnostic_logger.log(
                                 's1_discretization',
                                 plan_id=current_s1_plan_id,
@@ -774,6 +972,14 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 depth_risk=(
                                     trajectory_selection.depth_risk if trajectory_selection is not None else None
                                 ),
+                                route_direction=(
+                                    trajectory_selection.route_direction if trajectory_selection is not None else None
+                                ),
+                                failed_route_penalty=(
+                                    trajectory_selection.failed_route_penalty
+                                    if trajectory_selection is not None
+                                    else None
+                                ),
                             )
                         if len(action_list) < MAX_STEPS:
                             action_list += [0] * (MAX_STEPS - len(action_list))
@@ -782,8 +988,32 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         if len(local_actions) >= chunk_size:
                             local_actions = local_actions[:chunk_size]
 
-                        action = local_actions.pop(0)
-                        if action == action_code.STOP:
+                        if goal_decision.reject:
+                            rejected_goal = list(pixel_goal)
+                            pixel_goal = None
+                            output_ids = None
+                            local_actions = []
+                            action_seq = [self.recovery_controller.exploratory_turn()]
+                            recovery_context = (
+                                f"The near-duplicate waypoint {rejected_goal} was rejected after repeated failure. "
+                                "Use the new observation after this small exploratory turn and choose a visibly "
+                                "different reachable waypoint; do not repeat the rejected pixel goal."
+                            )
+                            if self.diagnostic_logger is not None:
+                                self.diagnostic_logger.log(
+                                    'pixel_goal_rejected',
+                                    s2_call_id=current_s2_call_id,
+                                    decision_step=step_id,
+                                    pixel_goal=rejected_goal,
+                                    failed_duplicate_count=goal_decision.failed_duplicate_count,
+                                    exploratory_action=int(action_seq[0]),
+                                    failed_route_directions=dict(
+                                        self.recovery_controller.failed_route_directions
+                                    ),
+                                )
+                        else:
+                            action = local_actions.pop(0)
+                        if not goal_decision.reject and action == action_code.STOP:
                             pixel_goal = None
                             output_ids = None
                             local_actions = []
@@ -802,20 +1032,99 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         print('predicted goal', pixel_goal, flush=True)
 
                     else:
-                        action_seq = self.parse_actions(llm_outputs)
+                        action_seq = (
+                            [action_code.STOP]
+                            if forced_stop
+                            else self.parse_actions(llm_outputs)
+                        )
+                        action_seq = bound_actions_at_lookdown(
+                            action_seq, lookdown_action=action_code.LOOKDOWN
+                        )
+                        original_direct_actions = [int(item) for item in action_seq]
+                        action_seq, direct_action_override = (
+                            self.recovery_controller.filter_direct_actions(
+                                action_seq,
+                                centre_clearance=(
+                                    latest_depth_summary.centre_clearance
+                                    if latest_depth_summary is not None
+                                    else None
+                                ),
+                                centre_blocked=(
+                                    latest_depth_summary.centre_blocked
+                                    if latest_depth_summary is not None
+                                    else False
+                                ),
+                            )
+                        )
+                        if direct_action_override is not None:
+                            recovery_context = (
+                                "The previous same-direction rotation completed a full circle without "
+                                "translation, so the controller replaced the repeated turn sequence with "
+                                "one bounded escape action. Reassess the new observation instead of "
+                                "repeating the failed full-circle direction."
+                            )
+                            if self.diagnostic_logger is not None:
+                                self.diagnostic_logger.log(
+                                    'direct_action_override',
+                                    s2_call_id=current_s2_call_id,
+                                    decision_step=step_id,
+                                    reason=direct_action_override,
+                                    original_actions=original_direct_actions,
+                                    replacement_actions=[int(item) for item in action_seq],
+                                    centre_clearance=(
+                                        latest_depth_summary.centre_clearance
+                                        if latest_depth_summary is not None
+                                        else None
+                                    ),
+                                    centre_blocked=(
+                                        latest_depth_summary.centre_blocked
+                                        if latest_depth_summary is not None
+                                        else None
+                                    ),
+                                )
+                        stop_rejected = False
+                        if (
+                            action_seq == [action_code.STOP]
+                            and self.s2_reject_unverified_stair_stop
+                            and instruction_state.should_reject_stop()
+                        ):
+                            action_seq = [action_code.LOOKDOWN]
+                            stop_rejected = True
+                            recovery_context = (
+                                "STOP was rejected because a stair subtask still lacks measured vertical "
+                                "completion. Inspect the low-head view, continue through the stair corridor, "
+                                "and stop only after the required height change or landing is confirmed."
+                            )
+                        elif not action_seq and model_completed_subtask:
+                            action_seq = [
+                                action_code.LOOKDOWN
+                                if instruction_state.stair_mode
+                                else self.recovery_controller.exploratory_turn()
+                            ]
                         if self.diagnostic_logger is not None:
                             self.diagnostic_logger.log(
                                 's2_inference',
                                 s2_call_id=current_s2_call_id,
                                 decision_step=step_id,
                                 raw_output=llm_outputs,
-                                output_type='stop' if action_seq == [action_code.STOP] else 'direct_actions',
+                                output_type=(
+                                    'stop_forced'
+                                    if forced_stop
+                                    else 'stop_rejected'
+                                    if stop_rejected
+                                    else ('stop' if action_seq == [action_code.STOP] else 'direct_actions')
+                                ),
                                 parsed_actions=[int(item) for item in action_seq],
                                 history_frame_ids=history_id if action != action_code.LOOKDOWN else [],
                                 input_image_count=len(input_images),
                                 generated_token_count=int(output_ids.shape[-1] - inputs.input_ids.shape[1]),
                                 generate_ms=s2_generate_ms,
                                 recovery_context=s2_recovery_context,
+                                forced_stop=forced_stop,
+                                instruction_state=instruction_state.as_dict(),
+                                depth_summary=(
+                                    latest_depth_summary.__dict__ if latest_depth_summary is not None else None
+                                ),
                             )
                         print('actions', action_seq, flush=True)
 
@@ -828,6 +1137,18 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     if len(local_actions) == 0:
                         # navdp
                         local_actions = []
+                        if look_down_image is None:
+                            (
+                                observations,
+                                look_down_image,
+                                look_down_depth,
+                                low_head_depth_m,
+                                front_depth_m,
+                            ) = self._capture_low_head_inputs(
+                                observations,
+                                step_id,
+                                reason='prepare_s1_replan',
+                            )
                         image_dp = torch.tensor(np.array(look_down_image.resize((224, 224)))).to(torch.bfloat16) / 255
 
                         images_dp = torch.stack([pix_goal_image, image_dp]).unsqueeze(0).to(self.device)
@@ -891,6 +1212,14 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 ),
                                 depth_risk=(
                                     trajectory_selection.depth_risk if trajectory_selection is not None else None
+                                ),
+                                route_direction=(
+                                    trajectory_selection.route_direction if trajectory_selection is not None else None
+                                ),
+                                failed_route_penalty=(
+                                    trajectory_selection.failed_route_penalty
+                                    if trajectory_selection is not None
+                                    else None
                                 ),
                             )
                         if len(action_list) < MAX_STEPS:
@@ -995,8 +1324,19 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         first_person_frame_id=first_person_frame_id - 1 if vis_writer is not None else None,
                         top_down_frame_id=top_down_frame_id - 1 if self.save_video else None,
                     )
+                    camera_pitch.record_look_down(count=2)
                     flag = True
                 else:
+                    if camera_pitch.restore_steps:
+                        for _ in range(camera_pitch.restore_steps):
+                            observations, _, _, _ = self._diagnostic_env_step(
+                                action_code.LOOKUP,
+                                observations,
+                                step_id,
+                                'camera_adjustment',
+                                reason='restore_before_non_lookdown_action',
+                            )
+                        camera_pitch.mark_horizontal()
                     gps_before_action = np.asarray(observations.get('gps', [np.nan, np.nan])).copy()
                     observations, _, done, _ = self._diagnostic_env_step(
                         action,
@@ -1013,6 +1353,20 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         first_person_frame_id=first_person_frame_id - 1 if vis_writer is not None else None,
                         top_down_frame_id=top_down_frame_id - 1 if self.save_video else None,
                     )
+                    if action == action_code.LOOKUP:
+                        camera_pitch.record_look_up()
+                    instruction_event = instruction_state.observe(
+                        self._agent_height(),
+                        observations.get('compass', [np.nan]),
+                        observations.get('gps', [np.nan, np.nan]),
+                    )
+                    if instruction_event and self.diagnostic_logger is not None:
+                        self.diagnostic_logger.log(
+                            'instruction_state_update',
+                            decision_step=step_id,
+                            event=instruction_event,
+                            instruction_state=instruction_state.as_dict(),
+                        )
                     collision, _ = self._collision_values(self.env.get_metrics())
                     recovery = self.recovery_controller.update(
                         action,
@@ -1041,6 +1395,9 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 turn_count=recovery.turn_count,
                                 consecutive_failures=self.recovery_controller.consecutive_failures,
                                 failed_directions=dict(self.recovery_controller.failed_directions),
+                                failed_route_directions=dict(
+                                    self.recovery_controller.failed_route_directions
+                                ),
                                 replan_system2=recovery.replan_system2,
                             )
                         if recovery.replan_system2:
@@ -1080,6 +1437,11 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
             # After the episode finishes, collect metrics:
             metrics = self.env.get_metrics()
+            final_instruction_state = instruction_state.as_dict()
+            semantic_status = instruction_state.semantic_status(
+                metrics['success'], manual_label=manual_semantic_label
+            )
+            instruction_ambiguous = bool(manual_semantic_label.get('ambiguous', False))
 
             sucs.append(metrics['success'])
             spls.append(metrics['spl'])
@@ -1103,6 +1465,10 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     'distance_to_goal': metrics['distance_to_goal'],
                     'ndtw': metrics.get('ndtw'),
                     'collisions': metrics.get('collisions'),
+                    'semantic_status': semantic_status,
+                    'instruction_ambiguous': instruction_ambiguous,
+                    'instruction_state': final_instruction_state,
+                    'manual_semantic_label': manual_semantic_label,
                 }
                 diagnostic_summary = self.diagnostic_logger.finish_episode(
                     metric_summary,
@@ -1132,6 +1498,10 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                 "ne": metrics["distance_to_goal"],
                 "steps": step_id,
                 "episode_instruction": episode_instruction,
+                "semantic_status": semantic_status,
+                "instruction_ambiguous": instruction_ambiguous,
+                "semantic_note": manual_semantic_label.get('note'),
+                "instruction_state": final_instruction_state,
             }
             if 'ndtw' in metrics:
                 result['ndtw'] = metrics['ndtw']

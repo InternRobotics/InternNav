@@ -16,6 +16,8 @@ class TrajectorySelection:
     clearance: float
     smoothness: float
     depth_risk: bool
+    route_direction: str
+    failed_route_penalty: float
 
 
 class TrajectorySelector:
@@ -99,6 +101,18 @@ class TrajectorySelector:
         turns = np.diff(headings, axis=1)
         return np.mean(np.abs(turns), axis=1)
 
+    @staticmethod
+    def direction_label(trajectory):
+        """Classify a candidate by its endpoint bearing in the local frame."""
+        trajectory = np.asarray(trajectory, dtype=np.float32)
+        forward, lateral = trajectory[-1, :2]
+        bearing = float(np.arctan2(lateral, max(float(forward), 0.05)))
+        if bearing >= np.deg2rad(12.0):
+            return "left"
+        if bearing <= -np.deg2rad(12.0):
+            return "right"
+        return "straight"
+
     def _depth_clearance(self, trajectories, depth):
         if depth is None:
             return np.full(trajectories.shape[0], np.inf, dtype=np.float32)
@@ -108,28 +122,39 @@ class TrajectorySelector:
 
         height, width = depth.shape
         row_start, row_stop = int(height * 0.30), max(int(height * 0.82), 1)
-        clearance = np.full(trajectories.shape[0], np.inf, dtype=np.float32)
-        for candidate_index, trajectory in enumerate(trajectories):
-            candidate_clearance = []
-            for forward, lateral in trajectory[1:]:
-                radial = float(np.hypot(forward, lateral))
-                if forward <= 0.05 or radial > self.depth_lookahead:
-                    continue
-                bearing = float(np.arctan2(lateral, forward))
-                if abs(bearing) >= self.horizontal_fov_rad / 2:
-                    continue
-                column = int(round((0.5 - bearing / self.horizontal_fov_rad) * (width - 1)))
-                left, right = max(0, column - 3), min(width, column + 4)
-                values = depth[row_start:row_stop, left:right]
-                valid = values[np.isfinite(values) & (values > 0.05)]
-                if valid.size:
-                    ray_depth = float(np.quantile(valid, 0.15))
-                    candidate_clearance.append(ray_depth - float(forward))
-            if candidate_clearance:
-                clearance[candidate_index] = min(candidate_clearance)
-        return clearance
+        depth_crop = depth[row_start:row_stop]
+        valid_mask = np.isfinite(depth_crop) & (depth_crop > 0.05)
+        valid_columns = np.any(valid_mask, axis=0)
+        depth_profile = np.full(width, np.inf, dtype=np.float32)
+        if np.any(valid_columns):
+            valid_values = np.where(valid_mask[:, valid_columns], depth_crop[:, valid_columns], np.inf)
+            sorted_values = np.sort(valid_values, axis=0)
+            valid_counts = np.sum(valid_mask[:, valid_columns], axis=0)
+            percentile_indices = np.floor(0.15 * (valid_counts - 1)).astype(np.int32)
+            depth_profile[valid_columns] = sorted_values[
+                percentile_indices, np.arange(sorted_values.shape[1])
+            ]
 
-    def select(self, dp_actions, depth=None, recent_failure=False):
+        # A seven-column minimum approximates the original narrow ray window
+        # conservatively, while avoiding one quantile call per trajectory point.
+        padded = np.pad(depth_profile, (3, 3), constant_values=np.inf)
+        ray_profile = np.min(np.lib.stride_tricks.sliding_window_view(padded, 7), axis=1)
+
+        forward = trajectories[:, 1:, 0]
+        lateral = trajectories[:, 1:, 1]
+        radial = np.hypot(forward, lateral)
+        bearing = np.arctan2(lateral, forward)
+        visible = (
+            (forward > 0.05)
+            & (radial <= self.depth_lookahead)
+            & (np.abs(bearing) < self.horizontal_fov_rad / 2)
+        )
+        columns = np.rint((0.5 - bearing / self.horizontal_fov_rad) * (width - 1)).astype(np.int32)
+        columns = np.clip(columns, 0, width - 1)
+        point_clearance = np.where(visible, ray_profile[columns] - forward, np.inf)
+        return np.min(point_clearance, axis=1).astype(np.float32)
+
+    def select(self, dp_actions, depth=None, recent_failure=False, failed_route_directions=None):
         trajectories = self.reconstruct(dp_actions)
         flattened = trajectories.reshape(trajectories.shape[0], -1)
         pairwise = np.sqrt(np.mean((flattened[:, None] - flattened[None, :]) ** 2, axis=2))
@@ -139,13 +164,24 @@ class TrajectorySelector:
         bimodal, cluster_sizes = self._two_medoid_clusters(pairwise, trajectories)
         smoothness = self._smoothness(trajectories)
         clearance = self._depth_clearance(trajectories, depth)
+        directions = [self.direction_label(trajectory) for trajectory in trajectories]
+        failed_route_directions = failed_route_directions or {}
+        route_penalties = np.asarray(
+            [min(float(failed_route_directions.get(direction, 0)), 3.0) for direction in directions],
+            dtype=np.float32,
+        )
 
         selected_index = medoid_index
-        if depth is not None:
+        if depth is not None or np.any(route_penalties > 0):
             centrality_scale = max(float(np.median(centrality)), 1e-6)
             smoothness_scale = max(float(np.median(smoothness)), 1e-6)
             clearance_penalty = np.maximum(self.near_clearance - clearance, 0.0) / self.near_clearance
-            scores = centrality / centrality_scale + 0.20 * smoothness / smoothness_scale + 4.0 * clearance_penalty
+            scores = (
+                centrality / centrality_scale
+                + 0.20 * smoothness / smoothness_scale
+                + 4.0 * clearance_penalty
+                + 1.25 * route_penalties
+            )
             selected_index = int(np.argmin(scores))
 
         selected_clearance = float(clearance[selected_index])
@@ -166,4 +202,6 @@ class TrajectorySelector:
             clearance=selected_clearance,
             smoothness=float(smoothness[selected_index]),
             depth_risk=depth_risk,
+            route_direction=directions[selected_index],
+            failed_route_penalty=float(route_penalties[selected_index]),
         )
