@@ -22,7 +22,14 @@ DepthObservationSummarizer = navigation_state.DepthObservationSummarizer
 CameraPitchState = navigation_state.CameraPitchState
 InstructionStateTracker = navigation_state.InstructionStateTracker
 PixelGoalMemory = navigation_state.PixelGoalMemory
+S2ConfidenceGate = navigation_state.S2ConfidenceGate
+SemanticShadowMonitor = navigation_state.SemanticShadowMonitor
+build_stage_probe_prompt = navigation_state.build_stage_probe_prompt
+estimate_stage_progress = navigation_state.estimate_stage_progress
+parse_stage_completion_output = navigation_state.parse_stage_completion_output
 bound_actions_at_lookdown = navigation_state.bound_actions_at_lookdown
+parse_semantic_shadow_output = navigation_state.parse_semantic_shadow_output
+extract_reference_landmark = navigation_state.extract_reference_landmark
 select_history_indices = navigation_state.select_history_indices
 select_uniform_history_indices = navigation_state.select_uniform_history_indices
 split_instruction = navigation_state.split_instruction
@@ -41,6 +48,42 @@ def _constant_candidates(offsets, steps=4):
 def test_instruction_split_exposes_turn_stair_and_stop_state():
     clauses = split_instruction("Turn right and step down two stairs and stop.")
     assert clauses == ("Turn right", "step down two stairs", "stop")
+
+
+def test_stage_probe_keeps_landmark_modifier_and_all_ordered_clauses():
+    instruction = (
+        "Walk towards the hallway with a blue painting. "
+        "Turn left and wait by the entrance of the empty room."
+    )
+    clauses = split_instruction(instruction)
+    assert clauses == (
+        "Walk towards the hallway with a blue painting",
+        "Turn left",
+        "wait by the entrance of the empty room",
+    )
+    prompt = build_stage_probe_prompt(instruction, clauses, 0, image_count=5)
+    assert "hallway with a blue painting" in prompt
+    assert "entrance of the empty room" in prompt
+    assert "5 chronological images" in prompt
+
+
+def test_stage_progress_catches_up_only_across_consecutive_complete_prefix():
+    estimate = estimate_stage_progress(0, ["STOP", "STOP", "→"], clause_count=3)
+    assert estimate.inferred_index == 2
+    assert estimate.status == "INCOMPLETE"
+    assert estimate.clause_results == ("COMPLETE", "COMPLETE", "INCOMPLETE")
+
+    uncertain = estimate_stage_progress(0, ["STOP", "←", "STOP"], clause_count=3)
+    assert uncertain.inferred_index == 1
+    assert uncertain.status == "UNCERTAIN"
+    assert uncertain.clause_results == ("COMPLETE", "UNCERTAIN")
+
+
+def test_stage_probe_native_vocabulary_parser_is_conservative():
+    assert parse_stage_completion_output("STOP") == "COMPLETE"
+    assert parse_stage_completion_output("→→→→") == "INCOMPLETE"
+    assert parse_stage_completion_output("←←←←") == "UNCERTAIN"
+    assert parse_stage_completion_output("318 276") == "UNCERTAIN"
 
 
 def test_two_step_descent_requires_measured_height_change():
@@ -206,3 +249,69 @@ def test_lookdown_ends_the_direct_action_queue():
     assert bound_actions_at_lookdown([3, 3, 5, 1, 1]) == [3, 3, 5]
     assert bound_actions_at_lookdown([5, 5, 5]) == [5]
     assert bound_actions_at_lookdown([1, 2, 3]) == [1, 2, 3]
+
+
+def test_low_confidence_pixel_goal_requires_observation_turn():
+    gate = S2ConfidenceGate(pixel_goal_threshold=0.35)
+    assert gate.evaluate_pixel_goal(0.34).reject
+    assert not gate.evaluate_pixel_goal(0.35).reject
+    assert not gate.evaluate_pixel_goal(None).reject
+
+
+def test_low_confidence_stop_requires_two_consecutive_decisions():
+    gate = S2ConfidenceGate(stop_threshold=0.75)
+    first = gate.evaluate_stop(0.40)
+    second = gate.evaluate_stop(0.45)
+    assert first.reject and not first.confirmed
+    assert not second.reject and second.confirmed
+
+
+def test_non_stop_breaks_low_confidence_stop_confirmation():
+    gate = S2ConfidenceGate(stop_threshold=0.75)
+    assert gate.evaluate_stop(0.40).reject
+    gate.observe_non_stop()
+    assert gate.evaluate_stop(0.40).reject
+    assert not gate.evaluate_stop(0.80).reject
+
+
+def test_semantic_shadow_signal_is_diagnostic_and_rate_limited():
+    monitor = SemanticShadowMonitor(
+        generation_threshold=0.55,
+        minimum_token_threshold=0.20,
+        query_interval=3,
+        max_queries=2,
+    )
+    first = monitor.assess(0, "go through the first door", "120 200", 0.8, 0.5)
+    assert first.query and first.semantic_risk
+    assert not first.uncertainty_signal
+    second = monitor.assess(1, "go through the first door", "120 200", 0.4, 0.1)
+    assert not second.query
+    assert second.uncertainty_signal
+    assert set(second.reasons) == {
+        "low_generation_confidence",
+        "low_minimum_token_confidence",
+    }
+    third = monitor.assess(3, "go through the first door", "STOP", 0.8, 0.5)
+    assert third.query
+
+
+def test_parse_semantic_shadow_json_keeps_xy_coordinate_order():
+    parsed = parse_semantic_shadow_output(
+        '{"uncertain": true, "anchor": "stove", "anchor_point": [500, 160], '
+        '"goal_point": [120, 220], "progress_step": 2, "stop_complete": false, '
+        '"reason": "multiple appliances"}'
+    )
+    assert parsed["uncertain"] is True
+    assert parsed["anchor_point"] == [500, 160]
+    assert parsed["goal_point"] == [120, 220]
+    assert parsed["progress_step"] == 2
+    assert parsed["stop_complete"] is False
+
+
+def test_extract_reference_landmark_prefers_relation_anchor():
+    assert extract_reference_landmark(
+        "Walk through the entry way to the left of the stove"
+    ) == "stove"
+    assert extract_reference_landmark(
+        "Walk through the arched entry way that leads into the tiled room"
+    ) == "arched entry way"

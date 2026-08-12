@@ -55,6 +55,289 @@ class CameraPitchState:
         self.down_steps = 0
 
 
+@dataclass(frozen=True)
+class ConfidenceGateDecision:
+    reject: bool
+    reason: Optional[str] = None
+    confirmed: bool = False
+
+
+class S2ConfidenceGate:
+    """Conservative confidence gates for pixel goals and model STOP outputs.
+
+    Confidence here is generation confidence, not calibrated semantic
+    correctness.  It can reject unusually uncertain outputs, but cannot prove
+    that a referenced landmark was identified correctly.
+    """
+
+    def __init__(self, pixel_goal_threshold=0.35, stop_threshold=0.75):
+        self.pixel_goal_threshold = max(0.0, float(pixel_goal_threshold))
+        self.stop_threshold = max(0.0, float(stop_threshold))
+        self.pending_low_confidence_stop = False
+
+    def reset(self):
+        self.pending_low_confidence_stop = False
+
+    @staticmethod
+    def _below(confidence, threshold):
+        return confidence is not None and threshold > 0.0 and float(confidence) < threshold
+
+    def evaluate_pixel_goal(self, confidence):
+        self.pending_low_confidence_stop = False
+        if self._below(confidence, self.pixel_goal_threshold):
+            return ConfidenceGateDecision(True, "low_pixel_goal_generation_confidence")
+        return ConfidenceGateDecision(False)
+
+    def evaluate_stop(self, confidence):
+        if not self._below(confidence, self.stop_threshold):
+            self.pending_low_confidence_stop = False
+            return ConfidenceGateDecision(False)
+        if self.pending_low_confidence_stop:
+            self.pending_low_confidence_stop = False
+            return ConfidenceGateDecision(False, "repeated_low_confidence_stop", confirmed=True)
+        self.pending_low_confidence_stop = True
+        return ConfidenceGateDecision(True, "low_stop_generation_confidence")
+
+    def observe_non_stop(self):
+        self.pending_low_confidence_stop = False
+
+
+_RELATIONAL_LANGUAGE = re.compile(
+    r"\b(first|second|left of|right of|opposite|past|after|before|between|"
+    r"leading into|through|towards?|facing|away from|top of|bottom of)\b",
+    re.I,
+)
+
+
+@dataclass(frozen=True)
+class SemanticShadowDecision:
+    """Diagnostic-only probe decision; it must never change navigation actions."""
+
+    query: bool
+    uncertainty_signal: bool
+    reasons: tuple[str, ...]
+    semantic_risk: bool
+
+
+class SemanticShadowMonitor:
+    """Rate-limit semantic probes and expose uncertainty without action gating."""
+
+    def __init__(
+        self,
+        generation_threshold=0.55,
+        minimum_token_threshold=0.20,
+        query_interval=3,
+        max_queries=10,
+    ):
+        self.generation_threshold = float(generation_threshold)
+        self.minimum_token_threshold = float(minimum_token_threshold)
+        self.query_interval = max(1, int(query_interval))
+        self.max_queries = max(0, int(max_queries))
+        self.reset()
+
+    def reset(self):
+        self.query_count = 0
+        self.last_query_call = -10**9
+        self.last_clause = None
+
+    @staticmethod
+    def _is_stop(output):
+        return bool(re.search(r"\bSTOP\b", str(output), re.I))
+
+    def assess(self, call_id, clause, output, generation_confidence, minimum_token_confidence):
+        reasons = []
+        if (
+            generation_confidence is not None
+            and float(generation_confidence) < self.generation_threshold
+        ):
+            reasons.append("low_generation_confidence")
+        if (
+            minimum_token_confidence is not None
+            and float(minimum_token_confidence) < self.minimum_token_threshold
+        ):
+            reasons.append("low_minimum_token_confidence")
+
+        clause_text = str(clause or "")
+        semantic_risk = bool(_RELATIONAL_LANGUAGE.search(clause_text))
+        clause_changed = clause_text != self.last_clause
+        stop_output = self._is_stop(output)
+        uncertainty_signal = bool(reasons)
+        due = int(call_id) - self.last_query_call >= self.query_interval
+        query = bool(
+            self.query_count < self.max_queries
+            and due
+            and (
+                self.query_count == 0
+                or clause_changed
+                or uncertainty_signal
+                or semantic_risk
+                or stop_output
+            )
+        )
+        if query:
+            self.query_count += 1
+            self.last_query_call = int(call_id)
+        self.last_clause = clause_text
+        return SemanticShadowDecision(
+            query=query,
+            uncertainty_signal=uncertainty_signal,
+            reasons=tuple(reasons),
+            semantic_risk=semantic_risk,
+        )
+
+
+@dataclass(frozen=True)
+class StageProgressEstimate:
+    """Diagnostic estimate of how far S2 has progressed through ordered clauses."""
+
+    controller_index: int
+    inferred_index: int
+    status: str
+    clause_results: tuple[str, ...]
+
+
+def parse_stage_completion_output(output):
+    """Map S2's native navigation vocabulary to one progress judgement.
+
+    STOP means the queried subtask is definitely complete. RIGHT means it is
+    definitely not complete, and LEFT is reserved for uncertainty.  Keeping
+    the output vocabulary native avoids assuming that the base S2 can reliably
+    generate a new JSON schema before any fine-tuning.
+    """
+    text = re.sub(r"\s+", "", str(output or "")).upper()
+    if re.search(r"\bSTOP\b", text):
+        return "COMPLETE"
+    if "→" in text or text in {"RIGHT", "TURNRIGHT"}:
+        return "INCOMPLETE"
+    if "←" in text or text in {"LEFT", "TURNLEFT"}:
+        return "UNCERTAIN"
+    return "UNCERTAIN"
+
+
+def estimate_stage_progress(controller_index, clause_outputs, clause_count):
+    """Advance only across a consecutive prefix of definitely complete clauses."""
+    start = max(0, min(int(controller_index), int(clause_count)))
+    inferred = start
+    parsed = []
+    terminal_status = "TASK_COMPLETE" if inferred >= int(clause_count) else "UNCERTAIN"
+    for output in clause_outputs:
+        result = parse_stage_completion_output(output)
+        parsed.append(result)
+        if result == "COMPLETE" and inferred < int(clause_count):
+            inferred += 1
+            terminal_status = "TASK_COMPLETE" if inferred >= int(clause_count) else "COMPLETE_PREFIX"
+            continue
+        terminal_status = result
+        break
+    return StageProgressEstimate(
+        controller_index=start,
+        inferred_index=inferred,
+        status=terminal_status,
+        clause_results=tuple(parsed),
+    )
+
+
+def build_stage_probe_prompt(instruction, clauses, clause_index, image_count):
+    """Build a narrow chronological-image prompt for one subtask completion check."""
+    numbered = " ".join(f"[{index + 1}] {clause}" for index, clause in enumerate(clauses))
+    target = clauses[int(clause_index)]
+    return (
+        "You are only verifying navigation progress, not choosing the next action. "
+        f"The full task is: '{instruction}'. Its ordered subtasks are: {numbered}. "
+        f"Decide whether subtask [{int(clause_index) + 1}] '{target}' was definitely "
+        f"completed at or before the last of these {int(image_count)} chronological images. "
+        "Keep every modifier such as color, ordinal, direction, and nearby landmark. "
+        "A later subtask may be underway even when an external controller reports an older one. "
+        "Output exactly STOP if definitely completed, one RIGHT arrow if definitely not "
+        "completed, or one LEFT arrow if the images are insufficient or ambiguous."
+    )
+
+
+def _shadow_point(value):
+    if not isinstance(value, (list, tuple)) or len(value) < 2:
+        return None
+    try:
+        x, y = int(round(float(value[0]))), int(round(float(value[1])))
+    except (TypeError, ValueError):
+        return None
+    return [x, y] if 0 <= x < 640 and 0 <= y < 480 else None
+
+
+def parse_semantic_shadow_output(output):
+    """Parse best-effort JSON from a diagnostic S2 semantic probe."""
+    text = str(output).strip()
+    payload = {}
+    match = re.search(r"\{.*\}", text, re.S)
+    if match:
+        try:
+            decoded = json.loads(match.group(0))
+            if isinstance(decoded, dict):
+                payload = decoded
+        except json.JSONDecodeError:
+            payload = {}
+
+    def boolean(name):
+        value = payload.get(name)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"yes", "true"}:
+                return True
+            if lowered in {"no", "false"}:
+                return False
+        fallback = re.search(rf"\b{name}\s*:\s*(yes|no|true|false)\b", text, re.I)
+        return fallback.group(1).lower() in {"yes", "true"} if fallback else None
+
+    def point(name):
+        parsed = _shadow_point(payload.get(name))
+        if parsed is not None:
+            return parsed
+        fallback = re.search(
+            rf"\b{name}\s*:\s*[\[(]?\s*(\d{{1,3}})\s*[, ]\s*(\d{{1,3}})",
+            text,
+            re.I,
+        )
+        return _shadow_point(fallback.groups()) if fallback else None
+
+    progress = payload.get("progress_step")
+    try:
+        progress = int(progress) if progress is not None else None
+    except (TypeError, ValueError):
+        progress = None
+    return {
+        "uncertain": boolean("uncertain"),
+        "anchor": str(payload.get("anchor") or "unknown")[:120],
+        "anchor_point": point("anchor_point"),
+        "goal_point": point("goal_point"),
+        "progress_step": progress,
+        "stop_complete": boolean("stop_complete"),
+        "reason": str(payload.get("reason") or "")[:500],
+        "raw_output": text,
+    }
+
+
+def extract_reference_landmark(clause):
+    """Extract a compact landmark phrase for a native-vocabulary shadow probe."""
+    text = re.sub(r"\s+", " ", str(clause or "").strip(" .,"))
+    if not text:
+        return "visible destination"
+    patterns = (
+        r"\b(?:left|right)\s+of\s+(?:the\s+)?(.+?)(?=\s+(?:and|then|before|after)\b|[,.;]|$)",
+        r"\bopposite\s+(?:of\s+)?(?:the\s+)?(.+?)(?=\s+(?:and|then|before|after)\b|[,.;]|$)",
+        r"\baway\s+from\s+(?:the\s+)?(.+?)(?=\s+(?:and|then|before|after)\b|[,.;]|$)",
+        r"\b(?:past|towards?|facing)\s+(?:the\s+)?(.+?)(?=\s+(?:and|then|before|after)\b|[,.;]|$)",
+        r"\b(?:through|enter|into|approach)\s+(?:the\s+)?(.+?)(?=\s+(?:that|which|to|and|then|on)\b|[,.;]|$)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text, re.I)
+        if match:
+            landmark = match.group(1).strip(" ,.")
+            if landmark:
+                return landmark[:120]
+    return text[:120]
+
+
 def bound_actions_at_lookdown(actions, lookdown_action=5):
     """Make LOOKDOWN an observation boundary, not a queued persistent tilt."""
     sequence = [int(action) for action in actions]
@@ -520,6 +803,7 @@ class InstructionStateTracker:
     def as_dict(self):
         return {
             "clauses": list(self.clauses),
+            "current_index": int(self.current_index),
             "completed": list(self.completed),
             "completion_reasons": list(self.completion_reasons),
             "current_subtask": self.current_clause,

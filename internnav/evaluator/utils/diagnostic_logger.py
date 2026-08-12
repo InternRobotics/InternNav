@@ -199,6 +199,8 @@ class DiagnosticLogger:
         (self.episode_dir / "depth").mkdir(exist_ok=True)
         (self.episode_dir / "plans").mkdir(exist_ok=True)
         (self.episode_dir / "s2_decisions").mkdir(exist_ok=True)
+        (self.episode_dir / "s2_raw").mkdir(exist_ok=True)
+        (self.episode_dir / "semantic_shadow").mkdir(exist_ok=True)
         self.timeline_path = self.episode_dir / "timeline.jsonl"
         self.timeline_path.write_text("", encoding="utf-8")
         self._write_json(self.episode_dir / "episode.json", episode_metadata)
@@ -218,6 +220,9 @@ class DiagnosticLogger:
         current_subtask: Optional[str] = None,
         depth_m: Any = None,
         model_image_size: Optional[Iterable[int]] = None,
+        generation_confidence: Optional[float] = None,
+        confidence_threshold: Optional[float] = None,
+        confidence_gate: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Save the exact current S2 image with a diagnostic-only decision overlay."""
         if self.episode_dir is None:
@@ -226,14 +231,29 @@ class DiagnosticLogger:
             decision_image = image.convert("RGB")
         else:
             decision_image = Image.fromarray(np.asarray(image, dtype=np.uint8)).convert("RGB")
+        coordinate_image_size = decision_image.size
         if model_image_size is not None:
             model_size = tuple(int(value) for value in model_image_size)
             if decision_image.size != model_size:
                 decision_image = decision_image.resize(model_size)
 
+        # Keep a clean copy for semantic annotation and later LoRA training.  The
+        # diagnostic decision image below intentionally contains text and the
+        # model's selected point; training on that overlay would leak the answer.
+        raw_file_path = self.episode_dir / "s2_raw" / f"raw_{int(s2_call_id):04d}.jpg"
+        decision_image.save(raw_file_path, format="JPEG", quality=95, optimize=True)
+
         point = [int(value) for value in pixel_goal] if pixel_goal is not None else None
+        # Evaluator pixel goals use NumPy indexing order [row, col] so that
+        # depth[row, col] is direct.  PIL drawing uses Cartesian (x, y).
+        display_source_point = [point[1], point[0]] if point is not None else None
+        display_point = (
+            project_pixel_point(display_source_point, coordinate_image_size, decision_image.size)
+            if display_source_point is not None
+            else None
+        )
         point_depth_m = (
-            depth_at_pixel(depth_m, point, decision_image.size)
+            depth_at_pixel(depth_m, display_source_point, coordinate_image_size)
             if point is not None and depth_m is not None
             else None
         )
@@ -242,26 +262,47 @@ class DiagnosticLogger:
         safe_subtask = str(current_subtask or "unknown").encode("ascii", errors="replace").decode("ascii")
 
         draw = ImageDraw.Draw(decision_image, "RGBA")
-        draw.rectangle((0, 0, decision_image.width, 58), fill=(0, 0, 0, 190))
+        draw.rectangle((0, 0, decision_image.width, 75), fill=(0, 0, 0, 190))
         draw.text(
             (8, 7),
             f"S2 #{int(s2_call_id)}  step {int(decision_step)}  {str(output_type).upper()}",
             fill=(255, 255, 255, 255),
         )
         draw.text((8, 24), f"output: {safe_output[:62]}", fill=(255, 255, 0, 255))
-        draw.text((8, 41), f"subtask: {safe_subtask[:60]}", fill=(210, 220, 230, 255))
+        confidence_text = (
+            "unknown"
+            if generation_confidence is None
+            else f"{float(generation_confidence):.4f}"
+        )
+        threshold_text = (
+            "off" if confidence_threshold is None else f"{float(confidence_threshold):.4f}"
+        )
+        draw.text(
+            (8, 41),
+            f"confidence: {confidence_text} / {threshold_text}  {str(confidence_gate or '')[:28]}",
+            fill=(255, 180, 80, 255),
+        )
+        draw.text((8, 58), f"subtask: {safe_subtask[:60]}", fill=(210, 220, 230, 255))
 
         if point is not None:
-            x, y = point
-            colour = (0, 255, 255, 255)
+            x, y = display_point
+            source_x, source_y = display_source_point
+            rejected = "rejected" in str(output_type)
+            colour = (255, 90, 60, 255) if rejected else (0, 255, 255, 255)
             draw.ellipse((x - 9, y - 9, x + 9, y + 9), outline=(0, 0, 0, 255), width=5)
             draw.ellipse((x - 8, y - 8, x + 8, y + 8), outline=colour, width=3)
             draw.line((x - 14, y, x + 14, y), fill=colour, width=2)
             draw.line((x, y - 14, x, y + 14), fill=colour, width=2)
             depth_label = "invalid" if point_depth_m is None else f"{point_depth_m:.2f} m"
             draw.rectangle((x + 12, y - 12, x + 116, y + 10), fill=(0, 0, 0, 190))
-            draw.text((x + 16, y - 9), f"GOAL {x},{y}  {depth_label}", fill=colour)
+            point_label = "REJECT" if rejected else "GOAL"
+            draw.text(
+                (x + 16, y - 9),
+                f"{point_label} {source_x},{source_y}  {depth_label}",
+                fill=colour,
+            )
         elif "STOP" in action_names or str(output_type).startswith("stop"):
+            rejected = "rejected" in str(output_type)
             draw.rectangle(
                 (
                     decision_image.width // 2 - 72,
@@ -269,13 +310,13 @@ class DiagnosticLogger:
                     decision_image.width // 2 + 72,
                     decision_image.height // 2 + 27,
                 ),
-                fill=(160, 0, 0, 210),
-                outline=(255, 80, 80, 255),
+                fill=((130, 75, 0, 210) if rejected else (160, 0, 0, 210)),
+                outline=((255, 190, 60, 255) if rejected else (255, 80, 80, 255)),
                 width=3,
             )
             draw.text(
                 (decision_image.width // 2 - 22, decision_image.height // 2 - 6),
-                "STOP",
+                "STOP?" if rejected else "STOP",
                 fill=(255, 255, 255, 255),
             )
         elif action_names:
@@ -291,12 +332,93 @@ class DiagnosticLogger:
         file_path = self.episode_dir / "s2_decisions" / f"decision_{int(s2_call_id):04d}.jpg"
         decision_image.save(file_path, format="JPEG", quality=90, optimize=True)
         return {
+            "decision_raw_image": str(raw_file_path.relative_to(self.root_dir)),
+            "decision_raw_image_size": list(decision_image.size),
             "decision_image": str(file_path.relative_to(self.root_dir)),
             "decision_image_size": list(decision_image.size),
             "decision_point": point,
+            "decision_display_point": list(display_point) if display_point is not None else None,
+            "decision_coordinate_image_size": list(coordinate_image_size),
             "decision_point_depth_m": point_depth_m,
             "decision_action_names": action_names,
             "decision_current_subtask": current_subtask,
+            "decision_generation_confidence": generation_confidence,
+            "decision_confidence_threshold": confidence_threshold,
+            "decision_confidence_gate": confidence_gate,
+        }
+
+    def save_semantic_shadow(
+        self,
+        s2_call_id: int,
+        image: Any,
+        *,
+        decision_step: int,
+        anchor: str,
+        anchor_point: Optional[Iterable[int]],
+        goal_point: Optional[Iterable[int]],
+        uncertain: Optional[bool],
+        progress_step: Optional[int],
+        stop_complete: Optional[bool],
+        reason: str,
+        raw_output: str,
+        generation_confidence: Optional[float] = None,
+        coordinate_image_size: Iterable[int] = (640, 480),
+    ) -> Dict[str, Any]:
+        """Save a diagnostic-only anchor/goal overlay without controlling navigation."""
+        if self.episode_dir is None:
+            raise RuntimeError("start_episode must be called before saving semantic shadow")
+        if isinstance(image, Image.Image):
+            shadow_image = image.convert("RGB")
+        else:
+            shadow_image = Image.fromarray(np.asarray(image, dtype=np.uint8)).convert("RGB")
+        source_size = tuple(int(value) for value in coordinate_image_size)
+        anchor_xy = [int(value) for value in anchor_point] if anchor_point is not None else None
+        goal_xy = [int(value) for value in goal_point] if goal_point is not None else None
+        anchor_display = (
+            project_pixel_point(anchor_xy, source_size, shadow_image.size)
+            if anchor_xy is not None
+            else None
+        )
+        goal_display = (
+            project_pixel_point(goal_xy, source_size, shadow_image.size)
+            if goal_xy is not None
+            else None
+        )
+
+        draw = ImageDraw.Draw(shadow_image, "RGBA")
+        draw.rectangle((0, 0, shadow_image.width, 92), fill=(0, 0, 0, 200))
+        status = "UNCERTAIN" if uncertain is True else "CERTAIN" if uncertain is False else "UNKNOWN"
+        confidence = "unknown" if generation_confidence is None else f"{float(generation_confidence):.3f}"
+        safe_anchor = str(anchor or "unknown").encode("ascii", errors="replace").decode("ascii")
+        safe_reason = str(reason or "").encode("ascii", errors="replace").decode("ascii")
+        draw.text((8, 7), f"SHADOW S2 #{int(s2_call_id)} step {int(decision_step)} {status}", fill=(255, 255, 255, 255))
+        draw.text((8, 25), f"anchor: {safe_anchor[:48]}", fill=(255, 90, 220, 255))
+        draw.text((8, 43), f"progress: {progress_step} stop_complete: {stop_complete} conf: {confidence}", fill=(255, 210, 80, 255))
+        draw.text((8, 61), f"reason: {safe_reason[:62]}", fill=(210, 220, 230, 255))
+        draw.text((8, 78), "diagnostic only - not sent to navigation controller", fill=(140, 220, 255, 255))
+
+        def marker(display, source, colour, label):
+            if display is None:
+                return
+            x, y = display
+            draw.ellipse((x - 9, y - 9, x + 9, y + 9), outline=(0, 0, 0, 255), width=5)
+            draw.ellipse((x - 8, y - 8, x + 8, y + 8), outline=colour, width=3)
+            draw.line((x - 13, y, x + 13, y), fill=colour, width=2)
+            draw.line((x, y - 13, x, y + 13), fill=colour, width=2)
+            draw.rectangle((x + 10, y - 12, x + 128, y + 10), fill=(0, 0, 0, 190))
+            draw.text((x + 14, y - 9), f"{label} {source[0]},{source[1]}", fill=colour)
+
+        marker(anchor_display, anchor_xy, (255, 60, 220, 255), "ANCHOR")
+        marker(goal_display, goal_xy, (0, 255, 255, 255), "GOAL")
+        file_path = self.episode_dir / "semantic_shadow" / f"shadow_{int(s2_call_id):04d}.jpg"
+        shadow_image.save(file_path, format="JPEG", quality=90, optimize=True)
+        return {
+            "shadow_image": str(file_path.relative_to(self.root_dir)),
+            "shadow_image_size": list(shadow_image.size),
+            "shadow_coordinate_image_size": list(source_size),
+            "shadow_anchor_display_point": list(anchor_display) if anchor_display is not None else None,
+            "shadow_goal_display_point": list(goal_display) if goal_display is not None else None,
+            "shadow_raw_output": str(raw_output),
         }
 
     def log(self, event_type: str, **fields: Any) -> Dict[str, Any]:

@@ -54,7 +54,12 @@ from internnav.habitat_extensions.vln.navigation_state import (
     DepthObservationSummarizer,
     InstructionStateTracker,
     PixelGoalMemory,
+    S2ConfidenceGate,
+    SemanticShadowMonitor,
     bound_actions_at_lookdown,
+    build_stage_probe_prompt,
+    estimate_stage_progress,
+    extract_reference_landmark,
     load_semantic_labels,
     select_history_indices,
     select_uniform_history_indices,
@@ -93,6 +98,35 @@ def format_s2_output_for_overlay(output):
 
     normalized = ''.join(arrow_names.get(character, character) for character in output)
     return normalized.encode('ascii', errors='replace').decode('ascii')
+
+
+def summarize_generation_confidence(generation, prompt_length):
+    """Return token-probability diagnostics for one greedy S2 generation."""
+    scores = getattr(generation, 'scores', None)
+    sequences = getattr(generation, 'sequences', None)
+    if not scores or sequences is None:
+        return {
+            'generation_confidence': None,
+            'minimum_token_confidence': None,
+            'confidence_token_count': 0,
+        }
+    token_ids = sequences[0, int(prompt_length) : int(prompt_length) + len(scores)]
+    if token_ids.numel() != len(scores):
+        return {
+            'generation_confidence': None,
+            'minimum_token_confidence': None,
+            'confidence_token_count': 0,
+        }
+    token_log_probs = []
+    for logits, token_id in zip(scores, token_ids):
+        log_probability = torch.log_softmax(logits[0].float(), dim=-1)[int(token_id)]
+        token_log_probs.append(log_probability)
+    stacked = torch.stack(token_log_probs)
+    return {
+        'generation_confidence': float(torch.exp(stacked.mean()).item()),
+        'minimum_token_confidence': float(torch.exp(stacked.min()).item()),
+        'confidence_token_count': int(stacked.numel()),
+    }
 
 
 class action_code(IntEnum):
@@ -135,6 +169,34 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             pose_tolerance=float(getattr(args, 's2_duplicate_goal_pose_tolerance', 0.30)),
             heading_tolerance_deg=float(getattr(args, 's2_duplicate_goal_heading_tolerance_deg', 20.0)),
             retry_limit=int(getattr(args, 's2_duplicate_goal_retry_limit', 2)),
+        )
+        self.s2_confidence_gate = S2ConfidenceGate(
+            pixel_goal_threshold=float(
+                getattr(args, 's2_min_pixel_goal_generation_confidence', 0.0)
+            ),
+            stop_threshold=float(
+                getattr(args, 's2_min_stop_generation_confidence', 0.0)
+            ),
+        )
+        self.semantic_shadow_enabled = bool(getattr(args, 's2_semantic_shadow_mode', False))
+        self.semantic_shadow_monitor = SemanticShadowMonitor(
+            generation_threshold=float(
+                getattr(args, 's2_shadow_generation_confidence_threshold', 0.55)
+            ),
+            minimum_token_threshold=float(
+                getattr(args, 's2_shadow_minimum_token_confidence_threshold', 0.20)
+            ),
+            query_interval=int(getattr(args, 's2_shadow_query_interval', 3)),
+            max_queries=int(getattr(args, 's2_shadow_max_queries_per_episode', 10)),
+        )
+        # Diagnostic-only experiment: infer progress from chronological images
+        # without mutating the primary navigation controller.
+        self.s2_stage_probe_enabled = bool(getattr(args, 's2_stage_probe_mode', False))
+        self.s2_stage_probe_history = max(
+            1, int(getattr(args, 's2_stage_probe_history_frames', 5))
+        )
+        self.s2_stage_probe_max_clauses = max(
+            1, int(getattr(args, 's2_stage_probe_max_clauses_per_call', 4))
         )
         self.trajectory_selector = TrajectorySelector(
             cluster_min_fraction=float(getattr(args, 's1_cluster_min_fraction', 0.25)),
@@ -246,6 +308,19 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     'dataset_id': getattr(args, 'dataset_id', None),
                     'deterministic_algorithms': True,
                     'cublas_workspace_config': os.environ.get('CUBLAS_WORKSPACE_CONFIG'),
+                    's2_min_pixel_goal_generation_confidence': (
+                        self.s2_confidence_gate.pixel_goal_threshold
+                    ),
+                    's2_min_stop_generation_confidence': (
+                        self.s2_confidence_gate.stop_threshold
+                    ),
+                    's2_semantic_shadow_mode': self.semantic_shadow_enabled,
+                    's2_shadow_generation_confidence_threshold': (
+                        self.semantic_shadow_monitor.generation_threshold
+                    ),
+                    's2_shadow_minimum_token_confidence_threshold': (
+                        self.semantic_shadow_monitor.minimum_token_threshold
+                    ),
                 },
                 criteria=self.diagnostic_criteria,
             )
@@ -480,6 +555,183 @@ class HabitatVLNEvaluator(DistributedEvaluator):
         values = [int(value) for value in re.findall(r"-?\d+", output)]
         return [values[1], values[0]] if len(values) >= 2 else None
 
+    def _run_native_shadow_generation(self, image, prompt):
+        """Use only the coordinate/turn/STOP vocabulary supported by navigation S2."""
+        images = list(image) if isinstance(image, (list, tuple)) else [image]
+        messages = [
+            {
+                'role': 'user',
+                'content': (
+                    [{'type': 'image', 'image': item} for item in images]
+                    + [{'type': 'text', 'text': prompt}]
+                ),
+            }
+        ]
+        text = self.processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        inputs = self.processor(text=[text], images=images, return_tensors='pt').to(
+            self.model.device
+        )
+        started = time.perf_counter()
+        with torch.no_grad():
+            generation = self.model.generate(
+                **inputs,
+                max_new_tokens=112,
+                do_sample=False,
+                use_cache=True,
+                past_key_values=None,
+                return_dict_in_generate=True,
+                output_scores=True,
+            )
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        output = self.processor.tokenizer.decode(
+            generation.sequences[0][inputs.input_ids.shape[1] :],
+            skip_special_tokens=True,
+        )
+        result = summarize_generation_confidence(generation, inputs.input_ids.shape[1])
+        result.update({'output': output, 'generate_ms': elapsed_ms})
+        return result
+
+    def _run_semantic_shadow_probe(
+        self,
+        image,
+        instruction,
+        instruction_state,
+        main_output,
+    ):
+        """Run native-vocabulary landmark/progress probes with no action effect."""
+        clause = instruction_state.current_clause or instruction
+        landmark = extract_reference_landmark(clause)
+        anchor_prompt = (
+            "You are an autonomous navigation assistant. Your task is to approach the "
+            f"{landmark} itself. Do not follow any route beyond the {landmark}. Where should "
+            "you go next? Output the waypoint's x y coordinates in the 640 by 480 image when "
+            "the landmark is visible. If it is not visible, output one turn direction."
+        )
+        progress_prompt = (
+            "You are an autonomous navigation assistant. Consider only this one navigation "
+            f"step: '{clause}'. Output STOP only if this step is already complete in the current "
+            "image. Otherwise output the next waypoint coordinates or one turn direction."
+        )
+        anchor_probe = self._run_native_shadow_generation(image, anchor_prompt)
+        progress_probe = self._run_native_shadow_generation(image, progress_prompt)
+        main_is_stop = bool(re.search(r"\bSTOP\b", str(main_output), re.I))
+        stop_probe = None
+        if main_is_stop:
+            stop_prompt = (
+                "You are an autonomous navigation assistant. The full task is: "
+                f"'{instruction}'. Inspect the current image without relying on the previous "
+                "decision. Output STOP only if the entire task is complete. Otherwise output "
+                "the next waypoint coordinates or one turn direction."
+            )
+            stop_probe = self._run_native_shadow_generation(image, stop_prompt)
+
+        anchor_row_col = self._parse_pixel_goal(anchor_probe['output'])
+        goal_row_col = self._parse_pixel_goal(main_output)
+        anchor_xy = (
+            [int(anchor_row_col[1]), int(anchor_row_col[0])]
+            if anchor_row_col is not None
+            else None
+        )
+        goal_xy = (
+            [int(goal_row_col[1]), int(goal_row_col[0])]
+            if goal_row_col is not None
+            else None
+        )
+        progress_complete = bool(
+            re.search(r"\bSTOP\b", str(progress_probe['output']), re.I)
+        )
+        stop_complete = (
+            bool(re.search(r"\bSTOP\b", str(stop_probe['output']), re.I))
+            if stop_probe is not None
+            else None
+        )
+        confidences = [
+            probe.get('generation_confidence')
+            for probe in (anchor_probe, progress_probe, stop_probe)
+            if probe is not None and probe.get('generation_confidence') is not None
+        ]
+        minimum_confidences = [
+            probe.get('minimum_token_confidence')
+            for probe in (anchor_probe, progress_probe, stop_probe)
+            if probe is not None and probe.get('minimum_token_confidence') is not None
+        ]
+        raw_payload = {
+            'anchor_output': anchor_probe['output'],
+            'progress_output': progress_probe['output'],
+            'stop_output': stop_probe['output'] if stop_probe is not None else None,
+        }
+        return {
+            'uncertain': anchor_xy is None,
+            'anchor': landmark,
+            'anchor_point': anchor_xy,
+            'goal_point': goal_xy,
+            'progress_step': int(instruction_state.current_index + int(progress_complete)),
+            'stop_complete': stop_complete,
+            'reason': (
+                f"anchor_localized={anchor_xy is not None}; "
+                f"progress_complete={progress_complete}; native_vocabulary_probe"
+            ),
+            'raw_output': json.dumps(raw_payload, ensure_ascii=False),
+            'anchor_output': anchor_probe['output'],
+            'progress_output': progress_probe['output'],
+            'stop_output': stop_probe['output'] if stop_probe is not None else None,
+            'anchor_localized': anchor_xy is not None,
+            'progress_complete': progress_complete,
+            'generation_confidence': (
+                float(np.mean(confidences)) if confidences else None
+            ),
+            'minimum_token_confidence': (
+                float(min(minimum_confidences)) if minimum_confidences else None
+            ),
+            'confidence_token_count': int(
+                sum(
+                    int(probe.get('confidence_token_count') or 0)
+                    for probe in (anchor_probe, progress_probe, stop_probe)
+                    if probe is not None
+                )
+            ),
+            'generate_ms': float(
+                sum(
+                    float(probe.get('generate_ms') or 0.0)
+                    for probe in (anchor_probe, progress_probe, stop_probe)
+                    if probe is not None
+                )
+            ),
+        }
+
+    def _run_stage_progress_probe(self, images, instruction, instruction_state):
+        """Estimate an ordered completion prefix; never update controller state."""
+        clauses = tuple(instruction_state.clauses)
+        controller_index = int(instruction_state.current_index)
+        outputs = []
+        confidences = []
+        stop = min(len(clauses), controller_index + self.s2_stage_probe_max_clauses)
+        for clause_index in range(controller_index, stop):
+            prompt = build_stage_probe_prompt(
+                instruction,
+                clauses,
+                clause_index,
+                image_count=len(images),
+            )
+            result = self._run_native_shadow_generation(images, prompt)
+            outputs.append(result['output'])
+            confidences.append(result.get('generation_confidence'))
+            estimate = estimate_stage_progress(controller_index, outputs, len(clauses))
+            if estimate.status in {'INCOMPLETE', 'UNCERTAIN'}:
+                break
+        estimate = estimate_stage_progress(controller_index, outputs, len(clauses))
+        return {
+            'controller_index': estimate.controller_index,
+            'inferred_index': estimate.inferred_index,
+            'status': estimate.status,
+            'clause_results': list(estimate.clause_results),
+            'raw_outputs': outputs,
+            'generation_confidences': confidences,
+            'diagnostic_only': True,
+        }
+
     def _diagnostic_env_step(self, action, observations_before, decision_step, phase, **fields):
         """Execute one Habitat action and log both model and camera-only steps."""
         metrics_before = self.env.get_metrics()
@@ -559,6 +811,8 @@ class HabitatVLNEvaluator(DistributedEvaluator):
             self._diagnostic_env_step_id = 0
             self.recovery_controller.reset()
             self.pixel_goal_memory.reset()
+            self.s2_confidence_gate.reset()
+            self.semantic_shadow_monitor.reset()
             initial_compass = np.asarray(observations.get('compass', [0.0])).reshape(-1)
             instruction_state = InstructionStateTracker(
                 episode_instruction,
@@ -783,21 +1037,107 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     s2_call_id += 1
                     s2_started = time.perf_counter()
                     with torch.no_grad():
-                        output_ids = self.model.generate(
+                        generation = self.model.generate(
                             **inputs,
                             max_new_tokens=128,
                             do_sample=False,
                             use_cache=True,
                             past_key_values=None,
                             return_dict_in_generate=True,
-                        ).sequences
+                            output_scores=True,
+                        )
+                        output_ids = generation.sequences
                     s2_generate_ms = (time.perf_counter() - s2_started) * 1000
+                    confidence_summary = summarize_generation_confidence(
+                        generation, inputs.input_ids.shape[1]
+                    )
+                    generation_confidence = confidence_summary['generation_confidence']
 
                     llm_outputs = self.processor.tokenizer.decode(
                         output_ids[0][inputs.input_ids.shape[1] :], skip_special_tokens=True
                     )
                     latest_s2_output = llm_outputs
                     print('step_id:', step_id, 'output text:', llm_outputs)
+                    if self.s2_stage_probe_enabled and self.diagnostic_logger is not None:
+                        stage_images = input_images[-self.s2_stage_probe_history :]
+                        stage_probe = self._run_stage_progress_probe(
+                            stage_images,
+                            episode_instruction,
+                            instruction_state,
+                        )
+                        self.diagnostic_logger.log(
+                            's2_stage_progress_probe',
+                            s2_call_id=current_s2_call_id,
+                            decision_step=step_id,
+                            image_count=len(stage_images),
+                            instruction_clauses=list(instruction_state.clauses),
+                            **stage_probe,
+                        )
+                    shadow_decision = self.semantic_shadow_monitor.assess(
+                        current_s2_call_id,
+                        instruction_state.current_clause,
+                        llm_outputs,
+                        generation_confidence,
+                        confidence_summary['minimum_token_confidence'],
+                    )
+                    shadow_result = None
+                    if self.semantic_shadow_enabled and self.diagnostic_logger is not None:
+                        if shadow_decision.query:
+                            shadow_result = self._run_semantic_shadow_probe(
+                                input_images[-1],
+                                episode_instruction,
+                                instruction_state,
+                                llm_outputs,
+                            )
+                            shadow_snapshot = self.diagnostic_logger.save_semantic_shadow(
+                                current_s2_call_id,
+                                input_images[-1],
+                                decision_step=step_id,
+                                anchor=shadow_result['anchor'],
+                                anchor_point=shadow_result['anchor_point'],
+                                goal_point=shadow_result['goal_point'],
+                                uncertain=shadow_result['uncertain'],
+                                progress_step=shadow_result['progress_step'],
+                                stop_complete=shadow_result['stop_complete'],
+                                reason=shadow_result['reason'],
+                                raw_output=shadow_result['raw_output'],
+                                generation_confidence=shadow_result['generation_confidence'],
+                            )
+                            self.diagnostic_logger.log(
+                                'semantic_shadow_probe',
+                                s2_call_id=current_s2_call_id,
+                                decision_step=step_id,
+                                diagnostic_only=True,
+                                primary_output=llm_outputs,
+                                primary_uncertainty_signal=shadow_decision.uncertainty_signal,
+                                primary_uncertainty_reasons=list(shadow_decision.reasons),
+                                semantic_risk=shadow_decision.semantic_risk,
+                                controller_instruction_state=instruction_state.as_dict(),
+                                **shadow_result,
+                                **shadow_snapshot,
+                            )
+                        self.diagnostic_logger.log(
+                            'semantic_shadow_signal',
+                            s2_call_id=current_s2_call_id,
+                            decision_step=step_id,
+                            diagnostic_only=True,
+                            queried=shadow_decision.query,
+                            primary_uncertainty_signal=shadow_decision.uncertainty_signal,
+                            primary_uncertainty_reasons=list(shadow_decision.reasons),
+                            semantic_risk=shadow_decision.semantic_risk,
+                            verifier_uncertain=(
+                                shadow_result['uncertain'] if shadow_result is not None else None
+                            ),
+                            combined_uncertainty_signal=bool(
+                                shadow_decision.uncertainty_signal
+                                or (
+                                    shadow_result is not None
+                                    and shadow_result['uncertain'] is True
+                                )
+                            ),
+                            current_subtask=instruction_state.current_clause,
+                            instruction_state=instruction_state.as_dict(),
+                        )
                     if action == action_code.LOOKDOWN and camera_pitch.restore_steps:
                         horizontal_observations = observations
                         for _ in range(camera_pitch.restore_steps):
@@ -823,6 +1163,15 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     )
 
                     parsed_pixel_goal = None if forced_stop else self._parse_pixel_goal(llm_outputs)
+                    low_confidence_pixel_goal = None
+                    pixel_goal_confidence_decision = None
+                    if parsed_pixel_goal is not None:
+                        pixel_goal_confidence_decision = self.s2_confidence_gate.evaluate_pixel_goal(
+                            generation_confidence
+                        )
+                        if pixel_goal_confidence_decision.reject:
+                            low_confidence_pixel_goal = list(parsed_pixel_goal)
+                            parsed_pixel_goal = None
                     if parsed_pixel_goal is not None:  # output pixel goal
                         forward_action = 0
                         pixel_goal = parsed_pixel_goal
@@ -871,6 +1220,11 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                     self.model_args.resize_w,
                                     self.model_args.resize_h,
                                 ),
+                                generation_confidence=generation_confidence,
+                                confidence_threshold=(
+                                    self.s2_confidence_gate.pixel_goal_threshold
+                                ),
+                                confidence_gate='accepted',
                             )
                             self.diagnostic_logger.log(
                                 's2_inference',
@@ -898,6 +1252,12 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 duplicate_goal=goal_decision.duplicate,
                                 duplicate_goal_failed_count=goal_decision.failed_duplicate_count,
                                 duplicate_goal_rejected=goal_decision.reject,
+                                confidence_gate='accepted',
+                                pixel_goal_confidence_threshold=(
+                                    self.s2_confidence_gate.pixel_goal_threshold
+                                ),
+                                stop_confidence_threshold=self.s2_confidence_gate.stop_threshold,
+                                **confidence_summary,
                                 **decision_snapshot,
                             )
 
@@ -1052,14 +1412,42 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         print('predicted goal', pixel_goal, flush=True)
 
                     else:
-                        action_seq = (
-                            [action_code.STOP]
-                            if forced_stop
-                            else self.parse_actions(llm_outputs)
-                        )
+                        if low_confidence_pixel_goal is not None:
+                            action_seq = [self.recovery_controller.exploratory_turn()]
+                            recovery_context = (
+                                f"The pixel goal {low_confidence_pixel_goal} was rejected because its "
+                                f"generation confidence {generation_confidence:.4f} was below "
+                                f"{self.s2_confidence_gate.pixel_goal_threshold:.4f}. Reassess the "
+                                "new observation after one bounded turn before choosing a waypoint."
+                            )
+                        else:
+                            action_seq = (
+                                [action_code.STOP]
+                                if forced_stop
+                                else self.parse_actions(llm_outputs)
+                            )
                         action_seq = bound_actions_at_lookdown(
                             action_seq, lookdown_action=action_code.LOOKDOWN
                         )
+                        stop_confidence_decision = None
+                        stop_rejected_low_confidence = False
+                        stop_confirmed_low_confidence = False
+                        if action_seq == [action_code.STOP] and not forced_stop:
+                            stop_confidence_decision = self.s2_confidence_gate.evaluate_stop(
+                                generation_confidence
+                            )
+                            stop_confirmed_low_confidence = stop_confidence_decision.confirmed
+                            if stop_confidence_decision.reject:
+                                action_seq = [self.recovery_controller.exploratory_turn()]
+                                stop_rejected_low_confidence = True
+                                recovery_context = (
+                                    f"STOP was rejected because generation confidence "
+                                    f"{generation_confidence:.4f} was below "
+                                    f"{self.s2_confidence_gate.stop_threshold:.4f}. Observe from one "
+                                    "bounded turn; a consecutive second STOP may confirm termination."
+                                )
+                        elif low_confidence_pixel_goal is None and not forced_stop:
+                            self.s2_confidence_gate.observe_non_stop()
                         original_direct_actions = [int(item) for item in action_seq]
                         action_seq, direct_action_override = (
                             self.recovery_controller.filter_direct_actions(
@@ -1125,6 +1513,12 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                             decision_output_type = (
                                 'stop_forced'
                                 if forced_stop
+                                else 'pixel_goal_rejected_low_confidence'
+                                if low_confidence_pixel_goal is not None
+                                else 'stop_rejected_low_confidence'
+                                if stop_rejected_low_confidence
+                                else 'stop_confirmed_low_confidence'
+                                if stop_confirmed_low_confidence
                                 else 'stop_rejected'
                                 if stop_rejected
                                 else ('stop' if action_seq == [action_code.STOP] else 'direct_actions')
@@ -1141,6 +1535,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 decision_step=step_id,
                                 output_type=decision_output_type,
                                 raw_output=llm_outputs,
+                                pixel_goal=low_confidence_pixel_goal,
                                 action_names=decision_action_names,
                                 current_subtask=instruction_state.current_clause,
                                 depth_m=(
@@ -1152,6 +1547,22 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                     self.model_args.resize_w,
                                     self.model_args.resize_h,
                                 ),
+                                generation_confidence=generation_confidence,
+                                confidence_threshold=(
+                                    self.s2_confidence_gate.pixel_goal_threshold
+                                    if low_confidence_pixel_goal is not None
+                                    else self.s2_confidence_gate.stop_threshold
+                                    if decision_output_type.startswith('stop')
+                                    else None
+                                ),
+                                confidence_gate=(
+                                    pixel_goal_confidence_decision.reason
+                                    if pixel_goal_confidence_decision is not None
+                                    and pixel_goal_confidence_decision.reject
+                                    else (stop_confidence_decision.reason or 'accepted')
+                                    if stop_confidence_decision is not None
+                                    else 'accepted'
+                                ),
                             )
                             self.diagnostic_logger.log(
                                 's2_inference',
@@ -1159,6 +1570,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 decision_step=step_id,
                                 raw_output=llm_outputs,
                                 output_type=decision_output_type,
+                                pixel_goal=low_confidence_pixel_goal,
                                 parsed_actions=[int(item) for item in action_seq],
                                 history_frame_ids=history_id if action != action_code.LOOKDOWN else [],
                                 input_image_count=len(input_images),
@@ -1166,6 +1578,19 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                                 generate_ms=s2_generate_ms,
                                 recovery_context=s2_recovery_context,
                                 forced_stop=forced_stop,
+                                confidence_gate=(
+                                    pixel_goal_confidence_decision.reason
+                                    if pixel_goal_confidence_decision is not None
+                                    and pixel_goal_confidence_decision.reject
+                                    else (stop_confidence_decision.reason or 'accepted')
+                                    if stop_confidence_decision is not None
+                                    else 'accepted'
+                                ),
+                                pixel_goal_confidence_threshold=(
+                                    self.s2_confidence_gate.pixel_goal_threshold
+                                ),
+                                stop_confidence_threshold=self.s2_confidence_gate.stop_threshold,
+                                **confidence_summary,
                                 instruction_state=instruction_state.as_dict(),
                                 depth_summary=(
                                     latest_depth_summary.__dict__ if latest_depth_summary is not None else None
@@ -1306,8 +1731,8 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     frame = observations_to_image({'rgb': np.asarray(save_raw_image)}, info)
                     if pixel_goal is not None and flag:
                         display_goal = project_pixel_point(
-                            pixel_goal,
-                            (self.model_args.resize_w, self.model_args.resize_h),
+                            (pixel_goal[1], pixel_goal[0]),
+                            save_raw_image.size,
                             save_raw_image.size,
                         )
                         cv2.circle(
@@ -1355,8 +1780,8 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     if pixel_goal is not None:
                         if draw_pixel_goal:
                             display_goal = project_pixel_point(
-                                pixel_goal,
-                                (self.model_args.resize_w, self.model_args.resize_h),
+                                (pixel_goal[1], pixel_goal[0]),
+                                save_raw_image.size,
                                 save_raw_image.size,
                             )
                             cv2.circle(
