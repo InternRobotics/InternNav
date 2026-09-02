@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -292,9 +292,38 @@ class LuminaNextDiT2DModel(ModelMixin, ConfigMixin):
 
         assert (hidden_size // num_attention_heads) % 4 == 0, "2d rope needs head dim to be divisible by 4"
 
-    def _set_gradient_checkpointing(self, module, value=False):
-        if hasattr(module, "gradient_checkpointing"):
-            module.gradient_checkpointing = value
+    def _set_gradient_checkpointing(
+        self,
+        module: Optional[nn.Module] = None,
+        value: Optional[bool] = None,
+        *,
+        enable: Optional[bool] = None,
+        gradient_checkpointing_func: Optional[Callable] = None,
+    ) -> None:
+        """Set checkpointing flags across diffusers API generations.
+
+        Diffusers versions up to 0.33 call this hook once per module as
+        ``_set_gradient_checkpointing(module, value=True)``.  Newer versions
+        call it on the model with ``enable=`` and a checkpoint function.  A
+        single adapter keeps both call conventions functional and propagates
+        the function supplied by newer versions to every checkpointable
+        submodule.
+        """
+        if enable is not None:
+            value = enable
+        if value is None:
+            value = False
+
+        if module is None:
+            modules = self.modules()
+        else:
+            modules = (module,)
+
+        for child in modules:
+            if hasattr(child, "gradient_checkpointing"):
+                child.gradient_checkpointing = value
+                if gradient_checkpointing_func is not None:
+                    child._gradient_checkpointing_func = gradient_checkpointing_func
 
     def forward(
         self,
