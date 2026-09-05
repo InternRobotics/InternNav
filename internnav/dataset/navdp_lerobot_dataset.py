@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 
 import cv2
+import jsonlines
 import numpy as np
 import open3d as o3d
 import pandas as pd
@@ -42,6 +43,7 @@ class NavDP_Base_Datset(Dataset):
         scene_data_scale=1.0,
         trajectory_data_scale=1.0,
         pixel_channel=7,
+        action_dim=3,
         debug=False,
         preload=False,
         random_digit=False,
@@ -54,8 +56,9 @@ class NavDP_Base_Datset(Dataset):
         self.scene_scale_size = scene_data_scale
         self.trajectory_data_scale = trajectory_data_scale
         self.predict_size = predict_size
+        self.action_dim = action_dim
         self.debug = debug
-        self.trajectory_dirs = []
+
         self.trajectory_data_dir = []
         self.trajectory_rgb_path = []
         self.trajectory_depth_path = []
@@ -74,39 +77,45 @@ class NavDP_Base_Datset(Dataset):
                 select_scene_dirs = all_scene_dirs[
                     np.arange(0, all_scene_dirs.shape[0], 1 / self.scene_scale_size).astype(np.int32)
                 ]
-                for scene_dir in select_scene_dirs:
-                    all_traj_dirs = np.array([p for p in os.listdir(os.path.join(root_dirs, group_dir, scene_dir))])
-                    select_traj_dirs = all_traj_dirs[
-                        np.arange(0, all_traj_dirs.shape[0], 1 / self.trajectory_data_scale).astype(np.int32)
-                    ]
-                    for traj_dir in tqdm(select_traj_dirs):
-                        entire_task_dir = os.path.join(root_dirs, group_dir, scene_dir, traj_dir)
-                        rgb_dir = os.path.join(entire_task_dir, "videos/chunk-000/observation.images.rgb/")
-                        depth_dir = os.path.join(entire_task_dir, "videos/chunk-000/observation.images.depth/")
-                        data_path = os.path.join(
-                            entire_task_dir, 'data/chunk-000/episode_000000.parquet'
-                        )  # intrinsic, extrinsic, cam_traj, path
-                        afford_path = os.path.join(entire_task_dir, 'data/chunk-000/path.ply')
-                        rgbs_length = len([p for p in os.listdir(rgb_dir)])
-                        depths_length = len([p for p in os.listdir(depth_dir)])
 
-                        rgbs_path = []
-                        depths_path = []
-                        if depths_length != rgbs_length:
-                            continue
-                        for i in range(rgbs_length):
-                            rgbs_path.append(os.path.join(rgb_dir, "%d.jpg" % i))
-                            depths_path.append(os.path.join(depth_dir, "%d.png" % i))
-                        if os.path.exists(data_path) is False:
-                            continue
-                        self.trajectory_dirs.append(entire_task_dir)
-                        self.trajectory_data_dir.append(data_path)
-                        self.trajectory_rgb_path.append(rgbs_path)
-                        self.trajectory_depth_path.append(depths_path)
-                        self.trajectory_afford_path.append(afford_path)
+                for scene_dir in tqdm(select_scene_dirs):
+                    chunk_name = os.listdir(os.path.join(root_dirs, group_dir, scene_dir, 'data'))[0]
+                    data_dir = os.path.join(root_dirs, group_dir, scene_dir, f'data/{chunk_name}')
+                    afford_dir = os.path.join(root_dirs, group_dir, scene_dir, 'meta/pointcloud.ply')
+                    with jsonlines.open(
+                        os.path.join(root_dirs, group_dir, scene_dir, 'meta/episodes_stats.jsonl'), 'r'
+                    ) as reader:
+                        episode_info = list(reader)
+                    rgb_dir = os.path.join(
+                        root_dirs, group_dir, scene_dir, f"videos/{chunk_name}/observation.images.rgb/"
+                    )
+                    rgb_paths = [os.path.join(rgb_dir, p) for p in sorted(os.listdir(rgb_dir))]
+
+                    depth_dir = os.path.join(
+                        root_dirs, group_dir, scene_dir, f"videos/{chunk_name}/observation.images.depth/"
+                    )
+                    depth_paths = [os.path.join(depth_dir, p) for p in sorted(os.listdir(depth_dir))]
+
+                    data_paths = [os.path.join(data_dir, p) for p in sorted(os.listdir(data_dir))]
+
+                    for episode_idx, episode in enumerate(episode_info):
+                        image_start_index = episode['image_index']['min']
+                        image_end_index = episode['image_index']['max']
+                        episode_rgb_path = np.array(rgb_paths)[image_start_index : image_end_index + 1].tolist()
+                        episode_depth_path = np.array(depth_paths)[image_start_index : image_end_index + 1].tolist()
+
+                        try:
+                            self.trajectory_data_dir.append(data_paths[episode_idx])
+                            self.trajectory_rgb_path.append(episode_rgb_path)
+                            self.trajectory_depth_path.append(episode_depth_path)
+                            self.trajectory_afford_path.append(afford_dir)
+                        except Exception as e:
+                            import pdb
+
+                            print(f"Error processing episode {episode_idx}: {e}")
+                            pdb.set_trace()
 
             save_dict = {
-                'trajectory_dirs': self.trajectory_dirs,
                 'trajectory_data_dir': self.trajectory_data_dir,
                 'trajectory_rgb_path': self.trajectory_rgb_path,
                 'trajectory_depth_path': self.trajectory_depth_path,
@@ -114,25 +123,38 @@ class NavDP_Base_Datset(Dataset):
             }
             with open(preload_path, 'w') as f:
                 json.dump(save_dict, f, indent=4)
+
+            # replicate the data 50 times
+            self.trajectory_data_dir = self.trajectory_data_dir * 50
+            self.trajectory_rgb_path = self.trajectory_rgb_path * 50
+            self.trajectory_depth_path = self.trajectory_depth_path * 50
+            self.trajectory_afford_path = self.trajectory_afford_path * 50
         else:
             load_dict = json.load(open(preload_path, 'r'))
-            self.trajectory_dirs = load_dict['trajectory_dirs'] * 50
             self.trajectory_data_dir = load_dict['trajectory_data_dir'] * 50
             self.trajectory_rgb_path = load_dict['trajectory_rgb_path'] * 50
             self.trajectory_depth_path = load_dict['trajectory_depth_path'] * 50
             self.trajectory_afford_path = load_dict['trajectory_afford_path'] * 50
 
     def __len__(self):
-        return len(self.trajectory_dirs)
+        return len(self.trajectory_data_dir)
 
     def load_image(self, image_url):
-        image = Image.open(image_url)
-        image = np.array(image, np.uint8)
+        try:
+            image = Image.open(image_url)
+            image = np.array(image, np.uint8)
+        except Exception as e:
+            print(f"Error loading image {image_url}: {e}")
+            image = np.zeros((self.image_size, self.image_size, 3), dtype=np.uint8)
         return image
 
     def load_depth(self, depth_url):
-        depth = Image.open(depth_url)
-        depth = np.array(depth, np.uint16)
+        try:
+            depth = Image.open(depth_url)
+            depth = np.array(depth, np.uint16)
+        except Exception as e:
+            print(f"Error loading depth {depth_url}: {e}")
+            depth = np.zeros((self.image_size, self.image_size), dtype=np.uint16)
         return depth
 
     def load_pointcloud(self, pcd_url):
@@ -176,39 +198,19 @@ class NavDP_Base_Datset(Dataset):
         camera_intrinsic = np.vstack(np.array(df['observation.camera_intrinsic'].tolist()[0])).reshape(3, 3)
         camera_extrinsic = np.vstack(np.array(df['observation.camera_extrinsic'].tolist()[0])).reshape(4, 4)
         trajectory_length = len(df['action'].tolist())
-        camera_trajectory = np.array([np.stack(frame) for frame in df['action']], dtype=np.float64)
+        camera_trajectory = np.array([np.stack(frame) for frame in df['action']], dtype=np.float64).reshape(-1, 4, 4)
         return camera_intrinsic, camera_extrinsic, camera_trajectory, trajectory_length
 
-    def process_path_points(self, index):
-        trajectory_pcd = self.load_pointcloud(self.trajectory_afford_path[index])
-        trajectory_color = np.array(trajectory_pcd.colors)
-        color_distance = np.abs(trajectory_color - np.array([0, 0, 0])).sum(
-            axis=-1
-        )  # sometimes, the path are saved as black points
+    def process_obstacle_points(self, index):
+        scene_pcd = self.load_pointcloud(self.trajectory_afford_path[index])
+        scene_color = np.array(scene_pcd.colors)
+        scene_points = np.array(scene_pcd.points)
+        color_distance = np.abs(scene_color - np.array([0, 0, 0.5])).sum(axis=-1)
         select_index = np.where(color_distance < 0.05)[0]
-        trajectory_path = o3d.geometry.PointCloud()
-        trajectory_path.points = o3d.utility.Vector3dVector(np.asarray(trajectory_pcd.points)[select_index])
-        trajectory_path.colors = o3d.utility.Vector3dVector(np.asarray(trajectory_pcd.colors)[select_index])
-        return np.array(trajectory_path.points), trajectory_path
-
-    def process_obstacle_points(self, index, path_points):
-        trajectory_pcd = self.load_pointcloud(self.trajectory_afford_path[index])
-        trajectory_color = np.array(trajectory_pcd.colors)
-        trajectory_points = np.array(trajectory_pcd.points)
-        color_distance = np.abs(trajectory_color - np.array([0, 0, 0.5])).sum(axis=-1)  # the obstacles are save in blue
-        path_lower_bound = path_points.min(axis=0)
-        path_upper_bound = path_points.max(axis=0)
-        condition_x = (trajectory_points[:, 0] >= path_lower_bound[0] - 2.0) & (
-            trajectory_points[:, 0] <= path_upper_bound[0] + 2.0
-        )
-        condition_y = (trajectory_points[:, 1] >= path_lower_bound[1] - 2.0) & (
-            trajectory_points[:, 1] <= path_upper_bound[1] + 2.0
-        )
-        select_index = np.where((color_distance < 0.05) & condition_x & condition_y)[0]
-        trajectory_obstacle = o3d.geometry.PointCloud()
-        trajectory_obstacle.points = o3d.utility.Vector3dVector(np.asarray(trajectory_pcd.points)[select_index])
-        trajectory_obstacle.colors = o3d.utility.Vector3dVector(np.asarray(trajectory_pcd.colors)[select_index])
-        return np.array(trajectory_obstacle.points), trajectory_obstacle
+        scene_obstacle = o3d.geometry.PointCloud()
+        scene_obstacle.points = o3d.utility.Vector3dVector(scene_points[select_index])
+        scene_obstacle.colors = o3d.utility.Vector3dVector(scene_color[select_index])
+        return np.array(scene_obstacle.points), scene_obstacle
 
     def process_memory(self, rgb_paths, depth_paths, start_step, memory_digit=1):
         memory_index = np.arange(start_step - (self.memory_size - 1) * memory_digit, start_step + 1, memory_digit)
@@ -220,8 +222,12 @@ class NavDP_Base_Datset(Dataset):
         return context_image, context_depth, memory_index
 
     def process_pixel_goal(self, image_url, target_point, camera_intrinsic, camera_extrinsic):
-        image = Image.open(image_url)
-        image = np.array(image, np.uint8)
+        try:
+            image = Image.open(image_url)
+            image = np.array(image, np.uint8)
+        except Exception as e:
+            print(f"Error loading image {image_url}: {e}")
+            image = np.zeros((self.image_size, self.image_size, 3), dtype=np.uint8)
         resize_image = self.process_image(image_url)
 
         coordinate = np.array([-target_point[1], target_point[0], camera_extrinsic[2, 3] * 0.8])
@@ -422,10 +428,7 @@ class NavDP_Base_Datset(Dataset):
             trajectory_length,
         ) = self.process_data_parquet(index)
 
-        trajectory_path_points, trajectory_path_pcd = self.process_path_points(index)
-        trajectory_obstacle_points, trajectory_obstacle_pcd = self.process_obstacle_points(
-            index, trajectory_path_points
-        )
+        trajectory_obstacle_points, trajectory_obstacle_pcd = self.process_obstacle_points(index)
 
         if self.prior_sample:
             pixel_start_choice, target_choice = self.rank_steps()
@@ -435,7 +438,6 @@ class NavDP_Base_Datset(Dataset):
             target_choice = np.random.randint(pixel_start_choice + 1, trajectory_length - 1)
             memory_start_choice = np.random.randint(pixel_start_choice, target_choice)
 
-        # target_extrinsic = trajectory_extrinsics[target_choice]
         if self.random_digit:
             memory_digit = np.random.randint(2, 8)
             pred_digit = memory_digit
@@ -458,6 +460,7 @@ class NavDP_Base_Datset(Dataset):
         ) = self.process_actions(
             trajectory_extrinsics, trajectory_base_extrinsic, memory_start_choice, target_choice, pred_digit=pred_digit
         )
+
         # convert the xyz points into xy-theta points
         init_vector = target_local_points[1] - target_local_points[0]
         target_xyt_actions = self.xyz_to_xyt(target_local_points, init_vector)
@@ -521,6 +524,19 @@ class NavDP_Base_Datset(Dataset):
         pred_actions = (pred_actions[1:] - pred_actions[:-1]) * 4.0
         augment_actions = (augment_actions[1:] - augment_actions[:-1]) * 4.0
 
+        pred_actions = np.pad(
+            pred_actions,
+            ((0, 0), (0, self.action_dim - pred_actions.shape[-1])),
+            mode='constant',
+            constant_values=(0, 0),
+        )
+        augment_actions = np.pad(
+            augment_actions,
+            ((0, 0), (0, self.action_dim - augment_actions.shape[-1])),
+            mode='constant',
+            constant_values=(0, 0),
+        )
+
         # Summarize avg time of batch
         end_time = time.time()
         self.item_cnt += 1
@@ -573,13 +589,13 @@ def navdp_collate_fn(batch):
 if __name__ == "__main__":
     os.makedirs("./navdp_dataset_test/", exist_ok=True)
     dataset = NavDP_Base_Datset(
-        "/shared/smartbot_new/liuyu/vln-n1-minival/",
-        "./navdp_dataset_test/dataset_lerobot.json",
+        "/mnt/data/liuyu/InternDate-N1-v05/vln-n1",
+        "./navdp_dataset_test/dataset_lerobot_v05_with_interiorgs.json",
         8,
         24,
         224,
-        trajectory_data_scale=0.1,
-        scene_data_scale=0.1,
+        trajectory_data_scale=1.0,
+        scene_data_scale=1.0,
         preload=False,
     )
 

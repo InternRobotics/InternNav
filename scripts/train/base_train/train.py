@@ -127,6 +127,9 @@ def main(config, model_class, model_config_class):
         model = model_class.from_pretrained(pretrained_model_name_or_path=config.il.ckpt_to_load, config=model_cfg)
         if config.model_name == "navdp":
             model.to(device)
+            for name, param in model.named_parameters():
+                if 'mask_token' in name:
+                    param.requires_grad = False
             # Check that all parameters and buffers are on the correct device
             for name, param in model.named_parameters():
                 if param.device != device:

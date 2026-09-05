@@ -233,14 +233,13 @@ Below are selected community-driven deployment guides and solution write-ups, wh
 
 If you find our InternVLA-N1 (Dual System) model helpful, please cite our ICLR paper and previous technical report:
 ```bibtex
-@misc{wei2025groundslowfastdualsystem,
-      title={Ground Slow, Move Fast: A Dual-System Foundation Model for Generalizable Vision-and-Language Navigation},
-      author={Meng Wei and Chenyang Wan and Jiaqi Peng and Xiqian Yu and Yuqiang Yang and Delin Feng and Wenzhe Cai and Chenming Zhu and Tai Wang and Jiangmiao Pang and Xihui Liu},
-      year={2025},
-      eprint={2512.08186},
-      archivePrefix={arXiv},
-      primaryClass={cs.RO},
-      url={https://arxiv.org/abs/2512.08186},
+@inproceedings{
+  wei2026ground,
+  title={Ground Slow, Move Fast: A Dual-System Foundation Model for Generalizable Vision-Language Navigation},
+  author={Meng Wei and Chenyang Wan and Jiaqi Peng and Xiqian Yu and Yuqiang Yang and Delin Feng and Wenzhe Cai and Chenming Zhu and Tai Wang and Jiangmiao Pang and Xihui Liu},
+  booktitle={The Fourteenth International Conference on Learning Representations},
+  year={2026},
+  url={https://openreview.net/forum?id=GK4rznYwhn}
 }
 @misc{internvla-n1,
     title = {{InternVLA-N1: An} Open Dual-System Navigation Foundation Model with Learned Latent Plans},
@@ -271,17 +270,17 @@ If you use this InternNav codebase to develop your method, please cite our codeb
   booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)},
   year={2025}
 }
-@misc{streamvln,
+@inproceedings{streamvln,
     title = {StreamVLN: Streaming Vision-and-Language Navigation via SlowFast Context Modeling},
     author = {Wei, Meng and Wan, Chenyang and Yu, Xiqian and Wang, Tai and Yang, Yuqiang and Mao, Xiaohan and Zhu, Chenming and Cai, Wenzhe and Wang, Hanqing and Chen, Yilun and Liu, Xihui and Pang, Jiangmiao},
-    booktitle={arXiv},
-    year = {2025}
+    booktitle={2026 IEEE International Conference on Robotics and Automation (ICRA)},
+    year = {2026}
 }
-@misc{navdp,
+@inproceedings{navdp,
     title = {NavDP: Learning Sim-to-Real Navigation Diffusion Policy with Privileged Information Guidance},
     author = {Wenzhe Cai, Jiaqi Peng, Yuqiang Yang, Yujian Zhang, Meng Wei, Hanqing Wang, Yilun Chen, Tai Wang and Jiangmiao Pang},
-    year = {2025},
-    booktitle={arXiv},
+    booktitle={2026 IEEE International Conference on Robotics and Automation (ICRA)},
+    year = {2026},
 }
 ```
 
