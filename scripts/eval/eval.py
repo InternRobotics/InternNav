@@ -19,6 +19,11 @@ def parse_args():
         default='scripts/eval/configs/h1_rdp_cfg.py',
         help='eval config file path, e.g. scripts/eval/configs/h1_cma_cfg.py',
     )
+    parser.add_argument(
+        '--kv-cache-continuation',
+        action='store_true',
+        help='Reuse the generation KV cache for latent readout in Habitat dual-system evaluation (default: off).',
+    )
     return parser.parse_args()
 
 
@@ -33,6 +38,10 @@ def load_eval_cfg(config_path, attr_name='eval_cfg'):
 def main():
     args = parse_args()
     evaluator_cfg = load_eval_cfg(args.config, attr_name='eval_cfg')
+    if args.kv_cache_continuation:
+        if evaluator_cfg.eval_type != 'habitat_vln' or evaluator_cfg.agent.model_settings.get('mode') != 'dual_system':
+            raise ValueError('--kv-cache-continuation requires a Habitat dual_system configuration.')
+        evaluator_cfg.agent.model_settings['kv_cache_continuation'] = True
 
     # fill in evaluator default config
     if evaluator_cfg.eval_type == 'vln_distributed':

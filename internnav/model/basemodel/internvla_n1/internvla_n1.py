@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from diffusers.schedulers import FlowMatchEulerDiscreteScheduler
 from diffusers.utils.torch_utils import randn_tensor
 from transformers import (
+    DynamicCache,
     Qwen2_5_VLConfig,
     Qwen2_5_VLForConditionalGeneration,
     Qwen2_5_VLModel,
@@ -345,6 +346,69 @@ class InternVLAN1ForCausalLM(Qwen2_5_VLForConditionalGeneration, InternVLAN1Meta
         hidden_states = outputs.hidden_states[-1][:, -N_QUERY:, :]
 
         return hidden_states
+
+    @torch.no_grad()
+    def generate_latents_from_cache(self, generation_outputs, image_grid_thw, attention_mask=None):
+        """Read latent queries by continuing the cache from the same generation.
+
+        Use an unpadded, batch-one, non-beam generation's DynamicCache and its
+        original image grid/mask. The final token and latent queries are processed
+        together. The input cache is restored after readout. BF16 output may
+        differ from full replay because of floating-point execution order.
+        """
+        input_ids = generation_outputs.sequences
+        cache = getattr(generation_outputs, 'past_key_values', None)
+        if self.training:
+            raise ValueError('KV-cache latent readout requires model.eval().')
+        if type(cache) is not DynamicCache:
+            raise ValueError('KV-cache latent readout requires a DynamicCache from generate(use_cache=True).')
+        if (
+            input_ids.ndim != 2
+            or input_ids.shape[0] != 1
+            or getattr(generation_outputs, 'beam_indices', None) is not None
+        ):
+            raise ValueError('KV-cache latent readout supports batch size 1 and num_beams=1 only.')
+        if self.config.use_sliding_window:
+            raise ValueError('KV-cache latent readout requires full attention.')
+        if attention_mask is not None and (
+            attention_mask.ndim != 2
+            or attention_mask.shape[0] != 1
+            or not 0 < attention_mask.shape[1] <= input_ids.shape[1]
+            or not torch.all(attention_mask == 1)
+        ):
+            raise ValueError('KV-cache latent readout supports unpadded inputs only.')
+
+        cached_length = cache.get_seq_length()
+        sequence_length = input_ids.shape[1]
+        if cached_length <= 0 or sequence_length - cached_length not in (0, 1):
+            raise ValueError('Generation cache must cover the sequence except, optionally, its final token.')
+        if cache.key_cache[0].shape[0] != 1:
+            raise ValueError('KV-cache latent readout supports batch size 1 and num_beams=1 only.')
+        missing_ids = input_ids[:, cached_length:]
+        for token_id in (IMAGE_TOKEN_INDEX, self.config.video_token_id, TRAJ_TOKEN_INDEX):
+            if torch.any(missing_ids == token_id):
+                raise ValueError('The uncached generation suffix must contain ordinary text tokens only.')
+
+        n_query = self.get_n_query()
+        query_ids = input_ids.new_full((1, n_query), TRAJ_TOKEN_INDEX)
+        # Match full replay's mRoPE positions without depending on mutable rope_deltas.
+        position_ids, _ = self.get_rope_index(torch.cat([input_ids, query_ids], dim=1), image_grid_thw)
+        inputs_embeds = torch.cat([self.model.embed_tokens(missing_ids), self.model.latent_queries], dim=1)
+        cache_position = torch.arange(cached_length, sequence_length + n_query, device=input_ids.device)
+        try:
+            outputs = self.model(
+                inputs_embeds=inputs_embeds,
+                position_ids=position_ids[:, :, cached_length:],
+                past_key_values=cache,
+                cache_position=cache_position,
+                use_cache=False,
+                output_hidden_states=False,
+                return_dict=True,
+            )
+            return outputs.last_hidden_state[:, -n_query:, :]
+        finally:
+            # DynamicCache is updated in place, even with use_cache=False.
+            cache.crop(cached_length)
 
     def generate_traj(
         self,
