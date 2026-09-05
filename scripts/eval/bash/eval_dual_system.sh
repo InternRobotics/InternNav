@@ -10,4 +10,5 @@ srun -p <YOUR_PARTITION_NAME> \
     --kill-on-bad-exit=1 \
     python scripts/eval/eval.py \
         --config $CONFIG \
+        "$@" \
     > logs/${MID_RUN_NAME}_log.txt 2>&1

@@ -261,6 +261,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
 
     def _run_eval_dual_system(self) -> tuple:  # noqa: C901
         self.model.eval()
+        kv_cache_continuation = getattr(self.model_args, 'kv_cache_continuation', False)
 
         # resume from previous results
         sucs, spls, oss, nes, ndtw = self.resume_from_output_path()
@@ -415,14 +416,17 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                     inputs = self.processor(text=[text], images=input_images, return_tensors="pt").to(self.model.device)
 
                     with torch.no_grad():
-                        output_ids = self.model.generate(
+                        generation_outputs = self.model.generate(
                             **inputs,
                             max_new_tokens=128,
                             do_sample=False,
                             use_cache=True,
                             past_key_values=None,
                             return_dict_in_generate=True,
-                        ).sequences
+                        )
+                        output_ids = generation_outputs.sequences
+                        if not kv_cache_continuation:
+                            generation_outputs = None
 
                     llm_outputs = self.processor.tokenizer.decode(
                         output_ids[0][inputs.input_ids.shape[1] :], skip_special_tokens=True
@@ -445,7 +449,13 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         image_grid_thw = torch.cat([thw.unsqueeze(0) for thw in inputs.image_grid_thw], dim=0)
 
                         with torch.no_grad():
-                            traj_latents = self.model.generate_latents(output_ids, pixel_values, image_grid_thw)
+                            if kv_cache_continuation:
+                                traj_latents = self.model.generate_latents_from_cache(
+                                    generation_outputs, image_grid_thw, inputs.attention_mask
+                                )
+                            else:
+                                traj_latents = self.model.generate_latents(output_ids, pixel_values, image_grid_thw)
+                        generation_outputs = None
 
                         # prepocess align with navdp
                         image_dp = torch.tensor(np.array(look_down_image.resize((224, 224)))).to(torch.bfloat16) / 255
@@ -478,6 +488,7 @@ class HabitatVLNEvaluator(DistributedEvaluator):
                         print('predicted goal', pixel_goal, flush=True)
 
                     else:
+                        generation_outputs = None
                         action_seq = self.parse_actions(llm_outputs)
                         print('actions', action_seq, flush=True)
 
