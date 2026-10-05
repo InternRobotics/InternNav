@@ -1,0 +1,19 @@
+--extra-index-url https://download.pytorch.org/whl/xpu
+torch==2.14.1+xpu
+torchvision==0.29.1+xpu
+accelerate==1.4.0
+diffusers==0.32.2
+transformers==4.51.0
+ftfy==6.3.1
+einops==0.8.1
+numpy==1.26.4
+opencv-python-headless==4.11.0.86
+pydantic>=2.11,<2.12
+flask>=3.1,<4
+gym==0.26.2
+imageio==2.37.0
+pillow>=11,<12
+numpy-quaternion==2024.0.13
+scipy>=1.15,<1.18
+fastapi>=0.110,<0.111
+uvicorn>=0.29,<0.31

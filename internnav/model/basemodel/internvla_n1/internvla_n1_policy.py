@@ -14,6 +14,7 @@ from internnav.model.basemodel.internvla_n1.internvla_n1 import (
     InternVLAN1ForCausalLM,
     InternVLAN1ModelConfig,
 )
+from internnav.model.utils.inference_device import resolve_inference_device
 from internnav.model.utils.vln_utils import (
     S1Output,
     S2Output,
@@ -30,11 +31,14 @@ class InternVLAN1Net(PreTrainedModel):
         super().__init__(config)
         self.model_config = ModelCfg(**config.model_cfg['model'])
 
+        device, attention = resolve_inference_device(
+            self.model_config.device, getattr(self.model_config, 'attn_implementation', 'auto')
+        )
         self.model = InternVLAN1ForCausalLM.from_pretrained(
             self.model_config.model_path,
             torch_dtype=torch.bfloat16,
-            attn_implementation="flash_attention_2",
-            device_map={"": self.model_config.device},
+            attn_implementation=attention,
+            device_map={"": device},
         )
 
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_config.model_path, use_fast=True)

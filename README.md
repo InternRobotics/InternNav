@@ -63,6 +63,8 @@ The toolbox supports the most advanced high-quality navigation dataset, InternDa
 
 Please refer to the [documentation](https://internrobotics.github.io/user_guide/internnav/quick_start/index.html) for quick start with InternNav, from installation to training or evaluating supported models.
 
+For native Intel XPU inference, see [setup and validation limits](docs/xpu_inference.md). The existing CUDA installation route is unchanged.
+
 ## 📦 Overview
 
 ### 🧪 Supported Benchmarks
